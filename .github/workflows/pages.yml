@@ -1,0 +1,101 @@
+# Publica o editor como site estático no GitHub Pages.
+#
+# Nada roda no servidor: o motor vai junto como WebAssembly e a diagramação
+# acontece na máquina de quem abre a página. Por isso a esteira tem duas
+# metades — compilar o Rust para wasm, e empacotar o editor em volta dele.
+#
+# Antes do primeiro push: Settings → Pages → Source = "GitHub Actions".
+
+name: demo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Um deploy por vez. Um push novo espera o anterior em vez de disputar.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Alvo wasm
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Cache do cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: wasm-bindgen e wasm-opt
+        run: |
+          set -euo pipefail
+          # A CLI precisa casar com a versão da crate, que o Cargo.toml fixa em
+          # "=0.2.114". Ler do lockfile evita anotar o número em dois lugares e
+          # deixar um deles para trás.
+          version=$(awk '/^name = "wasm-bindgen"$/ { found = 1; next }
+                         found && /^version = / { gsub(/"/, "", $3); print $3; exit }' Cargo.lock)
+          echo "wasm-bindgen $version"
+
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSfL "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/$version/wasm-bindgen-$version-x86_64-unknown-linux-musl.tar.gz" \
+            | tar xz -C "$RUNNER_TEMP/bin" --strip-components=1 \
+                "wasm-bindgen-$version-x86_64-unknown-linux-musl/wasm-bindgen"
+          # wasm-opt corta o módulo quase pela metade; sem ele o Makefile segue,
+          # mas a demo fica pesada para quem abre no celular.
+          curl -sSfL "https://github.com/WebAssembly/binaryen/releases/download/version_119/binaryen-version_119-x86_64-linux.tar.gz" \
+            | tar xz -C "$RUNNER_TEMP/bin" --strip-components=2 \
+                "binaryen-version_119/bin/wasm-opt"
+
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Motor → wasm
+        run: make build-browser
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/editor/package-lock.json
+
+      - name: Editor → dist
+        working-directory: packages/editor
+        # Um site de projeto é servido em /<repo>/, não na raiz do domínio.
+        run: |
+          set -euo pipefail
+          npm ci
+          BASE_PATH="/${GITHUB_REPOSITORY#*/}/" npm run build
+
+      - name: Tamanho do que vai ao ar
+        run: |
+          du -h --max-depth=1 packages/editor/dist
+          make size
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/editor/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

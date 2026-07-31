@@ -177,6 +177,10 @@ arrastar para reordenar (inclusive para dentro de grupos), renomear com duplo
 clique e alternar visibilidade e trava. Um marcador vermelho aponta texto que
 não coube — o *overset* do InDesign.
 
+Páginas e grupos são retráteis: um material de dez páginas cabe numa tela só
+quando tudo está recolhido. `Alt`+clique na seta dobra a subárvore inteira, e
+selecionar um objeto no canvas abre o que for preciso para mostrá-lo.
+
 ### Testes do editor
 
 Três páginas, todas contra o motor real:
@@ -198,6 +202,28 @@ As duas últimas existem porque exceções lançadas dentro de um listener não
 chegam a quem disparou o evento — um teste que só olha valores de retorno não vê
 o handler quebrado.
 
+## Demo
+
+O editor é estático: não há servidor por trás dele. O motor viaja como
+WebAssembly e a diagramação acontece na máquina de quem abre a página, então o
+material aberto na demo nunca sai do navegador — e o PDF sai da própria aba.
+
+```sh
+make demo BASE_PATH=/gerador-de-materiais/   # → packages/editor/dist/
+make demo-serve BASE_PATH=/gerador-de-materiais/
+```
+
+`BASE_PATH` é o subcaminho de onde o site será servido; um site de projeto no
+GitHub Pages vive em `/<repo>/`, não na raiz do domínio. `demo-serve` levanta o
+pacote exatamente sob esse subcaminho, que é onde um `BASE_PATH` errado aparece
+antes de ir ao ar.
+
+A publicação é automática: `.github/workflows/pages.yml` compila o motor para
+wasm, empacota o editor em volta e manda para o Pages a cada push na `main`. A
+versão da CLI `wasm-bindgen` é lida do `Cargo.lock` para não divergir do pin da
+crate. Antes do primeiro push, ligue **Settings → Pages → Source = GitHub
+Actions**.
+
 ## Estrutura
 
 ```
@@ -205,6 +231,7 @@ crates/diagramador/   motor: schema, layout, PDF, bindings
 packages/editor/      editor TypeScript sobre Vite
 examples/             documentos de exemplo
 fonts/                faces usadas nos exemplos e testes
+.github/workflows/    esteira que publica a demo no Pages
 ```
 
 `ARCHITECTURE.md` explica as decisões — por que o motor é a autoridade, como um

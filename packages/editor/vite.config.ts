@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 const repoRoot = resolve(import.meta.dirname, "../..");
 
 export default defineConfig({
+  // A project site on GitHub Pages is served from `/<repo>/`, not from the
+  // root. The workflow passes the prefix in; a local build stays at `/`.
+  base: process.env.BASE_PATH ?? "/",
   server: {
     port: 5180,
     open: true,

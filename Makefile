@@ -1,10 +1,13 @@
-.PHONY: help build build-browser build-wasi test test-all example clean size fmt lint editor
+.PHONY: help build build-browser build-wasi test test-all example clean size fmt lint editor demo demo-serve
 
 CRATE      := diagramador
 WASM_NAME  := diagramador
 BROWSER_FEATURES := browser,images
 WASI_FEATURES    := wasi-lib,images
 PKG        := packages/editor/src/wasm
+DIST       := packages/editor/dist
+## Subpath the demo will be served from. GitHub Pages uses /<repo>/.
+BASE_PATH  ?= /
 
 help:
 	@echo "make build          — both wasm targets"
@@ -13,6 +16,8 @@ help:
 	@echo "make test           — rust unit tests"
 	@echo "make example        — render examples/material.json to out.pdf"
 	@echo "make editor         — run the browser editor (needs make build-browser first)"
+	@echo "make demo           — static bundle for GitHub Pages       → $(DIST)/"
+	@echo "make demo-serve     — build and serve it at BASE_PATH, as Pages would"
 
 # ─── Build ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +70,26 @@ example:
 
 editor:
 	cd packages/editor && npm run dev
+
+# ─── Demo ─────────────────────────────────────────────────────────────────────
+
+## The same two halves the Pages workflow runs: engine to wasm, editor around it.
+demo: build-browser
+	cd packages/editor && npm ci && BASE_PATH=$(BASE_PATH) npm run build
+	@echo "→ $(DIST)/ (base $(BASE_PATH))"
+
+## Serve it under the subpath, so a wrong BASE_PATH fails here and not in the air.
+demo-serve: demo
+	@if [ "$(BASE_PATH)" = "/" ]; then \
+	  echo "servindo em http://127.0.0.1:8000/"; \
+	  cd $(DIST) && python3 -m http.server 8000; \
+	else \
+	  root=$$(mktemp -d); \
+	  mkdir -p "$$root$(BASE_PATH)"; \
+	  cp -r $(DIST)/. "$$root$(BASE_PATH)"; \
+	  echo "servindo em http://127.0.0.1:8000$(BASE_PATH)"; \
+	  cd "$$root" && python3 -m http.server 8000; \
+	fi
 
 # ─── Housekeeping ─────────────────────────────────────────────────────────────
 

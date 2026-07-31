@@ -31,7 +31,13 @@ interface FaceSpec {
   italic: boolean;
 }
 
-/** Faces served from `public/fonts`, registered under two families. */
+/**
+ * Faces served from `public/fonts`, registered under two families.
+ *
+ * Fetched relative to `BASE_URL`, not from the site root: the published demo
+ * lives under `/<repo>/` on GitHub Pages, where `/fonts/...` is somebody
+ * else's page.
+ */
 const FACES: FaceSpec[] = [
   { family: "corpo", file: "DejaVuSans.ttf", weight: 400, italic: false },
   { family: "corpo", file: "DejaVuSans-Bold.ttf", weight: 700, italic: false },
@@ -57,7 +63,7 @@ export class Engine {
     const loaded = await Promise.all(
       FACES.map(async (face) => {
         try {
-          const response = await fetch(`/fonts/${face.file}`);
+          const response = await fetch(`${import.meta.env.BASE_URL}fonts/${face.file}`);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const bytes = new Uint8Array(await response.arrayBuffer());
           addFont(face.family, bytes, face.weight, face.italic);
