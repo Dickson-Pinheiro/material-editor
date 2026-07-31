@@ -82,6 +82,24 @@ impl Frame {
             _ => None,
         }
     }
+
+    pub fn as_image(&self) -> Option<&ImageFrame> {
+        match &self.content {
+            FrameContent::Image(i) => Some(i),
+            _ => None,
+        }
+    }
+
+    /// The wrap this frame imposes on text around it, if any.
+    ///
+    /// Lives on `Frame` rather than on `ImageFrame` so that the obstacle pass
+    /// can ask every frame the same question. Only images answer today.
+    pub fn wrap(&self) -> Option<&Wrap> {
+        match &self.content {
+            FrameContent::Image(i) => i.wrap.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -138,6 +156,15 @@ pub struct TextFrame {
     pub vertical_align: VerticalAlign,
     pub overflow: Overflow,
 
+    /// Lay this text out as if no frame on the page carried a wrap.
+    ///
+    /// The escape hatch every wrap needs: a caption sitting on top of its own
+    /// photograph would otherwise be shoved off it by the very picture it
+    /// describes. InDesign spells this "ignore text wrap", and it is a
+    /// property of the text, not of the picture — one frame opts out without
+    /// changing what the picture does to everything else.
+    pub ignore_wrap: bool,
+
     #[serde(rename = "use")]
     pub use_style: Option<String>,
     pub style: Option<Style>,
@@ -154,6 +181,7 @@ impl Default for TextFrame {
             column_gap: Len(14.0),
             vertical_align: VerticalAlign::Top,
             overflow: Overflow::Clip,
+            ignore_wrap: false,
             use_style: None,
             style: None,
         }
@@ -169,6 +197,8 @@ pub struct ImageFrame {
     pub fit: ImageFit,
     /// Placement of the image inside the frame when `fit` leaves slack.
     pub align: ImageAlign,
+    /// How this frame pushes text aside. Absent means it does not.
+    pub wrap: Option<Wrap>,
 }
 
 impl Default for ImageFrame {
@@ -177,6 +207,54 @@ impl Default for ImageFrame {
             src: String::new(),
             fit: ImageFit::Contain,
             align: ImageAlign::Center,
+            wrap: None,
+        }
+    }
+}
+
+/// Text wrap: the space a frame denies to the text around it.
+///
+/// The shape lives in the document rather than being read back from the
+/// image's pixels at layout time. Tracing a silhouette is authoring work — it
+/// belongs to the editor, where a person can see and correct it. An engine
+/// that decoded pixels would stop being deterministic across platforms, and
+/// the PDF would stop matching the canvas.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Wrap {
+    pub mode: WrapMode,
+    /// Clearance in points, held between the text and the shape.
+    pub padding: Insets,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum WrapMode {
+    /// The frame's own box blocks the text.
+    #[default]
+    Box,
+    /// A silhouette blocks the text.
+    ///
+    /// `points` is a closed ring in `0..1` coordinates relative to the
+    /// frame's rect, so it survives resizing the frame. It is stored as a
+    /// ring rather than a pixel mask because a document is authored, edited
+    /// and diffed by people.
+    Contour { points: Vec<[f64; 2]> },
+}
+
+impl WrapMode {
+    /// Whether the ring is usable. A degenerate ring falls back to the box.
+    ///
+    /// Points outside `0..1` are allowed on purpose: a wrap contour that sits
+    /// looser than the image it belongs to is a legitimate thing to author.
+    /// Only a ring that cannot enclose area, or one carrying a non-finite
+    /// number, is rejected.
+    pub fn usable(&self) -> bool {
+        match self {
+            WrapMode::Box => true,
+            WrapMode::Contour { points } => {
+                points.len() >= 3 && points.iter().flatten().all(|v| v.is_finite())
+            }
         }
     }
 }
@@ -355,8 +433,9 @@ mod tests {
         assert_eq!(f.as_text().unwrap().columns, 1);
     }
 
-    #[test]
+#[test]
     fn image_frame_parses() {
+
         let json = r#"{"type":"image","rect":[0,0,100,100],"src":"foto.png","fit":"cover"}"#;
         let f: Frame = serde_json::from_str(json).unwrap();
         match &f.content {
@@ -367,6 +446,73 @@ mod tests {
             }
             other => panic!("expected image, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn an_image_without_wrap_stays_without_wrap() {
+        let json = r#"{"type":"image","rect":[0,0,100,100],"src":"foto.png"}"#;
+        let f: Frame = serde_json::from_str(json).unwrap();
+        assert_eq!(f.as_image().unwrap().wrap, None);
+        // The field must not appear from nowhere on the way back out.
+        let back = serde_json::to_value(&f).unwrap();
+        assert_eq!(back["wrap"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn wrap_by_box_parses_with_shorthand_padding() {
+        let json = r#"{
+            "type": "image",
+            "rect": [0, 0, 100, 100],
+            "src": "foto.png",
+            "wrap": { "mode": { "kind": "box" }, "padding": 6 }
+        }"#;
+        let f: Frame = serde_json::from_str(json).unwrap();
+        let wrap = f.as_image().unwrap().wrap.as_ref().unwrap();
+        assert_eq!(wrap.mode, WrapMode::Box);
+        assert_eq!(wrap.padding, Insets::all(6.0));
+        assert!(wrap.mode.usable());
+    }
+
+    #[test]
+    fn wrap_by_contour_keeps_its_ring_through_a_round_trip() {
+        let json = r#"{
+            "type": "image",
+            "rect": [0, 0, 100, 100],
+            "src": "foto.png",
+            "wrap": {
+                "mode": { "kind": "contour", "points": [[0, 0], [1, 0.5], [0, 1]] },
+                "padding": [4, 8]
+            }
+        }"#;
+        let f: Frame = serde_json::from_str(json).unwrap();
+        let wrap = f.as_image().unwrap().wrap.clone().unwrap();
+        assert_eq!(wrap.padding, Insets::symmetric(4.0, 8.0));
+        match &wrap.mode {
+            WrapMode::Contour { points } => assert_eq!(points.len(), 3),
+            other => panic!("expected a contour, got {other:?}"),
+        }
+
+        let again: Frame = serde_json::from_str(&serde_json::to_string(&f).unwrap()).unwrap();
+        assert_eq!(again.as_image().unwrap().wrap, Some(wrap));
+    }
+
+    #[test]
+    fn a_ring_that_encloses_nothing_is_not_usable() {
+        let two = WrapMode::Contour {
+            points: vec![[0.0, 0.0], [1.0, 1.0]],
+        };
+        assert!(!two.usable());
+
+        let broken = WrapMode::Contour {
+            points: vec![[0.0, 0.0], [f64::NAN, 1.0], [1.0, 1.0]],
+        };
+        assert!(!broken.usable());
+
+        // Outside 0..1 is allowed: a contour looser than its image is valid.
+        let loose = WrapMode::Contour {
+            points: vec![[-0.2, 0.0], [1.2, 0.5], [0.0, 1.0]],
+        };
+        assert!(loose.usable());
     }
 
     #[test]

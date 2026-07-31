@@ -66,6 +66,31 @@ fn document() -> Document {
     .expect("fixture parses")
 }
 
+/// A page whose text runs down both sides of a picture.
+///
+/// The picture's own bytes are never registered: an image that fails to load
+/// still occupies its rectangle, which is all a wrap needs. Keeping the
+/// fixture free of binary assets keeps this test readable.
+fn wrapped_document() -> Document {
+    serde_json::from_str(
+        r##"{
+            "page": { "size": "A4", "margins": "20mm" },
+            "style": { "fontFamily": "corpo", "fontSize": 10 },
+            "pages": [{
+                "frames": [
+                    { "id": "foto", "type": "image", "src": "ausente.png",
+                      "rect": [200, 80, 120, 60],
+                      "wrap": { "mode": { "kind": "box" }, "padding": 6 } },
+                    { "id": "corpo", "type": "text", "rect": [56, 80, 440, 400],
+                      "style": { "textAlign": "justify" },
+                      "blocks": ["Um parágrafo bem comprido que precisa correr dos dois lados da fotografia posta no meio da coluna e depois seguir usando a largura inteira até o fim."] }
+                ]
+            }]
+        }"##,
+    )
+    .expect("fixture parses")
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PDF content stream extraction
 // ─────────────────────────────────────────────────────────────────────────────
@@ -301,6 +326,68 @@ fn rect_operators(stream: &str) -> Vec<(f64, f64, f64, f64)> {
     }
 
     out
+}
+
+/// Text pushed aside by a wrap reaches the PDF where the display list put it.
+///
+/// The wrap only ever moves numbers inside the display list, so in principle
+/// the emitter cannot tell. That is exactly why it is worth checking: the
+/// claim that the two outputs cannot diverge is only worth what it is tested
+/// at, and a line split into two pieces is the shape most likely to expose an
+/// emitter that assumed one run per line.
+#[test]
+fn wrapped_text_lands_at_its_display_list_position() {
+    let Some(engine) = engine() else {
+        eprintln!("fontes ausentes — teste ignorado");
+        return;
+    };
+
+    let document = wrapped_document();
+    let list = engine.layout(&document);
+    let runs = glyph_runs(&list);
+
+    // Guard against a fixture that quietly stops wrapping: without a line in
+    // two pieces this test would pass while proving nothing.
+    let split = runs.iter().any(|run| {
+        runs.iter()
+            .any(|other| (other.y - run.y).abs() < TOLERANCE && other.x != run.x)
+    });
+    assert!(split, "a fixture precisa produzir ao menos uma linha partida");
+
+    let pdf = engine
+        .render_display_list(&list, &document)
+        .expect("render succeeds");
+    let origins = text_origins(&content_streams(&pdf));
+
+    assert_eq!(
+        origins.len(),
+        runs.len(),
+        "cada trecho de cada lado da foto precisa da sua própria matriz"
+    );
+
+    let page_height = list.pages[0].height;
+    for run in &runs {
+        let expected = (run.x, page_height - run.y);
+        let matched = origins.iter().any(|(x, y)| {
+            (x - expected.0).abs() < TOLERANCE && (y - expected.1).abs() < TOLERANCE
+        });
+        assert!(
+            matched,
+            "trecho {:?} em ({:.3}, {:.3}) não tem Tm correspondente em ({:.3}, {:.3})",
+            run.text, run.x, run.y, expected.0, expected.1
+        );
+    }
+}
+
+/// A wrapped document lays out the same way twice, like any other.
+#[test]
+fn wrapped_layout_is_deterministic() {
+    let Some(engine) = engine() else { return };
+    let document = wrapped_document();
+
+    let first = serde_json::to_string(&engine.layout(&document)).unwrap();
+    let second = serde_json::to_string(&engine.layout(&document)).unwrap();
+    assert_eq!(first, second);
 }
 
 /// The same document renders identically twice — no map iteration order or

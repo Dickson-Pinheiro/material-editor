@@ -597,18 +597,62 @@ body {
 }
 
 .layer-list {
-  padding-bottom: 4px;
+  padding-bottom: 6px;
 }
 
+/* The page heading carries the group: heavier, and closed off underneath. */
+.page-row {
+  font-weight: 500;
+  border-top: 1px solid var(--line);
+}
+
+.page-row:first-of-type {
+  border-top: none;
+}
+
+/* ── Nesting ──────────────────────────────────────────────────────────────
+ *
+ * Indentation alone stops reading at about two levels: the eye has to measure
+ * white space to tell where a group ends. A hairline per level turns that
+ * measurement into a thing you can see, which is what every file tree that
+ * works ends up doing.
+ */
 .layer-row {
   display: flex;
   align-items: center;
   gap: 4px;
   height: var(--row);
   padding-right: 6px;
+  padding-left: calc(6px + var(--depth, 0) * 16px);
   cursor: default;
   user-select: none;
   border: 1px solid transparent;
+  position: relative;
+}
+
+/* One guide per level, drawn from the row itself so it never breaks up. */
+.layer-row.nested::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 0;
+  bottom: 0;
+  width: calc(var(--depth, 0) * 16px);
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--line) 0 1px,
+    transparent 1px 16px
+  );
+  pointer-events: none;
+}
+
+.layer-row.nested:hover::before,
+.layer-row.nested.selected::before {
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--line-strong) 0 1px,
+    transparent 1px 16px
+  );
 }
 
 .layer-row:hover {

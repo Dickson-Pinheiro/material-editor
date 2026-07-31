@@ -34,6 +34,7 @@ use crate::units::{Len, PT_PER_PX, Rect};
 
 use super::cascade;
 use super::shape::{ShapedGlyph, shape_text};
+use super::wrap::{BandMode, Interval, LineSpace};
 
 /// Stands in for a non-text inline while computing break opportunities.
 const OBJECT_REPLACEMENT: &str = "\u{FFFC}";
@@ -42,6 +43,19 @@ const FIXED_SPACE: &str = "\u{00A0}";
 
 /// Slack allowed when deciding whether a piece still fits on the line.
 const FIT_EPSILON: f64 = 0.01;
+
+/// Consecutive bands a paragraph may skip before giving up on the frame.
+///
+/// A picture that covers a column edge to edge leaves nowhere to put a line.
+/// Stepping down past it is right; stepping down forever is not, so the
+/// paragraph hands the rest on as overset instead of hanging.
+const MAX_BLOCKED_BANDS: u32 = 512;
+
+/// Which vertical extent of a line asks the wrap where it may sit.
+///
+/// Set by measurement, not by taste — see `docs/contorno/medicao-faixa.md`.
+/// Flip it, rebuild, and rerun `examples/faixa.rs` to redo the comparison.
+const BAND: BandMode = BandMode::LineBox;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Spans
@@ -147,6 +161,32 @@ struct LineRange {
 struct LineMetrics {
     height: f64,
     baseline: f64,
+    /// Ascender to descender, without the leading. The line's actual ink.
+    ink: f64,
+}
+
+/// One run of text on one line, inside one gap of the band.
+#[derive(Debug, Clone, Copy)]
+struct Segment {
+    slot: Interval,
+    /// Usable width once the indents are out — what justification divides.
+    limit: f64,
+    line: LineRange,
+    /// Piece the next segment starts at.
+    next: usize,
+    first_in_band: bool,
+}
+
+/// One visual line: everything sharing a baseline across the band's gaps.
+///
+/// The height is the tallest segment's, so a picture between two columns of
+/// text cannot make the halves drift apart.
+#[derive(Debug, Clone)]
+struct Band {
+    segments: Vec<Segment>,
+    height: f64,
+    baseline: f64,
+    ink: f64,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -165,6 +205,12 @@ pub(crate) struct ParagraphLayout {
     /// What did not fit, ready to flow into the next frame. `None` when the
     /// whole paragraph was placed.
     pub remainder: Option<Paragraph>,
+    /// The wrap, rather than the height budget, is what stopped the text.
+    ///
+    /// Reported so the author is told the real cause: "does not fit" reads as
+    /// "the frame is too small", when the frame may be ample and the
+    /// photograph simply standing on all of it.
+    pub walled_in: bool,
 }
 
 impl ParagraphLayout {
@@ -174,6 +220,7 @@ impl ParagraphLayout {
             height: 0.0,
             line_count: 0,
             remainder: None,
+            walled_in: false,
         }
     }
 }
@@ -236,7 +283,7 @@ impl TextLayouter<'_> {
         &self,
         para: &Paragraph,
         parent: &ResolvedStyle,
-        avail_width: f64,
+        space: &dyn LineSpace,
         max_height: Option<f64>,
         block_index: u32,
         frame_source: &SourceRef,
@@ -270,72 +317,173 @@ impl TextLayouter<'_> {
         let first_extra = style.indent_first + if hanging { 0.0 } else { marker_column };
         let indent_right = style.indent_right;
 
-        let limit_of = |first: bool| {
-            (avail_width - indent_left - indent_right - if first { first_extra } else { 0.0 })
-                .max(1.0)
-        };
-        let left_of = |first: bool| indent_left + if first { first_extra } else { 0.0 };
-
-        let lines = break_into_lines(&text, &pieces, &spans, limit_of);
         let boundaries: Vec<usize> = pieces.iter().map(|p| p.start).collect();
 
-        // ── Place the lines that fit ──────────────────────────────────────────
+        // ── Break and place, one line at a time ───────────────────────────────
+        //
+        // These used to be two loops: fill every line, then walk them placing
+        // each. They cannot be, once a picture is in the way — the width a
+        // line may use depends on where the line sits, and where it sits
+        // depends on how tall the lines above it turned out.
+        //
+        // The knot: the band needs a height, the height comes from the line,
+        // the line needs the band. It is untied with the style's nominal
+        // leading and *one* retry — a line that measures taller than nominal
+        // asks again with its real height and takes that answer. No loop.
         let mut items = Vec::new();
         let mut y = style.space_before;
         let mut placed = 0usize;
         let budget = max_height.unwrap_or(f64::INFINITY);
 
-        for (index, line) in lines.iter().enumerate() {
-            let metrics = self.line_metrics(&spans, line, &style);
-            if y + metrics.height > budget + FIT_EPSILON {
+        let nominal = style.leading();
+        let nominal_ink = {
+            let face = self.metrics_for(&style);
+            (face.ascender - face.descender) * style.font_size
+        };
+        let mut start = 0usize;
+        let mut index = 0usize;
+        let mut skipped = 0u32;
+        let mut cut_short = false;
+        // Reused every line: the answer is usually one interval and one
+        // segment, and a fresh allocation per line showed up in the benchmark.
+        let mut slots: Vec<Interval> = Vec::with_capacity(4);
+        let mut band = Band {
+            segments: Vec::with_capacity(4),
+            height: 0.0,
+            baseline: 0.0,
+            ink: 0.0,
+        };
+        // Set when the wrap, not the height budget, is what stopped the text.
+        let mut walled_in = false;
+
+        // A paragraph with nothing in it still occupies one line.
+        let empty = pieces.is_empty();
+
+        while empty || index < pieces.len() || start < text.len() {
+            let first = placed == 0;
+
+            // Every gap on this band, left to right. More than one means a
+            // picture sits inside the column with room on both sides, and the
+            // line runs through all of them before moving down.
+            self.slots_for(space, y, nominal, nominal_ink, first, indent_left, first_extra, &mut slots);
+            if slots.is_empty() {
+                // Nothing on this band. Move down and try again rather than
+                // wedge the text inside the picture.
+                skipped += 1;
+                if skipped > MAX_BLOCKED_BANDS || y + nominal > budget + FIT_EPSILON {
+                    cut_short = true;
+                    walled_in = true;
+                    break;
+                }
+                y += nominal;
+                continue;
+            }
+            skipped = 0;
+
+            // Fill the band once at the nominal height. A line that measures
+            // taller has to ask again, because a taller band can meet a shape
+            // the shorter one missed. Once, never in a loop.
+            self.fill_band(
+                &text, &pieces, &spans, &style, &slots, index, start, first, indent_left,
+                indent_right, first_extra, &mut band,
+            );
+
+            if band.height > nominal + FIT_EPSILON {
+                let mut taller: Vec<Interval> = Vec::with_capacity(slots.len());
+                self.slots_for(space, y, band.height, band.ink, first, indent_left, first_extra, &mut taller);
+                if !taller.is_empty() && taller != slots {
+                    slots.clear();
+                    slots.extend_from_slice(&taller);
+                    self.fill_band(
+                        &text, &pieces, &spans, &style, &slots, index, start, first, indent_left,
+                        indent_right, first_extra, &mut band,
+                    );
+                }
+            }
+
+            if band.segments.is_empty() {
+                // Every gap was too narrow for the next word. Try lower down.
+                skipped += 1;
+                if skipped > MAX_BLOCKED_BANDS || y + nominal > budget + FIT_EPSILON {
+                    cut_short = true;
+                    walled_in = true;
+                    break;
+                }
+                y += nominal;
+                continue;
+            }
+
+            if y + band.height > budget + FIT_EPSILON {
+                cut_short = true;
                 break;
             }
 
-            let is_last = index + 1 == lines.len();
-            let first = index == 0;
-
-            // The marker is painted before the line it belongs to.
+            // The marker is painted before the line it belongs to, against the
+            // first gap that line uses.
             if first && let Some(shape) = &marker_shape {
                 self.emit_marker(
                     &mut items,
                     shape,
-                    style.indent_left,
-                    y + metrics.baseline,
+                    band.segments[0].slot.left + style.indent_left,
+                    y + band.baseline,
                     origin.block,
                     frame_source,
                 );
             }
 
-            self.emit_line(
-                &mut items,
-                &text,
-                &spans,
-                *line,
-                metrics,
-                y,
-                left_of(first),
-                limit_of(first),
-                &style,
-                &boundaries,
-                is_last,
-                origin,
-                frame_source,
-            );
+            for segment in &band.segments {
+                let at_start = first && segment.first_in_band;
+                let left = segment.slot.left
+                    + indent_left
+                    + if at_start { first_extra } else { 0.0 };
 
-            y += metrics.height;
+                self.emit_line(
+                    &mut items,
+                    &text,
+                    &spans,
+                    segment.line,
+                    LineMetrics {
+                        height: band.height,
+                        baseline: band.baseline,
+                        ink: band.ink,
+                    },
+                    y,
+                    left,
+                    segment.limit,
+                    &style,
+                    &boundaries,
+                    // Only the segment that reaches the paragraph's end escapes
+                    // justification; the others are full lines like any other.
+                    segment.line.end >= text.len(),
+                    origin,
+                    frame_source,
+                );
+            }
+
+            let last = band.segments.last().expect("banda com segmentos");
+            let finished = last.line.end >= text.len();
+
+            y += band.height;
             placed += 1;
+            start = last.line.end;
+            index = last.next;
+
+            if empty || finished {
+                break;
+            }
         }
 
         if placed == 0 {
             // Not even one line fits; the caller must move the whole paragraph.
             return ParagraphLayout {
                 remainder: Some(para.clone()),
+                walled_in,
                 ..ParagraphLayout::empty()
             };
         }
 
-        let remainder = if placed < lines.len() {
-            self.remainder_of(para, &spans, lines[placed].start, origin)
+        let remainder = if cut_short && start < text.len() {
+            self.remainder_of(para, &spans, start, origin)
         } else {
             None
         };
@@ -345,6 +493,7 @@ impl TextLayouter<'_> {
             height: y + if remainder.is_none() { style.space_after } else { 0.0 },
             line_count: placed,
             remainder,
+            walled_in,
         }
     }
 
@@ -545,6 +694,105 @@ impl TextLayouter<'_> {
             .unwrap_or(FALLBACK_METRICS)
     }
 
+    /// Every stretch a line of `height` may use at `top`, left to right.
+    ///
+    /// Empty means the band is blocked from edge to edge, or that what is
+    /// left of it cannot even hold the indent.
+    #[allow(clippy::too_many_arguments)]
+    fn slots_for(
+        &self,
+        space: &dyn LineSpace,
+        top: f64,
+        height: f64,
+        ink: f64,
+        first: bool,
+        indent_left: f64,
+        first_extra: f64,
+        out: &mut Vec<Interval>,
+    ) {
+        let needed = indent_left + if first { first_extra } else { 0.0 };
+        let (from, to) = band_of(BAND, top, height, ink);
+        out.clear();
+        space.slots(from, to, out);
+        out.retain(|slot| slot.width() > needed);
+    }
+
+    /// Run the text through every gap on one band, left to right.
+    ///
+    /// This is the part the reference library never did: `pretext` computes
+    /// all the gaps and then keeps only the widest, so its text never runs
+    /// down both sides of a picture. Ours does, which is the whole difference
+    /// between a column that narrows and a text that wraps.
+    ///
+    /// A gap too narrow for the next word is stepped over rather than made to
+    /// hold it — but only when there is another gap to try. With a single gap
+    /// the word is forced in, exactly as it always was, which is what keeps
+    /// every existing document laying out to the same bytes.
+    #[allow(clippy::too_many_arguments)]
+    fn fill_band(
+        &self,
+        text: &str,
+        pieces: &[Piece],
+        spans: &[Span],
+        style: &ResolvedStyle,
+        slots: &[Interval],
+        from: usize,
+        start: usize,
+        first_line: bool,
+        indent_left: f64,
+        indent_right: f64,
+        first_extra: f64,
+        band: &mut Band,
+    ) {
+        band.segments.clear();
+        band.height = 0.0;
+        band.baseline = 0.0;
+        band.ink = 0.0;
+
+        let mut index = from;
+        let mut at = start;
+        let single = slots.len() == 1;
+
+        for (position, slot) in slots.iter().enumerate() {
+            if at >= text.len() && !band.segments.is_empty() {
+                break;
+            }
+
+            let at_start = first_line && position == 0;
+            let limit = usable(*slot, indent_left, indent_right, first_extra, at_start);
+
+            // Stepping over a gap is only safe when another one follows.
+            if !single
+                && let Some(piece) = pieces.get(index)
+                && piece.trimmed_width > limit + FIT_EPSILON
+            {
+                continue;
+            }
+
+            let (line, next) = break_one_line(text, pieces, index, at, limit);
+            let metrics = self.line_metrics(spans, &line, style);
+            band.height = band.height.max(metrics.height);
+            band.baseline = band.baseline.max(metrics.baseline);
+            band.ink = band.ink.max(metrics.ink);
+
+            band.segments.push(Segment {
+                slot: *slot,
+                limit,
+                line,
+                next,
+                first_in_band: position == 0,
+            });
+
+            index = next;
+            at = line.end;
+
+            // A hard break ends the whole line, not just this gap.
+            if line.hard_end {
+                break;
+            }
+        }
+    }
+
     fn line_metrics(&self, spans: &[Span], line: &LineRange, style: &ResolvedStyle) -> LineMetrics {
         let mut ascent: f64 = 0.0;
         let mut descent: f64 = 0.0;
@@ -580,6 +828,7 @@ impl TextLayouter<'_> {
         LineMetrics {
             height: leading,
             baseline: half_leading + ascent,
+            ink: ascent + descent,
         }
     }
 
@@ -1085,68 +1334,112 @@ fn build_pieces(text: &str, spans: &[Span]) -> Vec<Piece> {
     pieces
 }
 
-/// Greedy line filling. `limit_of(first_line)` gives the usable width.
-fn break_into_lines(
+/// The vertical extent a line asks the wrap about.
+///
+/// `LineBox` is the whole line box, leading included; `InkBox` is only as far
+/// as the glyphs actually rise and fall, centred inside it. The tighter band
+/// lets text sit closer to a shape, and risks a tall accent meeting a part of
+/// the shape the band never consulted.
+fn band_of(mode: BandMode, top: f64, height: f64, ink: f64) -> (f64, f64) {
+    match mode {
+        BandMode::LineBox => (top, top + height),
+        BandMode::InkBox => {
+            let half_leading = ((height - ink) / 2.0).max(0.0);
+            (top + half_leading, top + height - half_leading)
+        }
+    }
+}
+
+/// Usable text width inside a slot, once the indents are taken out.
+fn usable(slot: Interval, left: f64, right: f64, first_extra: f64, first: bool) -> f64 {
+    (slot.width() - left - right - if first { first_extra } else { 0.0 }).max(1.0)
+}
+
+/// Fill one line, greedily, starting at piece `from` and byte `start`.
+///
+/// Returns the line and the piece the next line begins at. Pulled out of
+/// `break_into_lines` so that a caller which needs the line's vertical
+/// position before choosing the next width — text flowing around a picture —
+/// can drive the same filling one line at a time.
+fn break_one_line(
     text: &str,
     pieces: &[Piece],
-    spans: &[Span],
-    limit_of: impl Fn(bool) -> f64,
-) -> Vec<LineRange> {
-    if pieces.is_empty() {
-        return vec![LineRange {
-            start: 0,
-            end: text.len(),
-            hard_end: true,
-        }];
-    }
-
-    let mut lines = Vec::new();
-    let mut start = 0usize;
+    from: usize,
+    start: usize,
+    limit: f64,
+) -> (LineRange, usize) {
     let mut width = 0.0f64;
+    let mut index = from;
 
-    for piece in pieces {
-        let limit = limit_of(lines.is_empty());
+    while index < pieces.len() {
+        let piece = &pieces[index];
 
         if width > 0.0 && width + piece.trimmed_width > limit + FIT_EPSILON {
-            lines.push(LineRange {
-                start,
-                end: piece.start,
-                hard_end: false,
-            });
-            start = piece.start;
-            width = 0.0;
+            return (
+                LineRange {
+                    start,
+                    end: piece.start,
+                    hard_end: false,
+                },
+                index,
+            );
         }
 
         width += piece.width;
 
         if piece.mandatory {
-            lines.push(LineRange {
-                start,
-                end: piece.end,
-                hard_end: true,
-            });
-            start = piece.end;
-            width = 0.0;
+            return (
+                LineRange {
+                    start,
+                    end: piece.end,
+                    hard_end: true,
+                },
+                index + 1,
+            );
         }
+
+        index += 1;
     }
 
-    if start < text.len() || lines.is_empty() {
-        lines.push(LineRange {
+    (
+        LineRange {
             start,
             end: text.len(),
             hard_end: true,
-        });
-    }
-
-    // A rule that fills the line needs to know it is not the last one.
-    let _ = spans;
-    lines
+        },
+        pieces.len(),
+    )
 }
 
 /// Next default tab stop, every 4 em from the column's left edge.
 fn next_tab_stop(x: f64, font_size: f64) -> f64 {
     let stop = font_size * 4.0;
     ((x / stop).floor() + 1.0) * stop
+}
+
+#[cfg(test)]
+mod band_tests {
+    use super::*;
+
+    #[test]
+    fn the_line_box_band_is_the_whole_line() {
+        let (top, bottom) = band_of(BandMode::LineBox, 100.0, 14.0, 10.0);
+        assert_eq!((top, bottom), (100.0, 114.0));
+    }
+
+    #[test]
+    fn the_ink_box_band_drops_the_leading_evenly() {
+        // 14 tall, 10 of ink: 2 of leading above and 2 below.
+        let (top, bottom) = band_of(BandMode::InkBox, 100.0, 14.0, 10.0);
+        assert_eq!((top, bottom), (102.0, 112.0));
+    }
+
+    #[test]
+    fn ink_taller_than_the_line_never_inverts_the_band() {
+        // An inline image can out-measure the leading. The band must not fold.
+        let (top, bottom) = band_of(BandMode::InkBox, 100.0, 10.0, 30.0);
+        assert!(bottom >= top, "faixa invertida: {top}..{bottom}");
+    }
 }
 
 #[cfg(test)]
@@ -1196,7 +1489,7 @@ mod tests {
             self.layouter().layout_paragraph(
                 &para,
                 &ResolvedStyle::default(),
-                width,
+                &super::super::wrap::WholeColumn { width },
                 max,
                 0,
                 &SourceRef::frame(0, "f1"),

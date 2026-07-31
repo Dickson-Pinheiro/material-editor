@@ -123,6 +123,8 @@ export interface TextFrame extends FrameBase {
   columnGap?: Len;
   verticalAlign?: VerticalAlign;
   overflow?: Overflow;
+  /** Lay out as if nothing on the page carried a wrap. */
+  ignoreWrap?: boolean;
   use?: string;
   style?: Style;
 }
@@ -132,7 +134,28 @@ export interface ImageFrame extends FrameBase {
   src: string;
   fit?: ImageFit;
   align?: string;
+  /** How this frame pushes text aside. Absent means it does not. */
+  wrap?: Wrap | null;
 }
+
+/**
+ * Text wrap: the space a frame denies to the text around it.
+ *
+ * The silhouette lives in the document, not in the image's pixels. Tracing it
+ * is authoring work and belongs here in the editor — the engine only ever
+ * reads the ring back, which is what keeps a document laying out the same way
+ * on every machine.
+ */
+export interface Wrap {
+  mode: WrapMode;
+  /** Clearance in points between the text and the shape. */
+  padding?: Len | Len[];
+}
+
+export type WrapMode =
+  | { kind: "box" }
+  /** A closed ring in `0..1` coordinates relative to the frame's rect. */
+  | { kind: "contour"; points: [number, number][] };
 
 export interface ShapeFrame extends FrameBase {
   type: "shape";

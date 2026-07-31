@@ -34,6 +34,36 @@ export interface Overlay {
   guides: { page: number; x?: number; y?: number }[];
   /** Rubber-band rectangle in world coordinates. */
   marquee: Rect | null;
+  /**
+   * Wrap silhouettes to show, keyed by frame id, in `0..1` of that frame's
+   * own rect.
+   *
+   * Authoring chrome, like the resize handles: drawn only while the frame is
+   * selected, and never part of the document. The engine paints nothing for a
+   * wrap — its only effect is where the glyphs land — so without this the
+   * author would have to infer the shape from the text that avoided it.
+   */
+  contours: Map<string, [number, number][]>;
+}
+
+/**
+ * A world point in one page's own coordinates.
+ *
+ * The page is named, not looked up by what the point falls inside. A drag has
+ * to keep measuring against the page it began on: page-local coordinates
+ * restart at zero on every sheet, so a pointer that wanders onto the next page
+ * would otherwise report a position near the top of *that* page and the drag
+ * would jump.
+ */
+export function pointIn(
+  placements: PagePlacement[],
+  page: number,
+  worldX: number,
+  worldY: number,
+): { x: number; y: number } | null {
+  const placement = placements.find((candidate) => candidate.page.index === page);
+  if (!placement) return null;
+  return { x: worldX - placement.x, y: worldY - placement.y };
 }
 
 /** Vertical gap between pages, in points. */
@@ -408,6 +438,23 @@ export class Renderer {
       ctx.setLineDash(editing ? [5 * hairline, 3 * hairline] : []);
       ctx.strokeRect(frame.rect.x, frame.rect.y, frame.rect.w, frame.rect.h);
       ctx.setLineDash([]);
+
+      const ring = selected ? overlay.contours.get(frame.id) : undefined;
+      if (ring && ring.length >= 3) {
+        ctx.strokeStyle = "#a24cd6";
+        ctx.lineWidth = 1.5 * hairline;
+        ctx.setLineDash([4 * hairline, 3 * hairline]);
+        ctx.beginPath();
+        ring.forEach(([nx, ny], index) => {
+          const x = frame.rect.x + nx * frame.rect.w;
+          const y = frame.rect.y + ny * frame.rect.h;
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       if (selected && !editing && !frame.locked) {
         const size = HANDLE_SIZE / view.zoom;

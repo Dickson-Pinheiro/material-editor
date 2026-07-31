@@ -7,6 +7,7 @@
 pub mod cascade;
 pub mod shape;
 mod text;
+pub mod wrap;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -33,6 +34,13 @@ const MAX_AUTO_PAGES: u32 = 4096;
 
 /// Extra layout passes allowed while `{pages}` settles on a value.
 const MAX_TOTAL_PASSES: usize = 2;
+
+/// Narrowest gap, in ems, that a wrap will offer to text.
+///
+/// One em was the first guess and it is too generous: a gap that fits a single
+/// character produces a column of orphaned letters down the side of a picture,
+/// which is worse than no text there at all. Three ems holds a short word.
+const MIN_SLOT_EM: f64 = 3.0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Engine
@@ -246,6 +254,11 @@ impl<'a> LayoutEngine<'a> {
 
         // Master frames are painted beneath the page's own.
         let master_frames = master.map(|m| m.frames.as_slice()).unwrap_or_default();
+
+        // Every wrap on the page, in page coordinates, before a single frame
+        // is laid out. Nothing here depends on text, so one pass is enough.
+        let obstacles = wrap::collect(&[master_frames, &page.frames], index, diagnostics);
+
         for frame in master_frames.iter().chain(page.frames.iter()) {
             self.layout_frame(
                 doc,
@@ -256,6 +269,7 @@ impl<'a> LayoutEngine<'a> {
                 styles,
                 &page_style,
                 &[],
+                &obstacles,
                 pending,
                 auto,
                 &mut out,
@@ -277,6 +291,7 @@ impl<'a> LayoutEngine<'a> {
         styles: &BTreeMap<String, Style>,
         parent_style: &ResolvedStyle,
         ancestors: &[String],
+        obstacles: &[wrap::Obstacle],
         pending: &mut HashMap<String, PendingFlow>,
         auto: &mut AutoFlow,
         out: &mut DisplayPage,
@@ -300,8 +315,8 @@ impl<'a> LayoutEngine<'a> {
         match &frame.content {
             FrameContent::Text(tf) => {
                 let (content, used_height, is_overset) = self.layout_text_frame(
-                    doc, frame, tf, &id, page, content_box, styles, parent_style, pending, auto,
-                    diagnostics,
+                    doc, frame, tf, &id, page, content_box, styles, parent_style, obstacles,
+                    pending, auto, diagnostics,
                 );
                 items.extend(content);
                 overset = is_overset;
@@ -351,8 +366,8 @@ impl<'a> LayoutEngine<'a> {
                 };
                 for child in &group.children {
                     self.layout_frame(
-                        doc, child, page, rect.x, rect.y, styles, &group_style, &nested, pending,
-                        auto, &mut inner, diagnostics,
+                        doc, child, page, rect.x, rect.y, styles, &group_style, &nested, obstacles,
+                        pending, auto, &mut inner, diagnostics,
                     );
                 }
                 items.extend(inner.items);
@@ -448,6 +463,7 @@ impl<'a> LayoutEngine<'a> {
         content_box: Rect,
         styles: &BTreeMap<String, Style>,
         parent_style: &ResolvedStyle,
+        obstacles: &[wrap::Obstacle],
         pending: &mut HashMap<String, PendingFlow>,
         auto: &mut AutoFlow,
         diagnostics: &mut Vec<Diagnostic>,
@@ -517,6 +533,7 @@ impl<'a> LayoutEngine<'a> {
 
         // Set when a break sends the rest past this frame entirely.
         let mut forced: Option<BreakKind> = None;
+        let mut reported_wrap = false;
 
         for column in 0..columns {
             if blocks.is_empty() || deferred {
@@ -529,13 +546,20 @@ impl<'a> LayoutEngine<'a> {
                 content_box.h,
             );
 
-            let (mut column_items, used, leftover, stopped) = self.flow_blocks(
+            let FlowResult {
+                items: mut column_items,
+                used,
+                leftover,
+                stopped,
+                walled_in,
+            } = self.flow_blocks(
                 &layouter,
                 &blocks,
                 &style,
                 column_box,
                 if unbounded { None } else { Some(content_box.h) },
                 &source,
+                if tf.ignore_wrap { &[] } else { obstacles },
             );
 
             let offset = match tf.vertical_align {
@@ -550,6 +574,19 @@ impl<'a> LayoutEngine<'a> {
             items.extend(column_items);
             max_used = max_used.max(used);
             blocks = leftover;
+
+            // Once per frame: ten paragraphs behind the same photograph are
+            // one problem, not ten.
+            if walled_in && !reported_wrap {
+                reported_wrap = true;
+                diagnostics.push(
+                    Diagnostic::warning(
+                        "wrapLeavesNoRoom",
+                        "o contorno de um objeto não deixa espaço utilizável para o texto",
+                    )
+                    .on(page, id),
+                );
+            }
 
             // A column break just moves along; the other two leave the frame.
             if matches!(stopped, Some(BreakKind::Frame) | Some(BreakKind::Page)) {
@@ -637,6 +674,7 @@ impl<'a> LayoutEngine<'a> {
     /// Returns what it drew, how tall that was, what is left, and — when an
     /// explicit break stopped it — which kind, so the caller knows whether to
     /// move to the next column, the next frame, or the next page.
+    #[allow(clippy::too_many_arguments)]
     fn flow_blocks(
         &self,
         layouter: &TextLayouter<'_>,
@@ -645,8 +683,10 @@ impl<'a> LayoutEngine<'a> {
         column: Rect,
         max_height: Option<f64>,
         source: &SourceRef,
-    ) -> (Vec<DisplayItem>, f64, Vec<Block>, Option<BreakKind>) {
+        obstacles: &[wrap::Obstacle],
+    ) -> FlowResult {
         let mut items = Vec::new();
+        let mut walled_in = false;
         let mut y = 0.0f64;
         let budget = max_height.unwrap_or(f64::INFINITY);
 
@@ -655,14 +695,29 @@ impl<'a> LayoutEngine<'a> {
 
             match block {
                 Block::Paragraph(para) => {
+                    // A paragraph lays itself out from its own top-left, so the
+                    // space it asks about has to know where that corner landed
+                    // on the page.
+                    let whole = wrap::WholeColumn { width: column.w };
+                    let carved = wrap::ColumnSpace {
+                        obstacles,
+                        column,
+                        origin_y: column.y + y,
+                        min_slot: (style.font_size * MIN_SLOT_EM).max(1.0),
+                    };
+                    let space: &dyn wrap::LineSpace =
+                        if obstacles.is_empty() { &whole } else { &carved };
+
                     let layout = layouter.layout_paragraph(
                         para,
                         style,
-                        column.w,
+                        space,
                         max_height.map(|_| remaining),
                         index as u32,
                         source,
                     );
+
+                    walled_in |= layout.walled_in;
 
                     let mut placed = layout.items;
                     translate_items(&mut placed, column.x, column.y + y);
@@ -672,14 +727,14 @@ impl<'a> LayoutEngine<'a> {
                     if let Some(remainder) = layout.remainder {
                         let mut leftover = vec![Block::Paragraph(remainder)];
                         leftover.extend_from_slice(&blocks[index + 1..]);
-                        return (items, y, leftover, None);
+                        return FlowResult { items, used: y, leftover, stopped: None, walled_in };
                     }
                 }
 
                 Block::Rule(rule) => {
                     let thickness = rule.thickness.map_or(0.75, |t| t.get());
                     if y + thickness > budget {
-                        return (items, y, blocks[index..].to_vec(), None);
+                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in };
                     }
                     let width = column.w * rule.width.unwrap_or(1.0).clamp(0.0, 1.0);
                     items.push(DisplayItem::Line(LineItem {
@@ -700,24 +755,24 @@ impl<'a> LayoutEngine<'a> {
                 Block::Spacer(spacer) => {
                     let height = spacer.height.get();
                     if y + height > budget && y > 0.0 {
-                        return (items, y, blocks[index..].to_vec(), None);
+                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in };
                     }
                     y += height;
                 }
 
                 Block::ColumnBreak => {
-                    return (items, y, blocks[index + 1..].to_vec(), Some(BreakKind::Column));
+                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Column), walled_in };
                 }
                 Block::FrameBreak => {
-                    return (items, y, blocks[index + 1..].to_vec(), Some(BreakKind::Frame));
+                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Frame), walled_in };
                 }
                 Block::PageBreak => {
-                    return (items, y, blocks[index + 1..].to_vec(), Some(BreakKind::Page));
+                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Page), walled_in };
                 }
             }
         }
 
-        (items, y, Vec::new(), None)
+        FlowResult { items, used: y, leftover: Vec::new(), stopped: None, walled_in }
     }
 
     // ── Image frames ─────────────────────────────────────────────────────────
@@ -781,6 +836,22 @@ impl<'a> LayoutEngine<'a> {
 
 /// Content queued for a frame further down a thread.
 #[derive(Debug, Default)]
+/// What one pass over a column produced.
+///
+/// Named rather than a tuple because the wrap added a fifth thing to say and
+/// `(items, used, leftover, stopped, walled_in)` at the call site tells the
+/// reader nothing.
+struct FlowResult {
+    items: Vec<DisplayItem>,
+    /// Vertical space consumed.
+    used: f64,
+    /// Blocks that did not fit, for the next column, frame or page.
+    leftover: Vec<Block>,
+    stopped: Option<BreakKind>,
+    /// A wrap, not the height, is what stopped the text.
+    walled_in: bool,
+}
+
 struct PendingFlow {
     /// The story it came from, if any. Carried so provenance keeps pointing at
     /// the story rather than at whichever frame ended up painting the text.
@@ -1007,6 +1078,15 @@ mod tests {
         out
     }
 
+    /// Runs on one page, for the tests that care which page text landed on.
+    fn page_runs(list: &DisplayList, index: usize) -> Vec<GlyphRun> {
+        let single = DisplayList {
+            pages: vec![list.pages[index].clone()],
+            ..DisplayList::new()
+        };
+        all_runs(&single)
+    }
+
     #[test]
     fn empty_document_produces_no_pages() {
         let Some(list) = layout_json("{}") else { return };
@@ -1037,6 +1117,458 @@ mod tests {
         assert!((runs[0].x - 56.0).abs() < 0.01);
         assert!(runs[0].y > 80.0 && runs[0].y < 120.0);
         assert_eq!(runs[0].text, "Material didático");
+    }
+
+    /// A page with a picture on the left and a paragraph across the whole
+    /// width. `wrap` decides whether the two collide.
+    fn wrapped_page(wrap: &str, ignore: bool) -> Option<DisplayList> {
+        layout_json(&format!(
+            r#"{{"pages":[{{"frames":[
+                {{"type":"image","rect":[56,80,150,300],"src":"foto.png"{wrap}}},
+                {{"type":"text","rect":[56,80,400,300],"ignoreWrap":{ignore},
+                  "blocks":["Material didático para a unidade de estudo"]}}
+            ]}}]}}"#
+        ))
+    }
+
+    #[test]
+    fn an_image_with_a_wrap_pushes_the_text_off_it() {
+        let Some(plain) = wrapped_page("", false) else {
+            return;
+        };
+        let Some(wrapped) = wrapped_page(r#", "wrap": {"mode": {"kind": "box"}, "padding": 8}"#, false)
+        else {
+            return;
+        };
+
+        let before = all_runs(&plain)[0].x;
+        let after = all_runs(&wrapped)[0].x;
+
+        assert!((before - 56.0).abs() < 0.01, "sem wrap o texto começa na borda");
+        assert!(
+            (after - 214.0).abs() < 0.01,
+            "com wrap o texto começa depois da foto mais a folga, veio {after}"
+        );
+    }
+
+    /// A picture in the middle of a column, with room on both sides of it.
+    fn picture_in_the_middle() -> Option<DisplayList> {
+        layout_json(
+            r#"{"pages":[{"frames":[
+                {"type":"image","rect":[200,80,120,60],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"},"padding":6}},
+                {"type":"text","rect":[56,80,440,400],"style":{"fontSize":10},
+                 "blocks":["Um parágrafo bem comprido que precisa correr dos dois lados da fotografia posta no meio da coluna e depois seguir usando a largura inteira até o fim do texto disponível aqui."]}
+            ]}]}"#,
+        )
+    }
+
+    /// Right edge of a run ignoring trailing whitespace. A space at a line
+    /// break stays in the run — the caret has to be able to sit after it — but
+    /// hangs past the margin, exactly as it does in print.
+    fn visible_right(run: &GlyphRun) -> f64 {
+        let trimmed = run.text.trim_end().len();
+        run.glyphs
+            .iter()
+            .filter(|g| (g.cluster as usize) < trimmed)
+            .map(|g| run.x + g.x + g.advance)
+            .fold(run.x, f64::max)
+    }
+
+    /// The same page, laid out with a given alignment. The photograph leaves
+    /// a gap of 56..194 to its left and 326..496 to its right.
+    fn aligned_around_a_picture(align: &str) -> Option<DisplayList> {
+        layout_json(&format!(
+            r#"{{"pages":[{{"frames":[
+                {{"type":"image","rect":[200,80,120,60],"src":"foto.png",
+                 "wrap":{{"mode":{{"kind":"box"}},"padding":6}}}},
+                {{"type":"text","rect":[56,80,440,400],
+                 "style":{{"fontSize":10,"textAlign":"{align}"}},
+                 "blocks":["Um parágrafo bem comprido que precisa correr dos dois lados da fotografia posta no meio da coluna e depois seguir usando a largura inteira até o fim."]}}
+            ]}}]}}"#
+        ))
+    }
+
+    /// The two segments of the first line, left one first.
+    fn first_line_pair(list: &DisplayList) -> Vec<GlyphRun> {
+        let runs = all_runs(list);
+        let top = runs[0].y;
+        let pair: Vec<GlyphRun> = runs.into_iter().filter(|r| (r.y - top).abs() < 0.01).collect();
+        assert_eq!(pair.len(), 2, "esperava a linha partida em dois trechos");
+        pair
+    }
+
+    #[test]
+    fn justified_text_fills_each_gap_to_its_own_edge() {
+        let Some(list) = aligned_around_a_picture("justify") else {
+            return;
+        };
+        let pair = first_line_pair(&list);
+
+        assert!((pair[0].x - 56.0).abs() < 0.01);
+        assert!(
+            (visible_right(&pair[0]) - 194.0).abs() < 0.01,
+            "o trecho da esquerda tem de encostar na foto, veio {}",
+            visible_right(&pair[0])
+        );
+        assert!((pair[1].x - 326.0).abs() < 0.01);
+        assert!(
+            (visible_right(&pair[1]) - 496.0).abs() < 0.01,
+            "o da direita tem de encostar na margem, veio {}",
+            visible_right(&pair[1])
+        );
+    }
+
+    #[test]
+    fn right_aligned_text_hangs_off_each_gaps_right_edge() {
+        let Some(list) = aligned_around_a_picture("right") else {
+            return;
+        };
+        let pair = first_line_pair(&list);
+
+        assert!((visible_right(&pair[0]) - 194.0).abs() < 0.01);
+        assert!((visible_right(&pair[1]) - 496.0).abs() < 0.01);
+        assert!(pair[0].x > 56.0, "e sobra espaço à esquerda de cada trecho");
+        assert!(pair[1].x > 326.0);
+    }
+
+    #[test]
+    fn centred_text_is_centred_in_its_own_gap_not_in_the_column() {
+        let Some(list) = aligned_around_a_picture("center") else {
+            return;
+        };
+        let pair = first_line_pair(&list);
+
+        for (run, left, right) in [(&pair[0], 56.0, 194.0), (&pair[1], 326.0, 496.0)] {
+            let before = run.x - left;
+            let after = right - visible_right(run);
+            assert!(
+                (before - after).abs() < 0.01,
+                "sobras desiguais no vão {left}..{right}: {before} antes, {after} depois"
+            );
+            assert!(before > 0.0, "e o trecho não pode preencher o vão inteiro");
+        }
+    }
+
+    #[test]
+    fn only_the_segment_that_ends_the_paragraph_escapes_justification() {
+        let Some(list) = aligned_around_a_picture("justify") else {
+            return;
+        };
+        let runs = all_runs(&list);
+        let last = runs.last().unwrap();
+        let before = &runs[runs.len() - 2];
+
+        // Both sit on the last band. The left one is a full line and gets
+        // stretched to its gap; the right one ends the paragraph and stays
+        // as short as its words make it.
+        assert!(
+            (last.y - before.y).abs() < 0.01,
+            "os dois trechos deveriam dividir a mesma baseline"
+        );
+        assert!(
+            (visible_right(before) - 194.0).abs() < 0.01,
+            "o trecho da esquerda continua justificado, veio {}",
+            visible_right(before)
+        );
+        assert!(
+            visible_right(last) < 496.0 - 1.0,
+            "o que termina o parágrafo não pode ser esticado até a borda do vão, veio {}",
+            visible_right(last)
+        );
+    }
+
+    #[test]
+    fn the_text_runs_down_both_sides_of_a_picture() {
+        let Some(list) = picture_in_the_middle() else {
+            return;
+        };
+        let runs = all_runs(&list);
+
+        // The first line is in two pieces sharing a baseline: one to the left
+        // of the photograph, one to its right. This is the thing `pretext`
+        // does not do — it keeps the widest gap and drops the rest.
+        let top = runs[0].y;
+        let on_first: Vec<&GlyphRun> = runs.iter().filter(|r| (r.y - top).abs() < 0.01).collect();
+
+        assert_eq!(on_first.len(), 2, "esperava dois trechos na mesma linha");
+        assert!((on_first[0].x - 56.0).abs() < 0.01, "trecho da esquerda");
+        assert!(
+            (on_first[1].x - 326.0).abs() < 0.01,
+            "trecho da direita começa depois da foto mais a folga, veio {}",
+            on_first[1].x
+        );
+        assert!(
+            on_first[0].x + on_first[0].width <= 194.0 + 0.01,
+            "o trecho da esquerda não pode invadir a foto"
+        );
+    }
+
+    #[test]
+    fn flowing_both_sides_keeps_the_reading_order() {
+        let Some(list) = picture_in_the_middle() else {
+            return;
+        };
+        // Runs come out in flow order, so pasting them back together has to
+        // reproduce the paragraph — no word repeated, none lost.
+        let joined: String = all_runs(&list)
+            .iter()
+            .map(|r| r.text.clone())
+            .collect::<Vec<_>>()
+            .join("");
+        let normalised = joined.split_whitespace().collect::<Vec<_>>().join(" ");
+
+        assert_eq!(
+            normalised,
+            "Um parágrafo bem comprido que precisa correr dos dois lados da fotografia \
+posta no meio da coluna e depois seguir usando a largura inteira até o fim do \
+texto disponível aqui."
+                .replace('\n', "")
+        );
+    }
+
+    #[test]
+    fn the_text_returns_to_the_full_width_once_it_is_past_the_picture() {
+        // The picture is only 40pt tall, so it can push the paragraph's first
+        // line and nothing else. Before the break and placement loops were
+        // fused this was impossible: the whole paragraph took one width.
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"type":"image","rect":[56,80,150,40],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"},"padding":4}},
+                {"type":"text","rect":[56,80,400,400],"style":{"fontSize":11},
+                 "blocks":["Um parágrafo suficientemente longo para ocupar várias linhas seguidas dentro da coluna, o bastante para passar da altura da fotografia e voltar a usar a largura inteira da coluna sem nenhum obstáculo pela frente."]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+
+        let runs = all_runs(&list);
+        assert!(runs.len() >= 3, "esperava várias linhas, veio {}", runs.len());
+
+        let first = runs[0].x;
+        let last = runs[runs.len() - 1].x;
+
+        assert!(
+            (first - 210.0).abs() < 0.01,
+            "a primeira linha corre ao lado da foto, veio {first}"
+        );
+        assert!(
+            (last - 56.0).abs() < 0.01,
+            "a última já passou da foto e volta à margem, veio {last}"
+        );
+    }
+
+    #[test]
+    fn a_picture_covering_the_column_pushes_the_text_below_it() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"type":"image","rect":[56,80,400,100],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"}}},
+                {"type":"text","rect":[56,80,400,400],
+                 "blocks":["Depois da fotografia"]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+
+        let runs = all_runs(&list);
+        assert_eq!(runs.len(), 1);
+        assert!(
+            runs[0].y > 180.0,
+            "a linha tem de descer para depois da foto, veio y={}",
+            runs[0].y
+        );
+        assert!((runs[0].x - 56.0).abs() < 0.01, "e voltar à margem");
+    }
+
+    #[test]
+    fn ignore_wrap_lets_a_caption_sit_on_its_own_photograph() {
+        let Some(list) = wrapped_page(
+            r#", "wrap": {"mode": {"kind": "box"}, "padding": 8}"#,
+            true,
+        ) else {
+            return;
+        };
+        let x = all_runs(&list)[0].x;
+        assert!(
+            (x - 56.0).abs() < 0.01,
+            "o frame que abre mão do contorno volta à borda, veio {x}"
+        );
+    }
+
+    #[test]
+    fn a_picture_over_one_column_leaves_the_other_alone() {
+        // Two columns of 193 with a 14 gap: 56..249 and 263..456. The picture
+        // covers the left one only.
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"type":"image","rect":[56,80,100,300],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"}}},
+                {"type":"text","rect":[56,80,400,300],"columns":2,"style":{"fontSize":10},
+                 "blocks":["Texto suficientemente longo para encher a primeira coluna inteira e transbordar para a segunda coluna do mesmo frame. Texto suficientemente longo para encher a primeira coluna inteira e transbordar para a segunda coluna do mesmo frame. Texto suficientemente longo para encher a primeira coluna inteira e transbordar para a segunda coluna do mesmo frame. Texto suficientemente longo para encher a primeira coluna inteira e transbordar para a segunda coluna do mesmo frame."]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+
+        let runs = all_runs(&list);
+        let left: Vec<&GlyphRun> = runs.iter().filter(|r| r.x < 260.0).collect();
+        let right: Vec<&GlyphRun> = runs.iter().filter(|r| r.x >= 260.0).collect();
+
+        assert!(!left.is_empty() && !right.is_empty(), "esperava as duas colunas");
+        assert!(
+            left.iter().all(|r| r.x >= 156.0 - 0.01),
+            "a coluna da esquerda tem de contornar a foto"
+        );
+        assert!(
+            right.iter().any(|r| (r.x - 263.0).abs() < 0.01),
+            "a da direita não é tocada por uma foto que não a alcança"
+        );
+    }
+
+    #[test]
+    fn a_threaded_frame_obeys_the_obstacles_of_its_own_page() {
+        let Some(list) = layout_json(
+            r#"{"pages":[
+                {"frames":[
+                    {"type":"text","id":"a","rect":[56,80,400,40],"threadNext":"b",
+                     "style":{"fontSize":10},
+                     "blocks":["Um texto que começa na primeira página sem nenhuma fotografia atrapalhando e continua na segunda página, onde existe uma, e por isso precisa desviar dela ao chegar lá."]}
+                ]},
+                {"frames":[
+                    {"type":"image","rect":[56,80,150,300],"src":"foto.png",
+                     "wrap":{"mode":{"kind":"box"}}},
+                    {"type":"text","id":"b","rect":[56,80,400,300]}
+                ]}
+            ]}"#,
+        ) else {
+            return;
+        };
+
+        let first = page_runs(&list, 0);
+        let second = page_runs(&list, 1);
+
+        assert!(!first.is_empty() && !second.is_empty(), "o texto tem de atravessar");
+        assert!(
+            (first[0].x - 56.0).abs() < 0.01,
+            "a primeira página não tem obstáculo"
+        );
+        assert!(
+            (second[0].x - 206.0).abs() < 0.01,
+            "a segunda tem, e o texto que chega lá desvia: veio {}",
+            second[0].x
+        );
+    }
+
+    #[test]
+    fn a_picture_covering_the_whole_frame_oversets_instead_of_hanging() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"type":"image","rect":[56,80,400,300],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"}}},
+                {"type":"text","id":"preso","rect":[56,80,400,300],
+                 "blocks":["Não há lugar nenhum para esta linha."]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+
+        assert!(
+            all_runs(&list).is_empty(),
+            "não sobra vão nenhum, então nada pode ser pintado"
+        );
+        assert!(
+            list.diagnostics.iter().any(|d| d.code == "overset"),
+            "e o conteúdo tem de ser reportado como overset: {:?}",
+            list.diagnostics.iter().map(|d| &d.code).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn an_unbounded_frame_still_stops_instead_of_stepping_down_forever() {
+        // `overflow: visible` removes the height budget, so the only thing
+        // between a fully blocked column and an endless loop is the band
+        // guard. The picture is taller than any page.
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"type":"image","rect":[56,80,400,100000],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"}}},
+                {"type":"text","rect":[56,80,400,300],"overflow":"visible",
+                 "blocks":["Uma linha sem lugar nenhum."]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+        assert!(all_runs(&list).is_empty(), "não há vão onde pintar");
+    }
+
+    #[test]
+    fn text_resumes_below_a_picture_in_a_frame_with_no_height_budget() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"type":"image","rect":[56,80,400,120],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"}}},
+                {"type":"text","rect":[56,80,400,60],"overflow":"visible",
+                 "blocks":["Passa por baixo da fotografia."]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+        let runs = all_runs(&list);
+        assert_eq!(runs.len(), 1);
+        assert!(
+            runs[0].y > 200.0,
+            "sem orçamento de altura o texto desce até achar espaço, veio y={}",
+            runs[0].y
+        );
+    }
+
+    #[test]
+    fn a_wrap_that_leaves_no_room_says_so_rather_than_only_reporting_overset() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"type":"image","rect":[56,80,400,300],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"}}},
+                {"type":"text","id":"preso","rect":[56,80,400,300],
+                 "blocks":["Não há lugar nenhum para esta linha."]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+
+        let wrap: Vec<&Diagnostic> = list
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "wrapLeavesNoRoom")
+            .collect();
+
+        assert_eq!(wrap.len(), 1, "um aviso, e um só: {:?}", list.diagnostics);
+        assert_eq!(wrap[0].page, Some(0));
+        assert_eq!(wrap[0].frame.as_deref(), Some("preso"));
+        assert!(
+            list.diagnostics.iter().any(|d| d.code == "overset"),
+            "o overset continua, porque o conteúdo de facto não foi colocado"
+        );
+    }
+
+    #[test]
+    fn text_that_merely_steps_around_a_picture_raises_no_warning() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"type":"image","rect":[56,80,150,60],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"}}},
+                {"type":"text","rect":[56,80,400,400],"style":{"fontSize":10},
+                 "blocks":["Um texto que apenas contorna a fotografia e segue em frente sem nunca ficar sem lugar para as suas linhas seguintes."]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+        assert!(
+            !list.diagnostics.iter().any(|d| d.code == "wrapLeavesNoRoom"),
+            "contornar é o funcionamento normal, não um problema: {:?}",
+            list.diagnostics
+        );
     }
 
     #[test]
@@ -1735,3 +2267,4 @@ mod tests {
         assert!(list.diagnostics.iter().any(|d| d.code == "noFont"));
     }
 }
+

@@ -5302,6 +5302,3653 @@
           }
         }
       ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p11-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p11-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Capítulo 4 · Vida na água"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p11-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Quem vive na água"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p11-stand",
+          "name": "Linha de apoio",
+          "type": "text",
+          "rect": [
+            48,
+            128,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A água não é só cenário: é casa. Cada corpo de água sustenta uma comunidade inteira, e a forma de cada ser conta como ele resolve viver ali."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 10.5,
+            "lineHeight": 1.5,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p11-corpo",
+          "name": "Corpo",
+          "type": "text",
+          "rect": [
+            48,
+            200,
+            499,
+            520
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "As baleias-de-barbatana filtram a água em busca de krill. Uma baleia-azul adulta chega a engolir noventa toneladas de água numa única bocada e, ao fechar a boca, empurra tudo para fora pelas barbatanas, retendo o alimento."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O corpo alongado que se vê ao lado é resposta directa a esse modo de vida: pouca resistência ao avanço, muito volume para armazenar. A cauda, que ocupa quase um terço do comprimento, bate de cima para baixo — ao contrário dos peixes, que batem de lado."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Repare no que o texto faz nesta página. Ele não contorna uma caixa rectangular à volta da figura: contorna a própria silhueta, linha a linha. Onde a cauda afina, a linha avança; onde o corpo engrossa, a linha recua. É o que um diagramador faz à mão numa revista, e é o motor que o faz aqui, a cada tecla que se escreve."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A folga entre o texto e a figura é um número que se escolhe — nesta página, doze pontos. Aumentá-la afasta o texto de todos os lados de uma vez, sem tocar no desenho. E quem quiser que um parágrafo passe por cima da figura, ignorando o contorno, assinala «ignorar contornos» nesse quadro de texto: a decisão é do texto, não da imagem."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Uma baleia-azul pesa o mesmo que trinta elefantes e o seu coração tem o tamanho de um carro pequeno. O canto de um macho atravessa centenas de quilómetros de oceano — abaixo dos vinte hertz, perto do limite do que um ouvido humano alcança."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "justify",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p11-baleia",
+          "name": "Silhueta da baleia",
+          "type": "image",
+          "src": "agua-baleia.png",
+          "rect": [
+            248,
+            214,
+            300,
+            68.55
+          ],
+          "fit": "contain",
+          "wrap": {
+            "mode": {
+              "kind": "contour",
+              "points": [
+                [
+                  0.3,
+                  0.0068
+                ],
+                [
+                  0.3,
+                  0.0205
+                ],
+                [
+                  0.3,
+                  0.0342
+                ],
+                [
+                  0.3031,
+                  0.0479
+                ],
+                [
+                  0.3031,
+                  0.0616
+                ],
+                [
+                  0.3063,
+                  0.0753
+                ],
+                [
+                  0.3094,
+                  0.089
+                ],
+                [
+                  0.3,
+                  0.1027
+                ],
+                [
+                  0.2875,
+                  0.1164
+                ],
+                [
+                  0.2687,
+                  0.1301
+                ],
+                [
+                  0.2437,
+                  0.1438
+                ],
+                [
+                  0.0375,
+                  0.1575
+                ],
+                [
+                  0.025,
+                  0.1712
+                ],
+                [
+                  0.0219,
+                  0.1849
+                ],
+                [
+                  0.0219,
+                  0.1986
+                ],
+                [
+                  0.0219,
+                  0.2123
+                ],
+                [
+                  0.0219,
+                  0.226
+                ],
+                [
+                  0.0219,
+                  0.2397
+                ],
+                [
+                  0.0219,
+                  0.2534
+                ],
+                [
+                  0.0375,
+                  0.2671
+                ],
+                [
+                  0.0437,
+                  0.2808
+                ],
+                [
+                  0.0469,
+                  0.2945
+                ],
+                [
+                  0.0469,
+                  0.3082
+                ],
+                [
+                  0.05,
+                  0.3219
+                ],
+                [
+                  0.0469,
+                  0.3356
+                ],
+                [
+                  0.0437,
+                  0.3493
+                ],
+                [
+                  0.0406,
+                  0.363
+                ],
+                [
+                  0.0375,
+                  0.3767
+                ],
+                [
+                  0.0344,
+                  0.3904
+                ],
+                [
+                  0.0312,
+                  0.4041
+                ],
+                [
+                  0.0281,
+                  0.4178
+                ],
+                [
+                  0.025,
+                  0.4315
+                ],
+                [
+                  0.0219,
+                  0.4452
+                ],
+                [
+                  0.0156,
+                  0.4589
+                ],
+                [
+                  0.0094,
+                  0.4726
+                ],
+                [
+                  0.0031,
+                  0.4863
+                ],
+                [
+                  0.0,
+                  0.5
+                ],
+                [
+                  0.0,
+                  0.5137
+                ],
+                [
+                  0.0,
+                  0.5274
+                ],
+                [
+                  0.0,
+                  0.5411
+                ],
+                [
+                  0.0,
+                  0.5548
+                ],
+                [
+                  0.0,
+                  0.5685
+                ],
+                [
+                  0.0,
+                  0.5822
+                ],
+                [
+                  0.2969,
+                  0.5959
+                ],
+                [
+                  0.3125,
+                  0.6096
+                ],
+                [
+                  0.3219,
+                  0.6233
+                ],
+                [
+                  0.3344,
+                  0.637
+                ],
+                [
+                  0.3438,
+                  0.6507
+                ],
+                [
+                  0.3531,
+                  0.6644
+                ],
+                [
+                  0.3625,
+                  0.6781
+                ],
+                [
+                  0.375,
+                  0.6918
+                ],
+                [
+                  0.3875,
+                  0.7055
+                ],
+                [
+                  0.4062,
+                  0.7192
+                ],
+                [
+                  0.425,
+                  0.7329
+                ],
+                [
+                  0.4437,
+                  0.7466
+                ],
+                [
+                  0.4625,
+                  0.7603
+                ],
+                [
+                  0.4844,
+                  0.774
+                ],
+                [
+                  0.5062,
+                  0.7877
+                ],
+                [
+                  0.5563,
+                  0.8014
+                ],
+                [
+                  0.5531,
+                  0.8151
+                ],
+                [
+                  0.55,
+                  0.8288
+                ],
+                [
+                  0.55,
+                  0.8425
+                ],
+                [
+                  0.5469,
+                  0.8562
+                ],
+                [
+                  0.5469,
+                  0.8699
+                ],
+                [
+                  0.5469,
+                  0.8836
+                ],
+                [
+                  0.5437,
+                  0.8973
+                ],
+                [
+                  0.5437,
+                  0.911
+                ],
+                [
+                  0.5437,
+                  0.9247
+                ],
+                [
+                  0.5437,
+                  0.9384
+                ],
+                [
+                  0.5437,
+                  0.9521
+                ],
+                [
+                  0.5437,
+                  0.9658
+                ],
+                [
+                  0.5437,
+                  0.9795
+                ],
+                [
+                  0.55,
+                  0.9932
+                ],
+                [
+                  0.6219,
+                  0.9932
+                ],
+                [
+                  0.6281,
+                  0.9795
+                ],
+                [
+                  0.6344,
+                  0.9658
+                ],
+                [
+                  0.6375,
+                  0.9521
+                ],
+                [
+                  0.6406,
+                  0.9384
+                ],
+                [
+                  0.6438,
+                  0.9247
+                ],
+                [
+                  0.6469,
+                  0.911
+                ],
+                [
+                  0.65,
+                  0.8973
+                ],
+                [
+                  0.6531,
+                  0.8836
+                ],
+                [
+                  0.6562,
+                  0.8699
+                ],
+                [
+                  0.6594,
+                  0.8562
+                ],
+                [
+                  0.6625,
+                  0.8425
+                ],
+                [
+                  0.6656,
+                  0.8288
+                ],
+                [
+                  0.7063,
+                  0.8151
+                ],
+                [
+                  0.7219,
+                  0.8014
+                ],
+                [
+                  0.7312,
+                  0.7877
+                ],
+                [
+                  0.7344,
+                  0.774
+                ],
+                [
+                  0.7406,
+                  0.7603
+                ],
+                [
+                  0.7469,
+                  0.7466
+                ],
+                [
+                  0.7531,
+                  0.7329
+                ],
+                [
+                  0.7594,
+                  0.7192
+                ],
+                [
+                  0.7656,
+                  0.7055
+                ],
+                [
+                  0.775,
+                  0.6918
+                ],
+                [
+                  0.7844,
+                  0.6781
+                ],
+                [
+                  0.7969,
+                  0.6644
+                ],
+                [
+                  0.8219,
+                  0.6507
+                ],
+                [
+                  0.8438,
+                  0.637
+                ],
+                [
+                  0.8562,
+                  0.6233
+                ],
+                [
+                  0.8688,
+                  0.6096
+                ],
+                [
+                  0.8781,
+                  0.5959
+                ],
+                [
+                  0.8875,
+                  0.5822
+                ],
+                [
+                  0.8969,
+                  0.5685
+                ],
+                [
+                  0.9062,
+                  0.5548
+                ],
+                [
+                  0.9125,
+                  0.5411
+                ],
+                [
+                  0.9219,
+                  0.5274
+                ],
+                [
+                  0.9281,
+                  0.5137
+                ],
+                [
+                  0.9344,
+                  0.5
+                ],
+                [
+                  0.9406,
+                  0.4863
+                ],
+                [
+                  0.9437,
+                  0.4726
+                ],
+                [
+                  0.95,
+                  0.4589
+                ],
+                [
+                  0.9531,
+                  0.4452
+                ],
+                [
+                  0.9594,
+                  0.4315
+                ],
+                [
+                  0.9688,
+                  0.4178
+                ],
+                [
+                  0.9781,
+                  0.4041
+                ],
+                [
+                  0.9875,
+                  0.3904
+                ],
+                [
+                  0.9938,
+                  0.3767
+                ],
+                [
+                  0.9969,
+                  0.363
+                ],
+                [
+                  1.0,
+                  0.3493
+                ],
+                [
+                  1.0,
+                  0.3356
+                ],
+                [
+                  1.0,
+                  0.3219
+                ],
+                [
+                  1.0,
+                  0.3082
+                ],
+                [
+                  1.0,
+                  0.2945
+                ],
+                [
+                  1.0,
+                  0.2808
+                ],
+                [
+                  1.0,
+                  0.2671
+                ],
+                [
+                  1.0,
+                  0.2534
+                ],
+                [
+                  0.9969,
+                  0.2397
+                ],
+                [
+                  0.9969,
+                  0.226
+                ],
+                [
+                  0.9969,
+                  0.2123
+                ],
+                [
+                  0.9969,
+                  0.1986
+                ],
+                [
+                  0.9969,
+                  0.1849
+                ],
+                [
+                  0.9969,
+                  0.1712
+                ],
+                [
+                  0.9969,
+                  0.1575
+                ],
+                [
+                  0.9906,
+                  0.1438
+                ],
+                [
+                  0.9812,
+                  0.1301
+                ],
+                [
+                  0.9375,
+                  0.1164
+                ],
+                [
+                  0.9094,
+                  0.1027
+                ],
+                [
+                  0.9031,
+                  0.089
+                ],
+                [
+                  0.8844,
+                  0.0753
+                ],
+                [
+                  0.875,
+                  0.0616
+                ],
+                [
+                  0.8625,
+                  0.0479
+                ],
+                [
+                  0.8063,
+                  0.0342
+                ],
+                [
+                  0.7656,
+                  0.0205
+                ],
+                [
+                  0.7312,
+                  0.0068
+                ]
+              ]
+            },
+            "padding": 12
+          }
+        },
+        {
+          "id": "p11-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p11-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p11-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p12-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p12-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Capítulo 4 · Vida na água"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p12-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Dos dois lados"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p12-stand",
+          "name": "Linha de apoio",
+          "type": "text",
+          "rect": [
+            48,
+            128,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Quando a figura fica no meio da mancha, cada linha de texto parte-se em duas e continua do outro lado."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 10.5,
+            "lineHeight": 1.5,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p12-corpo",
+          "name": "Corpo",
+          "type": "text",
+          "rect": [
+            48,
+            210,
+            499,
+            500
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O polvo tem três corações e sangue azul. Dois deles bombeiam para as brânquias e o terceiro trata do resto do corpo — e pára quando o animal nada, o que explica por que prefere andar a nadar."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A pele muda de cor e de textura em menos de um segundo, graças a células que se contraem e se abrem como diafragmas. Cada braço tem mais neurónios do que o cérebro central e resolve problemas sozinho: um polvo abre um frasco com um braço enquanto os outros exploram o fundo."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Esta página existe para mostrar uma coisa concreta. Repare que várias linhas começam à esquerda da figura, saltam por cima dela e continuam à direita, na mesma altura. A ordem de leitura mantém-se — esquerda primeiro, depois direita, e só então a linha de baixo — e nenhuma palavra se repete ou se perde na passagem."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Bibliotecas de composição de texto costumam calcular todos os vãos de uma linha e ficar-se pelo mais largo, deitando os outros fora. É mais simples e quase ninguém repara, porque o resultado ainda parece razoável: o texto desvia-se da figura, só que por um lado só. Aqui todos os vãos são usados."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Abaixo da figura o texto volta a ocupar a largura toda, sem descontinuidade e sem uma linha vazia a marcar a passagem. Se arrastar a figura no editor, tudo se recompõe enquanto arrasta."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p12-polvo",
+          "name": "Silhueta do polvo",
+          "type": "image",
+          "src": "agua-polvo.png",
+          "rect": [
+            223,
+            226,
+            150,
+            109.4
+          ],
+          "fit": "contain",
+          "wrap": {
+            "mode": {
+              "kind": "contour",
+              "points": [
+                [
+                  0.2844,
+                  0.0021
+                ],
+                [
+                  0.2531,
+                  0.0193
+                ],
+                [
+                  0.2031,
+                  0.0365
+                ],
+                [
+                  0.175,
+                  0.0536
+                ],
+                [
+                  0.15,
+                  0.0708
+                ],
+                [
+                  0.1281,
+                  0.088
+                ],
+                [
+                  0.1094,
+                  0.1052
+                ],
+                [
+                  0.0969,
+                  0.1223
+                ],
+                [
+                  0.0875,
+                  0.1395
+                ],
+                [
+                  0.0781,
+                  0.1567
+                ],
+                [
+                  0.0656,
+                  0.1738
+                ],
+                [
+                  0.0469,
+                  0.191
+                ],
+                [
+                  0.0375,
+                  0.2082
+                ],
+                [
+                  0.0281,
+                  0.2253
+                ],
+                [
+                  0.0187,
+                  0.2425
+                ],
+                [
+                  0.0125,
+                  0.2597
+                ],
+                [
+                  0.0094,
+                  0.2768
+                ],
+                [
+                  0.0063,
+                  0.294
+                ],
+                [
+                  0.0031,
+                  0.3112
+                ],
+                [
+                  0.0031,
+                  0.3283
+                ],
+                [
+                  0.0031,
+                  0.3455
+                ],
+                [
+                  0.0063,
+                  0.3627
+                ],
+                [
+                  0.0094,
+                  0.3798
+                ],
+                [
+                  0.0125,
+                  0.397
+                ],
+                [
+                  0.0187,
+                  0.4142
+                ],
+                [
+                  0.025,
+                  0.4313
+                ],
+                [
+                  0.0344,
+                  0.4485
+                ],
+                [
+                  0.05,
+                  0.4657
+                ],
+                [
+                  0.0656,
+                  0.4828
+                ],
+                [
+                  0.0906,
+                  0.5
+                ],
+                [
+                  0.1281,
+                  0.5172
+                ],
+                [
+                  0.0563,
+                  0.5343
+                ],
+                [
+                  0.0469,
+                  0.5515
+                ],
+                [
+                  0.0437,
+                  0.5687
+                ],
+                [
+                  0.0437,
+                  0.5858
+                ],
+                [
+                  0.0437,
+                  0.603
+                ],
+                [
+                  0.0437,
+                  0.6202
+                ],
+                [
+                  0.0437,
+                  0.6373
+                ],
+                [
+                  0.0406,
+                  0.6545
+                ],
+                [
+                  0.0375,
+                  0.6717
+                ],
+                [
+                  0.0375,
+                  0.6888
+                ],
+                [
+                  0.0344,
+                  0.706
+                ],
+                [
+                  0.0312,
+                  0.7232
+                ],
+                [
+                  0.025,
+                  0.7403
+                ],
+                [
+                  0.0156,
+                  0.7575
+                ],
+                [
+                  0.0125,
+                  0.7747
+                ],
+                [
+                  0.0031,
+                  0.7918
+                ],
+                [
+                  0.0,
+                  0.809
+                ],
+                [
+                  0.0,
+                  0.8262
+                ],
+                [
+                  0.0031,
+                  0.8433
+                ],
+                [
+                  0.0281,
+                  0.8605
+                ],
+                [
+                  0.2031,
+                  0.8777
+                ],
+                [
+                  0.225,
+                  0.8948
+                ],
+                [
+                  0.6,
+                  0.912
+                ],
+                [
+                  0.6125,
+                  0.9292
+                ],
+                [
+                  0.6125,
+                  0.9464
+                ],
+                [
+                  0.6156,
+                  0.9635
+                ],
+                [
+                  0.6188,
+                  0.9807
+                ],
+                [
+                  0.6281,
+                  0.9979
+                ],
+                [
+                  0.6937,
+                  0.9979
+                ],
+                [
+                  0.7,
+                  0.9807
+                ],
+                [
+                  0.7125,
+                  0.9635
+                ],
+                [
+                  0.7188,
+                  0.9464
+                ],
+                [
+                  0.7219,
+                  0.9292
+                ],
+                [
+                  0.725,
+                  0.912
+                ],
+                [
+                  0.725,
+                  0.8948
+                ],
+                [
+                  0.7281,
+                  0.8777
+                ],
+                [
+                  0.7281,
+                  0.8605
+                ],
+                [
+                  0.7219,
+                  0.8433
+                ],
+                [
+                  0.7219,
+                  0.8262
+                ],
+                [
+                  0.7188,
+                  0.809
+                ],
+                [
+                  0.7188,
+                  0.7918
+                ],
+                [
+                  0.7125,
+                  0.7747
+                ],
+                [
+                  0.9031,
+                  0.7575
+                ],
+                [
+                  0.9313,
+                  0.7403
+                ],
+                [
+                  0.9406,
+                  0.7232
+                ],
+                [
+                  0.9406,
+                  0.706
+                ],
+                [
+                  0.9406,
+                  0.6888
+                ],
+                [
+                  0.9406,
+                  0.6717
+                ],
+                [
+                  0.9406,
+                  0.6545
+                ],
+                [
+                  0.9219,
+                  0.6373
+                ],
+                [
+                  0.975,
+                  0.6202
+                ],
+                [
+                  0.9906,
+                  0.603
+                ],
+                [
+                  0.9969,
+                  0.5858
+                ],
+                [
+                  1.0,
+                  0.5687
+                ],
+                [
+                  1.0,
+                  0.5515
+                ],
+                [
+                  1.0,
+                  0.5343
+                ],
+                [
+                  1.0,
+                  0.5172
+                ],
+                [
+                  1.0,
+                  0.5
+                ],
+                [
+                  0.9938,
+                  0.4828
+                ],
+                [
+                  0.9906,
+                  0.4657
+                ],
+                [
+                  0.9812,
+                  0.4485
+                ],
+                [
+                  0.975,
+                  0.4313
+                ],
+                [
+                  0.9625,
+                  0.4142
+                ],
+                [
+                  0.95,
+                  0.397
+                ],
+                [
+                  0.9375,
+                  0.3798
+                ],
+                [
+                  0.925,
+                  0.3627
+                ],
+                [
+                  0.9,
+                  0.3455
+                ],
+                [
+                  0.875,
+                  0.3283
+                ],
+                [
+                  0.8438,
+                  0.3112
+                ],
+                [
+                  0.8063,
+                  0.294
+                ],
+                [
+                  0.8125,
+                  0.2768
+                ],
+                [
+                  0.8187,
+                  0.2597
+                ],
+                [
+                  0.8187,
+                  0.2425
+                ],
+                [
+                  0.8219,
+                  0.2253
+                ],
+                [
+                  0.8219,
+                  0.2082
+                ],
+                [
+                  0.8187,
+                  0.191
+                ],
+                [
+                  0.8156,
+                  0.1738
+                ],
+                [
+                  0.8125,
+                  0.1567
+                ],
+                [
+                  0.8063,
+                  0.1395
+                ],
+                [
+                  0.5031,
+                  0.1223
+                ],
+                [
+                  0.4875,
+                  0.1052
+                ],
+                [
+                  0.475,
+                  0.088
+                ],
+                [
+                  0.4594,
+                  0.0708
+                ],
+                [
+                  0.4531,
+                  0.0536
+                ],
+                [
+                  0.45,
+                  0.0365
+                ],
+                [
+                  0.4406,
+                  0.0193
+                ],
+                [
+                  0.4188,
+                  0.0021
+                ]
+              ]
+            },
+            "padding": 12
+          }
+        },
+        {
+          "id": "p12-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p12-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p12-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p13-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p13-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Capítulo 4 · Vida na água"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p13-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Uma prancha de formas"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p13-stand",
+          "name": "Linha de apoio",
+          "type": "text",
+          "rect": [
+            48,
+            128,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Corpos diferentes, problemas diferentes. Quatro silhuetas na mesma mancha de texto."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 10.5,
+            "lineHeight": 1.5,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p13-corpo",
+          "name": "Corpo",
+          "type": "text",
+          "rect": [
+            48,
+            204,
+            499,
+            500
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A medusa não tem cérebro, nem coração, nem sangue. Tem uma rede de nervos espalhada pelo corpo e um sino que se contrai e relaxa, empurrando água para trás. É feita de água em mais de noventa e cinco por cento: fora dela, desfaz-se no chão."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O cavalo-marinho nada de pé e devagar, com uma barbatana dorsal que bate dezenas de vezes por segundo. Enrola a cauda em algas para não ser levado pela corrente. É o macho que engravida: carrega os ovos numa bolsa até nascerem."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O tubarão existe há mais tempo do que as árvores. Não tem osso — o esqueleto é de cartilagem, mais leve, o que ajuda a manter-se na água sem gastar energia. A pele é coberta de dentículos minúsculos que reduzem o atrito, um desenho que a indústria já copiou para fatos de natação e para cascos de navio."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A garça não vive dentro de água, mas da água. Espera imóvel na margem, às vezes durante minutos, e desfere o bico num movimento que dura um vigésimo de segundo. O pescoço dobrado em S é uma mola carregada à espera de disparar, e as asas abertas contam a envergadura de quem precisa de sair depressa de um lugar raso."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Quatro formas, quatro modos de ocupar a página. A do cavalo-marinho é estreita e alta; a do tubarão é larga e baixa; a da medusa termina em tentáculos que abrem e fecham vãos linha a linha; a da garça tem asas que deixam passar texto por baixo. Nenhuma delas é um rectângulo, e é exactamente isso que interessa."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Repare em como o texto se comporta junto de cada uma. Nos tentáculos da medusa os vãos abrem e fecham de linha para linha, porque a forma muda de largura a cada poucos pontos. Junto ao tubarão a fronteira é quase recta e a mancha estabiliza. Sob as asas da garça o texto passa por baixo do corpo e volta a subir junto às pontas, que são finas."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Um contorno demasiado justo é tão mau como nenhum: as palavras encostam ao desenho. Folgado de mais, desperdiça a mancha. A folga é o botão que se ajusta até a página respirar."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p13-medusa",
+          "name": "Silhueta da medusa",
+          "type": "image",
+          "src": "agua-medusa.png",
+          "rect": [
+            48,
+            216,
+            88,
+            157.36
+          ],
+          "fit": "contain",
+          "wrap": {
+            "mode": {
+              "kind": "contour",
+              "points": [
+                [
+                  0.3799,
+                  0.0016
+                ],
+                [
+                  0.3296,
+                  0.0203
+                ],
+                [
+                  0.2961,
+                  0.0391
+                ],
+                [
+                  0.2737,
+                  0.0578
+                ],
+                [
+                  0.2514,
+                  0.0766
+                ],
+                [
+                  0.2402,
+                  0.0953
+                ],
+                [
+                  0.2291,
+                  0.1141
+                ],
+                [
+                  0.2179,
+                  0.1328
+                ],
+                [
+                  0.2123,
+                  0.1516
+                ],
+                [
+                  0.2123,
+                  0.1703
+                ],
+                [
+                  0.2067,
+                  0.1891
+                ],
+                [
+                  0.2067,
+                  0.2078
+                ],
+                [
+                  0.2067,
+                  0.2266
+                ],
+                [
+                  0.2011,
+                  0.2453
+                ],
+                [
+                  0.1899,
+                  0.2641
+                ],
+                [
+                  0.162,
+                  0.2828
+                ],
+                [
+                  0.1285,
+                  0.3016
+                ],
+                [
+                  0.1117,
+                  0.3203
+                ],
+                [
+                  0.1061,
+                  0.3391
+                ],
+                [
+                  0.1117,
+                  0.3578
+                ],
+                [
+                  0.1117,
+                  0.3766
+                ],
+                [
+                  0.1117,
+                  0.3953
+                ],
+                [
+                  0.1117,
+                  0.4141
+                ],
+                [
+                  0.095,
+                  0.4328
+                ],
+                [
+                  0.0615,
+                  0.4516
+                ],
+                [
+                  0.0279,
+                  0.4703
+                ],
+                [
+                  0.0223,
+                  0.4891
+                ],
+                [
+                  0.0112,
+                  0.5078
+                ],
+                [
+                  0.0,
+                  0.5266
+                ],
+                [
+                  0.0,
+                  0.5453
+                ],
+                [
+                  0.0,
+                  0.5641
+                ],
+                [
+                  0.1006,
+                  0.5828
+                ],
+                [
+                  0.1006,
+                  0.6016
+                ],
+                [
+                  0.1006,
+                  0.6203
+                ],
+                [
+                  0.1006,
+                  0.6391
+                ],
+                [
+                  0.0838,
+                  0.6578
+                ],
+                [
+                  0.067,
+                  0.6766
+                ],
+                [
+                  0.0559,
+                  0.6953
+                ],
+                [
+                  0.0503,
+                  0.7141
+                ],
+                [
+                  0.0559,
+                  0.7328
+                ],
+                [
+                  0.0838,
+                  0.7516
+                ],
+                [
+                  0.067,
+                  0.7703
+                ],
+                [
+                  0.0615,
+                  0.7891
+                ],
+                [
+                  0.1397,
+                  0.8078
+                ],
+                [
+                  0.1341,
+                  0.8266
+                ],
+                [
+                  0.1732,
+                  0.8453
+                ],
+                [
+                  0.1676,
+                  0.8641
+                ],
+                [
+                  0.1676,
+                  0.8828
+                ],
+                [
+                  0.3017,
+                  0.9016
+                ],
+                [
+                  0.4246,
+                  0.9203
+                ],
+                [
+                  0.419,
+                  0.9391
+                ],
+                [
+                  0.5587,
+                  0.9578
+                ],
+                [
+                  0.5531,
+                  0.9766
+                ],
+                [
+                  0.5531,
+                  0.9953
+                ],
+                [
+                  0.5531,
+                  0.9984
+                ],
+                [
+                  0.5698,
+                  0.9984
+                ],
+                [
+                  0.5698,
+                  0.9953
+                ],
+                [
+                  0.581,
+                  0.9766
+                ],
+                [
+                  0.6983,
+                  0.9578
+                ],
+                [
+                  0.7151,
+                  0.9391
+                ],
+                [
+                  0.7207,
+                  0.9203
+                ],
+                [
+                  0.7207,
+                  0.9016
+                ],
+                [
+                  0.7207,
+                  0.8828
+                ],
+                [
+                  0.7263,
+                  0.8641
+                ],
+                [
+                  0.7877,
+                  0.8453
+                ],
+                [
+                  0.7989,
+                  0.8266
+                ],
+                [
+                  0.8045,
+                  0.8078
+                ],
+                [
+                  0.8045,
+                  0.7891
+                ],
+                [
+                  0.8101,
+                  0.7703
+                ],
+                [
+                  0.8156,
+                  0.7516
+                ],
+                [
+                  0.8268,
+                  0.7328
+                ],
+                [
+                  0.8324,
+                  0.7141
+                ],
+                [
+                  0.8492,
+                  0.6953
+                ],
+                [
+                  0.8659,
+                  0.6766
+                ],
+                [
+                  0.8939,
+                  0.6578
+                ],
+                [
+                  0.905,
+                  0.6391
+                ],
+                [
+                  0.9106,
+                  0.6203
+                ],
+                [
+                  0.9162,
+                  0.6016
+                ],
+                [
+                  0.9162,
+                  0.5828
+                ],
+                [
+                  0.9162,
+                  0.5641
+                ],
+                [
+                  0.9162,
+                  0.5453
+                ],
+                [
+                  0.9218,
+                  0.5266
+                ],
+                [
+                  0.9218,
+                  0.5078
+                ],
+                [
+                  0.9274,
+                  0.4891
+                ],
+                [
+                  0.933,
+                  0.4703
+                ],
+                [
+                  0.9385,
+                  0.4516
+                ],
+                [
+                  0.9441,
+                  0.4328
+                ],
+                [
+                  0.9553,
+                  0.4141
+                ],
+                [
+                  0.9665,
+                  0.3953
+                ],
+                [
+                  0.9777,
+                  0.3766
+                ],
+                [
+                  0.9944,
+                  0.3578
+                ],
+                [
+                  1.0,
+                  0.3391
+                ],
+                [
+                  1.0,
+                  0.3203
+                ],
+                [
+                  0.9888,
+                  0.3016
+                ],
+                [
+                  0.9721,
+                  0.2828
+                ],
+                [
+                  0.9441,
+                  0.2641
+                ],
+                [
+                  0.905,
+                  0.2453
+                ],
+                [
+                  0.8827,
+                  0.2266
+                ],
+                [
+                  0.8715,
+                  0.2078
+                ],
+                [
+                  0.8659,
+                  0.1891
+                ],
+                [
+                  0.8547,
+                  0.1703
+                ],
+                [
+                  0.8492,
+                  0.1516
+                ],
+                [
+                  0.8324,
+                  0.1328
+                ],
+                [
+                  0.8101,
+                  0.1141
+                ],
+                [
+                  0.7933,
+                  0.0953
+                ],
+                [
+                  0.7765,
+                  0.0766
+                ],
+                [
+                  0.7598,
+                  0.0578
+                ],
+                [
+                  0.7374,
+                  0.0391
+                ],
+                [
+                  0.7039,
+                  0.0203
+                ],
+                [
+                  0.6313,
+                  0.0016
+                ]
+              ]
+            },
+            "padding": 10
+          }
+        },
+        {
+          "id": "p13-cavalo",
+          "name": "Silhueta do cavalo-marinho",
+          "type": "image",
+          "src": "agua-cavalo.png",
+          "rect": [
+            476,
+            212,
+            68,
+            111.35
+          ],
+          "fit": "contain",
+          "wrap": {
+            "mode": {
+              "kind": "contour",
+              "points": [
+                [
+                  0.3077,
+                  0.0016
+                ],
+                [
+                  0.2872,
+                  0.0203
+                ],
+                [
+                  0.2718,
+                  0.0391
+                ],
+                [
+                  0.2513,
+                  0.0578
+                ],
+                [
+                  0.2103,
+                  0.0766
+                ],
+                [
+                  0.1897,
+                  0.0953
+                ],
+                [
+                  0.1846,
+                  0.1141
+                ],
+                [
+                  0.1692,
+                  0.1328
+                ],
+                [
+                  0.1641,
+                  0.1516
+                ],
+                [
+                  0.1385,
+                  0.1703
+                ],
+                [
+                  0.0923,
+                  0.1891
+                ],
+                [
+                  0.0051,
+                  0.2078
+                ],
+                [
+                  0.0,
+                  0.2266
+                ],
+                [
+                  0.0205,
+                  0.2453
+                ],
+                [
+                  0.0615,
+                  0.2641
+                ],
+                [
+                  0.3487,
+                  0.2828
+                ],
+                [
+                  0.3487,
+                  0.3016
+                ],
+                [
+                  0.3436,
+                  0.3203
+                ],
+                [
+                  0.3385,
+                  0.3391
+                ],
+                [
+                  0.3333,
+                  0.3578
+                ],
+                [
+                  0.3385,
+                  0.3766
+                ],
+                [
+                  0.3333,
+                  0.3953
+                ],
+                [
+                  0.3282,
+                  0.4141
+                ],
+                [
+                  0.3333,
+                  0.4328
+                ],
+                [
+                  0.3436,
+                  0.4516
+                ],
+                [
+                  0.3487,
+                  0.4703
+                ],
+                [
+                  0.3487,
+                  0.4891
+                ],
+                [
+                  0.3641,
+                  0.5078
+                ],
+                [
+                  0.3949,
+                  0.5266
+                ],
+                [
+                  0.4308,
+                  0.5453
+                ],
+                [
+                  0.4359,
+                  0.5641
+                ],
+                [
+                  0.4974,
+                  0.5828
+                ],
+                [
+                  0.5333,
+                  0.6016
+                ],
+                [
+                  0.5744,
+                  0.6203
+                ],
+                [
+                  0.6154,
+                  0.6391
+                ],
+                [
+                  0.6513,
+                  0.6578
+                ],
+                [
+                  0.6821,
+                  0.6766
+                ],
+                [
+                  0.7231,
+                  0.6953
+                ],
+                [
+                  0.759,
+                  0.7141
+                ],
+                [
+                  0.7949,
+                  0.7328
+                ],
+                [
+                  0.8256,
+                  0.7516
+                ],
+                [
+                  0.8513,
+                  0.7703
+                ],
+                [
+                  0.8718,
+                  0.7891
+                ],
+                [
+                  0.8872,
+                  0.8078
+                ],
+                [
+                  0.8974,
+                  0.8266
+                ],
+                [
+                  0.9077,
+                  0.8453
+                ],
+                [
+                  0.9179,
+                  0.8641
+                ],
+                [
+                  0.7538,
+                  0.8828
+                ],
+                [
+                  0.7282,
+                  0.9016
+                ],
+                [
+                  0.7179,
+                  0.9203
+                ],
+                [
+                  0.7179,
+                  0.9391
+                ],
+                [
+                  0.7231,
+                  0.9578
+                ],
+                [
+                  0.7385,
+                  0.9766
+                ],
+                [
+                  0.7744,
+                  0.9953
+                ],
+                [
+                  0.7846,
+                  0.9984
+                ],
+                [
+                  0.8974,
+                  0.9984
+                ],
+                [
+                  0.9077,
+                  0.9953
+                ],
+                [
+                  0.9436,
+                  0.9766
+                ],
+                [
+                  0.9744,
+                  0.9578
+                ],
+                [
+                  0.9897,
+                  0.9391
+                ],
+                [
+                  1.0,
+                  0.9203
+                ],
+                [
+                  1.0,
+                  0.9016
+                ],
+                [
+                  1.0,
+                  0.8828
+                ],
+                [
+                  1.0,
+                  0.8641
+                ],
+                [
+                  1.0,
+                  0.8453
+                ],
+                [
+                  0.9949,
+                  0.8266
+                ],
+                [
+                  0.9897,
+                  0.8078
+                ],
+                [
+                  0.9795,
+                  0.7891
+                ],
+                [
+                  0.9692,
+                  0.7703
+                ],
+                [
+                  0.9538,
+                  0.7516
+                ],
+                [
+                  0.9385,
+                  0.7328
+                ],
+                [
+                  0.9179,
+                  0.7141
+                ],
+                [
+                  0.8974,
+                  0.6953
+                ],
+                [
+                  0.8667,
+                  0.6766
+                ],
+                [
+                  0.8359,
+                  0.6578
+                ],
+                [
+                  0.8051,
+                  0.6391
+                ],
+                [
+                  0.7744,
+                  0.6203
+                ],
+                [
+                  0.7436,
+                  0.6016
+                ],
+                [
+                  0.7179,
+                  0.5828
+                ],
+                [
+                  0.6923,
+                  0.5641
+                ],
+                [
+                  0.7282,
+                  0.5453
+                ],
+                [
+                  0.7436,
+                  0.5266
+                ],
+                [
+                  0.759,
+                  0.5078
+                ],
+                [
+                  0.7641,
+                  0.4891
+                ],
+                [
+                  0.7538,
+                  0.4703
+                ],
+                [
+                  0.7436,
+                  0.4516
+                ],
+                [
+                  0.7436,
+                  0.4328
+                ],
+                [
+                  0.7282,
+                  0.4141
+                ],
+                [
+                  0.6974,
+                  0.3953
+                ],
+                [
+                  0.6821,
+                  0.3766
+                ],
+                [
+                  0.6051,
+                  0.3578
+                ],
+                [
+                  0.6103,
+                  0.3391
+                ],
+                [
+                  0.6154,
+                  0.3203
+                ],
+                [
+                  0.6205,
+                  0.3016
+                ],
+                [
+                  0.6256,
+                  0.2828
+                ],
+                [
+                  0.6308,
+                  0.2641
+                ],
+                [
+                  0.6359,
+                  0.2453
+                ],
+                [
+                  0.641,
+                  0.2266
+                ],
+                [
+                  0.6462,
+                  0.2078
+                ],
+                [
+                  0.6462,
+                  0.1891
+                ],
+                [
+                  0.6462,
+                  0.1703
+                ],
+                [
+                  0.6359,
+                  0.1516
+                ],
+                [
+                  0.6256,
+                  0.1328
+                ],
+                [
+                  0.6051,
+                  0.1141
+                ],
+                [
+                  0.5846,
+                  0.0953
+                ],
+                [
+                  0.5641,
+                  0.0766
+                ],
+                [
+                  0.5282,
+                  0.0578
+                ],
+                [
+                  0.4974,
+                  0.0391
+                ],
+                [
+                  0.4615,
+                  0.0203
+                ],
+                [
+                  0.4154,
+                  0.0016
+                ]
+              ]
+            },
+            "padding": 10
+          }
+        },
+        {
+          "id": "p13-tubarao",
+          "name": "Silhueta do tubarão",
+          "type": "image",
+          "src": "agua-tubarao.png",
+          "rect": [
+            168,
+            392,
+            220,
+            145.38
+          ],
+          "fit": "contain",
+          "wrap": {
+            "mode": {
+              "kind": "contour",
+              "points": [
+                [
+                  0.9375,
+                  0.0024
+                ],
+                [
+                  0.9219,
+                  0.0213
+                ],
+                [
+                  0.9094,
+                  0.0403
+                ],
+                [
+                  0.8969,
+                  0.0592
+                ],
+                [
+                  0.8875,
+                  0.0782
+                ],
+                [
+                  0.875,
+                  0.0972
+                ],
+                [
+                  0.8656,
+                  0.1161
+                ],
+                [
+                  0.8531,
+                  0.1351
+                ],
+                [
+                  0.8438,
+                  0.154
+                ],
+                [
+                  0.8313,
+                  0.173
+                ],
+                [
+                  0.8219,
+                  0.1919
+                ],
+                [
+                  0.8063,
+                  0.2109
+                ],
+                [
+                  0.6188,
+                  0.2299
+                ],
+                [
+                  0.6094,
+                  0.2488
+                ],
+                [
+                  0.6031,
+                  0.2678
+                ],
+                [
+                  0.4813,
+                  0.2867
+                ],
+                [
+                  0.4719,
+                  0.3057
+                ],
+                [
+                  0.4688,
+                  0.3246
+                ],
+                [
+                  0.4625,
+                  0.3436
+                ],
+                [
+                  0.3844,
+                  0.3626
+                ],
+                [
+                  0.3594,
+                  0.3815
+                ],
+                [
+                  0.3531,
+                  0.4005
+                ],
+                [
+                  0.35,
+                  0.4194
+                ],
+                [
+                  0.35,
+                  0.4384
+                ],
+                [
+                  0.3469,
+                  0.4573
+                ],
+                [
+                  0.3438,
+                  0.4763
+                ],
+                [
+                  0.1125,
+                  0.4953
+                ],
+                [
+                  0.1031,
+                  0.5142
+                ],
+                [
+                  0.0969,
+                  0.5332
+                ],
+                [
+                  0.0969,
+                  0.5521
+                ],
+                [
+                  0.0969,
+                  0.5711
+                ],
+                [
+                  0.0969,
+                  0.59
+                ],
+                [
+                  0.1,
+                  0.609
+                ],
+                [
+                  0.1,
+                  0.628
+                ],
+                [
+                  0.1031,
+                  0.6469
+                ],
+                [
+                  0.1094,
+                  0.6659
+                ],
+                [
+                  0.0969,
+                  0.6848
+                ],
+                [
+                  0.0844,
+                  0.7038
+                ],
+                [
+                  0.0719,
+                  0.7227
+                ],
+                [
+                  0.0594,
+                  0.7417
+                ],
+                [
+                  0.0469,
+                  0.7607
+                ],
+                [
+                  0.0375,
+                  0.7796
+                ],
+                [
+                  0.0281,
+                  0.7986
+                ],
+                [
+                  0.0,
+                  0.8175
+                ],
+                [
+                  0.0,
+                  0.8365
+                ],
+                [
+                  0.0,
+                  0.8555
+                ],
+                [
+                  0.0,
+                  0.8744
+                ],
+                [
+                  0.0031,
+                  0.8934
+                ],
+                [
+                  0.0063,
+                  0.9123
+                ],
+                [
+                  0.0094,
+                  0.9313
+                ],
+                [
+                  0.0187,
+                  0.9502
+                ],
+                [
+                  0.0281,
+                  0.9692
+                ],
+                [
+                  0.0406,
+                  0.9882
+                ],
+                [
+                  0.05,
+                  0.9976
+                ],
+                [
+                  0.3375,
+                  0.9976
+                ],
+                [
+                  0.3438,
+                  0.9882
+                ],
+                [
+                  0.3469,
+                  0.9692
+                ],
+                [
+                  0.35,
+                  0.9502
+                ],
+                [
+                  0.35,
+                  0.9313
+                ],
+                [
+                  0.3531,
+                  0.9123
+                ],
+                [
+                  0.3531,
+                  0.8934
+                ],
+                [
+                  0.35,
+                  0.8744
+                ],
+                [
+                  0.35,
+                  0.8555
+                ],
+                [
+                  0.3438,
+                  0.8365
+                ],
+                [
+                  0.3281,
+                  0.8175
+                ],
+                [
+                  0.3469,
+                  0.7986
+                ],
+                [
+                  0.3625,
+                  0.7796
+                ],
+                [
+                  0.3781,
+                  0.7607
+                ],
+                [
+                  0.3906,
+                  0.7417
+                ],
+                [
+                  0.4875,
+                  0.7227
+                ],
+                [
+                  0.5,
+                  0.7038
+                ],
+                [
+                  0.5062,
+                  0.6848
+                ],
+                [
+                  0.5156,
+                  0.6659
+                ],
+                [
+                  0.5188,
+                  0.6469
+                ],
+                [
+                  0.525,
+                  0.628
+                ],
+                [
+                  0.5281,
+                  0.609
+                ],
+                [
+                  0.5312,
+                  0.59
+                ],
+                [
+                  0.5344,
+                  0.5711
+                ],
+                [
+                  0.5344,
+                  0.5521
+                ],
+                [
+                  0.5062,
+                  0.5332
+                ],
+                [
+                  0.525,
+                  0.5142
+                ],
+                [
+                  0.5531,
+                  0.4953
+                ],
+                [
+                  0.5813,
+                  0.4763
+                ],
+                [
+                  0.6094,
+                  0.4573
+                ],
+                [
+                  0.6406,
+                  0.4384
+                ],
+                [
+                  0.675,
+                  0.4194
+                ],
+                [
+                  0.725,
+                  0.4005
+                ],
+                [
+                  0.7937,
+                  0.3815
+                ],
+                [
+                  0.7937,
+                  0.3626
+                ],
+                [
+                  0.7969,
+                  0.3436
+                ],
+                [
+                  0.8406,
+                  0.3246
+                ],
+                [
+                  0.8781,
+                  0.3057
+                ],
+                [
+                  0.9,
+                  0.2867
+                ],
+                [
+                  0.9156,
+                  0.2678
+                ],
+                [
+                  0.9313,
+                  0.2488
+                ],
+                [
+                  0.9437,
+                  0.2299
+                ],
+                [
+                  0.9531,
+                  0.2109
+                ],
+                [
+                  0.9625,
+                  0.1919
+                ],
+                [
+                  0.9688,
+                  0.173
+                ],
+                [
+                  0.9719,
+                  0.154
+                ],
+                [
+                  0.975,
+                  0.1351
+                ],
+                [
+                  0.9844,
+                  0.1161
+                ],
+                [
+                  1.0,
+                  0.0972
+                ],
+                [
+                  1.0,
+                  0.0782
+                ],
+                [
+                  1.0,
+                  0.0592
+                ],
+                [
+                  1.0,
+                  0.0403
+                ],
+                [
+                  0.9938,
+                  0.0213
+                ],
+                [
+                  0.9844,
+                  0.0024
+                ]
+              ]
+            },
+            "padding": 11
+          }
+        },
+        {
+          "id": "p13-garca",
+          "name": "Silhueta da garça",
+          "type": "image",
+          "src": "agua-garca.png",
+          "rect": [
+            348,
+            556,
+            175,
+            113.93
+          ],
+          "fit": "contain",
+          "wrap": {
+            "mode": {
+              "kind": "contour",
+              "points": [
+                [
+                  0.4406,
+                  0.0024
+                ],
+                [
+                  0.4406,
+                  0.0216
+                ],
+                [
+                  0.4469,
+                  0.0409
+                ],
+                [
+                  0.4562,
+                  0.0601
+                ],
+                [
+                  0.4625,
+                  0.0793
+                ],
+                [
+                  0.4719,
+                  0.0986
+                ],
+                [
+                  0.4813,
+                  0.1178
+                ],
+                [
+                  0.4875,
+                  0.137
+                ],
+                [
+                  0.4938,
+                  0.1562
+                ],
+                [
+                  0.5,
+                  0.1755
+                ],
+                [
+                  0.4969,
+                  0.1947
+                ],
+                [
+                  0.4938,
+                  0.2139
+                ],
+                [
+                  0.4906,
+                  0.2332
+                ],
+                [
+                  0.4906,
+                  0.2524
+                ],
+                [
+                  0.4906,
+                  0.2716
+                ],
+                [
+                  0.4906,
+                  0.2909
+                ],
+                [
+                  0.05,
+                  0.3101
+                ],
+                [
+                  0.0219,
+                  0.3293
+                ],
+                [
+                  0.0187,
+                  0.3486
+                ],
+                [
+                  0.0219,
+                  0.3678
+                ],
+                [
+                  0.0063,
+                  0.387
+                ],
+                [
+                  0.0063,
+                  0.4062
+                ],
+                [
+                  0.0,
+                  0.4255
+                ],
+                [
+                  0.0,
+                  0.4447
+                ],
+                [
+                  0.0,
+                  0.4639
+                ],
+                [
+                  0.0187,
+                  0.4832
+                ],
+                [
+                  0.0187,
+                  0.5024
+                ],
+                [
+                  0.0406,
+                  0.5216
+                ],
+                [
+                  0.0625,
+                  0.5409
+                ],
+                [
+                  0.0813,
+                  0.5601
+                ],
+                [
+                  0.1,
+                  0.5793
+                ],
+                [
+                  0.1344,
+                  0.5986
+                ],
+                [
+                  0.1562,
+                  0.6178
+                ],
+                [
+                  0.1844,
+                  0.637
+                ],
+                [
+                  0.2313,
+                  0.6562
+                ],
+                [
+                  0.2719,
+                  0.6755
+                ],
+                [
+                  0.3187,
+                  0.6947
+                ],
+                [
+                  0.425,
+                  0.7139
+                ],
+                [
+                  0.425,
+                  0.7332
+                ],
+                [
+                  0.45,
+                  0.7524
+                ],
+                [
+                  0.475,
+                  0.7716
+                ],
+                [
+                  0.4906,
+                  0.7909
+                ],
+                [
+                  0.5,
+                  0.8101
+                ],
+                [
+                  0.5,
+                  0.8293
+                ],
+                [
+                  0.5,
+                  0.8486
+                ],
+                [
+                  0.5,
+                  0.8678
+                ],
+                [
+                  0.5,
+                  0.887
+                ],
+                [
+                  0.5,
+                  0.9062
+                ],
+                [
+                  0.4969,
+                  0.9255
+                ],
+                [
+                  0.4938,
+                  0.9447
+                ],
+                [
+                  0.4938,
+                  0.9639
+                ],
+                [
+                  0.4938,
+                  0.9832
+                ],
+                [
+                  0.5156,
+                  0.9976
+                ],
+                [
+                  0.5469,
+                  0.9976
+                ],
+                [
+                  0.5625,
+                  0.9832
+                ],
+                [
+                  0.5625,
+                  0.9639
+                ],
+                [
+                  0.5594,
+                  0.9447
+                ],
+                [
+                  0.5563,
+                  0.9255
+                ],
+                [
+                  0.5531,
+                  0.9062
+                ],
+                [
+                  0.5531,
+                  0.887
+                ],
+                [
+                  0.55,
+                  0.8678
+                ],
+                [
+                  0.55,
+                  0.8486
+                ],
+                [
+                  0.55,
+                  0.8293
+                ],
+                [
+                  0.55,
+                  0.8101
+                ],
+                [
+                  0.5687,
+                  0.7909
+                ],
+                [
+                  0.5906,
+                  0.7716
+                ],
+                [
+                  0.5969,
+                  0.7524
+                ],
+                [
+                  0.6156,
+                  0.7332
+                ],
+                [
+                  0.6312,
+                  0.7139
+                ],
+                [
+                  0.6344,
+                  0.6947
+                ],
+                [
+                  0.7,
+                  0.6755
+                ],
+                [
+                  0.75,
+                  0.6562
+                ],
+                [
+                  0.7969,
+                  0.637
+                ],
+                [
+                  0.8375,
+                  0.6178
+                ],
+                [
+                  0.8656,
+                  0.5986
+                ],
+                [
+                  0.8812,
+                  0.5793
+                ],
+                [
+                  0.8938,
+                  0.5601
+                ],
+                [
+                  0.9125,
+                  0.5409
+                ],
+                [
+                  0.9344,
+                  0.5216
+                ],
+                [
+                  0.9437,
+                  0.5024
+                ],
+                [
+                  0.9625,
+                  0.4832
+                ],
+                [
+                  0.975,
+                  0.4639
+                ],
+                [
+                  0.9812,
+                  0.4447
+                ],
+                [
+                  0.9938,
+                  0.4255
+                ],
+                [
+                  0.9969,
+                  0.4062
+                ],
+                [
+                  1.0,
+                  0.387
+                ],
+                [
+                  1.0,
+                  0.3678
+                ],
+                [
+                  1.0,
+                  0.3486
+                ],
+                [
+                  1.0,
+                  0.3293
+                ],
+                [
+                  0.9906,
+                  0.3101
+                ],
+                [
+                  0.9906,
+                  0.2909
+                ],
+                [
+                  0.9625,
+                  0.2716
+                ],
+                [
+                  0.9625,
+                  0.2524
+                ],
+                [
+                  0.5188,
+                  0.2332
+                ],
+                [
+                  0.525,
+                  0.2139
+                ],
+                [
+                  0.5312,
+                  0.1947
+                ],
+                [
+                  0.5312,
+                  0.1755
+                ],
+                [
+                  0.5312,
+                  0.1562
+                ],
+                [
+                  0.5312,
+                  0.137
+                ],
+                [
+                  0.5312,
+                  0.1178
+                ],
+                [
+                  0.5281,
+                  0.0986
+                ],
+                [
+                  0.5188,
+                  0.0793
+                ],
+                [
+                  0.5031,
+                  0.0601
+                ],
+                [
+                  0.4875,
+                  0.0409
+                ],
+                [
+                  0.4719,
+                  0.0216
+                ],
+                [
+                  0.4594,
+                  0.0024
+                ]
+              ]
+            },
+            "padding": 11
+          }
+        },
+        {
+          "id": "p13-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p13-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p13-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
     }
   ]
 }

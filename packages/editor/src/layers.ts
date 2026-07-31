@@ -50,6 +50,17 @@ export class LayersPanel {
   private readonly openGroups = new Set<string>();
   /** The selection last revealed, so folding a group with it inside sticks. */
   private revealed = "";
+  /**
+   * Which row is being renamed, and when it was last clicked.
+   *
+   * Both live on the panel rather than in the DOM because the panel is rebuilt
+   * from scratch on every change — and selecting a row *is* a change. A plain
+   * `dblclick` listener never fired: the first click replaced the element the
+   * second one needed to land on. So the double click is recognised here, by
+   * id and by clock, and the open editor is re-created on each render.
+   */
+  private renaming: string | null = null;
+  private lastClick: { id: string; at: number } | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -218,7 +229,8 @@ export class LayersPanel {
     row.className = "layer-row";
     if (state.selected.has(id)) row.classList.add("selected");
     if (frame.visible === false) row.classList.add("hidden");
-    row.style.paddingLeft = `${4 + depth * 14}px`;
+    row.style.setProperty("--depth", String(depth));
+    if (depth > 0) row.classList.add("nested");
     row.draggable = true;
     row.dataset.id = id;
 
@@ -258,40 +270,9 @@ export class LayersPanel {
       ),
     );
 
-    const label = document.createElement("span");
-    label.className = "layer-name";
-    label.textContent = frame.name ?? defaultName(frame);
-    if (overset) label.classList.add("overset");
-    label.title = overset ? `${id} — conteúdo não coube` : id;
-
-    // Rename in place; a document with fifty boxes needs names.
-    label.addEventListener("dblclick", (event) => {
-      event.stopPropagation();
-      const input = document.createElement("input");
-      input.className = "layer-rename";
-      input.value = frame.name ?? "";
-      input.placeholder = defaultName(frame);
-
-      const commit = () => {
-        const value = input.value.trim();
-        this.store.commit(() => {
-          const target = this.store.frame(id);
-          if (target) target.name = value || undefined;
-        });
-      };
-      input.addEventListener("blur", commit);
-      input.addEventListener("keydown", (key) => {
-        if (key.key === "Enter") input.blur();
-        if (key.key === "Escape") {
-          input.value = frame.name ?? "";
-          input.blur();
-        }
-      });
-
-      label.replaceWith(input);
-      input.focus();
-      input.select();
-    });
+    const label = this.renaming === id
+      ? this.renameField(frame, id)
+      : this.nameLabel(frame, id, overset === true);
 
     const visible = frame.visible !== false;
     const eye = this.toggle(visible ? "visible" : "hidden", "Mostrar/ocultar", !visible, () => {
@@ -312,6 +293,23 @@ export class LayersPanel {
 
     row.addEventListener("pointerdown", (event) => {
       if ((event.target as HTMLElement).closest(".layer-toggle, .layer-caret")) return;
+      if ((event.target as HTMLElement).closest(".layer-rename")) return;
+
+      const now = Date.now();
+      const again =
+        this.lastClick !== null && this.lastClick.id === id && now - this.lastClick.at < 500;
+      this.lastClick = { id, at: now };
+
+      if (again && !event.shiftKey) {
+        // Without this the browser's own focus handling for the press moves
+        // focus to the rebuilt row, the field that render is about to create
+        // loses it at once, and its blur closes the rename before a key can
+        // be typed. The field opened and vanished in the same frame.
+        event.preventDefault();
+        this.renaming = id;
+        this.handlers.changed();
+        return;
+      }
       this.handlers.select(id, event.shiftKey);
     });
 
@@ -390,6 +388,56 @@ export class LayersPanel {
     });
 
     return row;
+  }
+
+  private nameLabel(frame: Frame, id: string, overset: boolean): HTMLElement {
+    const label = document.createElement("span");
+    label.className = "layer-name";
+    label.textContent = frame.name ?? defaultName(frame);
+    if (overset) label.classList.add("overset");
+    label.title = overset
+      ? `${id} — conteúdo não coube`
+      : `${id} — clique duas vezes para renomear`;
+    return label;
+  }
+
+  /** Rename in place; a document of two hundred frames needs names. */
+  private renameField(frame: Frame, id: string): HTMLElement {
+    const input = document.createElement("input");
+    input.className = "layer-rename";
+    input.value = frame.name ?? "";
+    input.placeholder = defaultName(frame);
+
+    let done = false;
+    const finish = (keep: boolean) => {
+      if (done) return;
+      done = true;
+      this.renaming = null;
+      const value = input.value.trim();
+      if (keep && value !== (frame.name ?? "")) {
+        this.store.commit(() => {
+          const target = this.store.frame(id);
+          if (target) target.name = value || undefined;
+        });
+      } else {
+        this.handlers.changed();
+      }
+    };
+
+    input.addEventListener("blur", () => finish(true));
+    input.addEventListener("keydown", (key) => {
+      if (key.key === "Enter") finish(true);
+      if (key.key === "Escape") finish(false);
+      key.stopPropagation();
+    });
+
+    // The panel was just rebuilt, so the field is new every render: it has to
+    // take focus each time or typing would go to the canvas.
+    queueMicrotask(() => {
+      input.focus();
+      input.select();
+    });
+    return input;
   }
 
   /** `pinned` keeps the button visible even when the row is not hovered. */

@@ -17,7 +17,7 @@ import {
   newTextFrame,
   normalize,
 } from "./store";
-import { Renderer, HANDLE_SIZE, documentExtent, handlePositions, placePages } from "./renderer";
+import { Renderer, HANDLE_SIZE, documentExtent, handlePositions, placePages, pointIn } from "./renderer";
 import type { HandleName, Overlay, View } from "./renderer";
 import { caretAt, caretGeometry, frameAt, framesAt, rangeRects } from "./hit";
 import { TextEditor } from "./text";
@@ -105,6 +105,7 @@ async function boot(): Promise<void> {
     align: (kind) => alignSelection(kind),
     distribute: (axis) => distributeSelection(axis),
     fontFamilies: () => engine.fontFamilies(),
+    bitmapFor: (src) => engine.images().get(src) ?? null,
   });
 
   const layers = new LayersPanel(layersRoot, store, {
@@ -179,10 +180,23 @@ async function boot(): Promise<void> {
       highlights,
       guides,
       marquee,
+      contours: buildContours(),
     };
 
     renderer.render(store.list, view, overlay);
     updateStatus();
+  }
+
+  /** Silhouettes of the selected frames, for the canvas to outline. */
+  function buildContours(): Overlay["contours"] {
+    const rings = new Map<string, [number, number][]>();
+    for (const id of selected) {
+      const frame = store.frame(id);
+      if (frame?.type !== "image") continue;
+      const mode = frame.wrap?.mode;
+      if (mode?.kind === "contour" && mode.points.length >= 3) rings.set(id, mode.points);
+    }
+    return rings;
   }
 
   function buildCaret(): Overlay["caret"] {
@@ -419,8 +433,15 @@ async function boot(): Promise<void> {
       }
 
       case "move": {
-        const dx = located.x - gesture.startX;
-        const dy = located.y - gesture.startY;
+        // Measured against the page the drag began on, not the one under the
+        // cursor. `located` is page-local, so once the pointer crosses onto
+        // the next page its coordinates restart near zero — subtracting the
+        // start from that gives a delta of the wrong sign and the wrong size,
+        // and the frame ends up nowhere near the pointer. Dragging a picture
+        // to another page put it hundreds of points above the paper.
+        const home = pointIn(placePages(store.list), gesture.page, worldX, worldY) ?? located;
+        const dx = home.x - gesture.startX;
+        const dy = home.y - gesture.startY;
         applyMove(gesture, dx, dy, event.shiftKey);
         break;
       }

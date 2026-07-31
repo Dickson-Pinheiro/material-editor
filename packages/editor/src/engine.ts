@@ -17,12 +17,21 @@ import init, {
 
 import type { DisplayList, DocumentSpec } from "./types";
 
-// The default document ships with this photograph. Importing it as an asset
-// keeps one copy on disk — the same file the command-line renderer reads.
-import terraUrl from "../../../examples/images/terra.jpg";
-
-/** Images the default document references, keyed as the editor would key them. */
-const IMAGES: { key: string; url: string }[] = [{ key: "terra.jpg", url: terraUrl }];
+/**
+ * Everything in `examples/images/`, keyed by file name.
+ *
+ * Discovered rather than listed, which is how the command-line renderer has
+ * always done it: it reads the folder beside the document. A hand-kept list
+ * here meant that adding a picture to the example silently produced "imagem
+ * não foi registrada" in the editor while the PDF came out fine.
+ */
+const IMAGES: { key: string; url: string }[] = Object.entries(
+  import.meta.glob<string>("../../../examples/images/*.{png,jpg,jpeg}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }),
+).map(([path, url]) => ({ key: path.split("/").pop()!, url }));
 
 interface FaceSpec {
   family: string;

@@ -68,6 +68,7 @@ async function run(): Promise<void> {
       highlights: [],
       guides: [],
       marquee: null,
+    contours: new Map(),
     },
   );
 }

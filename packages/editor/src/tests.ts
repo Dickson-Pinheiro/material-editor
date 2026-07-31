@@ -14,6 +14,8 @@ import { Engine } from "./engine";
 import { Store, normalize, parseLen } from "./store";
 import { TextEditor, byteToIndex, indexToByte, utf8Length } from "./text";
 import { caretAt, caretGeometry, collectRuns, compareCarets, frameAt } from "./hit";
+import { placement, toFrame, trace } from "./contour";
+import { PAGE_GAP, placePages, pointIn } from "./renderer";
 import { LayersPanel } from "./layers";
 import type { LayersState } from "./layers";
 import type { Block, Caret, DocumentSpec, DisplayPage, Paragraph } from "./types";
@@ -653,6 +655,324 @@ async function run(): Promise<void> {
     const story = threaded.doc.resources!.stories!.corpo as Paragraph[];
     const text = (story[caret.block]!.content[caret.inline] as { text: string }).text;
     assert(text.includes("§"), "a story não recebeu o caractere");
+  });
+
+  // ── Text wrap ─────────────────────────────────────────────────────────────
+
+  const WRAPPED: DocumentSpec = {
+    style: { fontFamily: "corpo", fontSize: 10 },
+    pages: [
+      {
+        frames: [
+          {
+            id: "foto",
+            type: "image",
+            src: "ausente.png",
+            rect: [200, 0, 120, 60],
+            wrap: { mode: { kind: "contour", points: [[0, 0], [1, 0], [1, 1], [0, 1]] }, padding: 6 },
+          },
+          {
+            id: "corpo",
+            type: "text",
+            rect: [0, 0, 440, 400],
+            blocks: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: "Um parágrafo bem comprido que precisa correr dos dois lados da fotografia posta no meio da coluna.",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  check("normalizar preserva o contorno em vez de descartá-lo", () => {
+    const doc = normalize(structuredClone(WRAPPED));
+    const image = doc.pages[0]!.frames[0]!;
+    assert(image.type === "image", "o primeiro frame é a imagem");
+    assert(image.wrap, "o wrap sumiu na normalização");
+    equal(image.wrap!.mode.kind, "contour", "o modo tem de sobreviver");
+    assert(
+      image.wrap!.mode.kind === "contour" && image.wrap!.mode.points.length === 4,
+      "o anel tem de sobreviver inteiro",
+    );
+  });
+
+  check("o contorno atravessa o editor e chega ao motor", () => {
+    const local = new Store(engine, normalize(structuredClone(WRAPPED)));
+    const runs = collectRuns(local.list.pages[0]!);
+    assert(runs.length >= 2, "esperava várias linhas");
+
+    // A picture at 200..320 plus 6 of clearance leaves 0..194 and 326..440.
+    const first = runs[0]!.run;
+    const beside = runs.find((placed) => Math.abs(placed.run.y - first.y) < 0.01
+      && placed.run.x > 300);
+    assert(
+      beside,
+      "sem um trecho à direita da foto o contorno não chegou ao motor",
+    );
+    assert(
+      Math.abs(beside.run.x - 326) < 0.01,
+      `o trecho da direita começa em ${beside.run.x}, esperava 326`,
+    );
+  });
+
+  check("a figura declarada depois do texto é a que apanha o clique", () => {
+    // A text frame's box covers the whole column, and it is transparent where
+    // the picture sits. Whichever is declared last paints on top and takes the
+    // click, so a picture meant to be dragged has to come after the text —
+    // otherwise it is unreachable on the canvas and only the layers panel can
+    // select it.
+    const build = (imageFirst: boolean): DocumentSpec => {
+      const foto = {
+        id: "foto",
+        type: "image" as const,
+        src: "ausente.png",
+        rect: [200, 40, 120, 60] as [number, number, number, number],
+        wrap: { mode: { kind: "box" as const }, padding: 6 },
+      };
+      const corpo = {
+        id: "corpo",
+        type: "text" as const,
+        rect: [0, 0, 440, 300] as [number, number, number, number],
+        blocks: [{ type: "paragraph" as const, content: [{ type: "text" as const, text: "Texto" }] }],
+      };
+      return {
+        style: { fontFamily: "corpo", fontSize: 10 },
+        pages: [{ frames: imageFirst ? [foto, corpo] : [corpo, foto] }],
+      };
+    };
+
+    const abaixo = new Store(engine, normalize(build(true)));
+    const acima = new Store(engine, normalize(build(false)));
+    // A point squarely inside the picture.
+    const ponto: [number, number] = [260, 70];
+
+    equal(
+      frameAt(abaixo.list.pages[0]!, ...ponto)?.id,
+      "corpo",
+      "com a figura por baixo, o texto rouba o clique",
+    );
+    equal(
+      frameAt(acima.list.pages[0]!, ...ponto)?.id,
+      "foto",
+      "com a figura por cima, ela é agarrável",
+    );
+  });
+
+  check("mover uma imagem para outra página mantém-na visível", () => {
+    const duas: DocumentSpec = {
+      style: { fontFamily: "corpo", fontSize: 10 },
+      page: { size: "A4" },
+      pages: [
+        {
+          frames: [
+            { id: "foto", type: "image", src: "terra.jpg", rect: [100, 200, 120, 80] },
+          ],
+        },
+        { frames: [{ id: "alvo", type: "text", rect: [0, 0, 400, 300], blocks: [] }] },
+      ],
+    };
+
+    // Pelo painel de camadas: soltar a linha na lista da outra página.
+    const painel = new Store(engine, normalize(structuredClone(duas)));
+    painel.moveFrame("foto", 1, null, 0);
+    const naSegunda = painel.doc.pages[1]!.frames.find((f) => f.id === "foto");
+    assert(naSegunda, "a imagem não chegou à segunda página");
+    assert(
+      painel.doc.pages[0]!.frames.every((f) => f.id !== "foto"),
+      "a imagem ficou nas duas páginas",
+    );
+    equal(Number(naSegunda.rect[0]), 100, "x preservado");
+    equal(Number(naSegunda.rect[1]), 200, "y preservado");
+
+    const pintada = painel.list.pages[1]!.frames.find((f) => f.id === "foto");
+    assert(pintada, "a imagem não aparece na display list da segunda página");
+    assert(
+      pintada.rect.y >= 0 && pintada.rect.y < painel.list.pages[1]!.height,
+      `a imagem caiu fora da página: y=${pintada.rect.y}`,
+    );
+  });
+
+  check("arrastar uma imagem para a página de baixo aterra no sítio certo", () => {
+    const duas: DocumentSpec = {
+      style: { fontFamily: "corpo", fontSize: 10 },
+      page: { size: "A4" },
+      pages: [
+        { frames: [{ id: "foto", type: "image", src: "terra.jpg", rect: [100, 200, 120, 80] }] },
+        { frames: [{ id: "alvo", type: "text", rect: [0, 0, 400, 300], blocks: [] }] },
+      ],
+    };
+    const arraste = new Store(engine, normalize(structuredClone(duas)));
+    const altura = arraste.list.pages[0]!.height;
+
+    // O que o canvas faz: durante o arraste o rect segue o ponteiro para além
+    // do fim da página; ao soltar, desconta-se a distância entre as páginas.
+    const GAP = 28;
+    arraste.commit((doc) => {
+      const foto = doc.pages[0]!.frames[0]!;
+      foto.rect[1] = altura + GAP + 150;
+    });
+    arraste.moveToPage(["foto"], 1, 0, -(altura + GAP));
+
+    const pintada = arraste.list.pages[1]!.frames.find((f) => f.id === "foto");
+    assert(pintada, "a imagem não chegou à segunda página");
+    assert(
+      Math.abs(pintada.rect.y - 150) < 1,
+      `esperava y perto de 150 na página nova, veio ${pintada.rect.y}`,
+    );
+  });
+
+  check("o arraste continua a medir na página onde começou", () => {
+    // The bug this pins down: `toPage` answers in the coordinates of whichever
+    // page the pointer is over, and those restart at zero on each sheet. A
+    // drag that crossed onto the next page measured its delta between two
+    // different origins, so the frame leapt — and dropping it there put it
+    // hundreds of points above the paper, out of sight.
+    const duas: DocumentSpec = {
+      style: { fontFamily: "corpo", fontSize: 10 },
+      page: { size: "A4" },
+      pages: [
+        { frames: [{ id: "a", type: "shape", shape: "rect", rect: [0, 0, 10, 10] }] },
+        { frames: [{ id: "b", type: "shape", shape: "rect", rect: [0, 0, 10, 10] }] },
+      ],
+    };
+    const local = new Store(engine, normalize(duas));
+    const places = placePages(local.list);
+    assert(places.length === 2, "esperava duas páginas colocadas");
+
+    const segunda = places[1]!;
+    // Um ponto a 150 pontos do topo da SEGUNDA página, em coordenadas do mundo.
+    const worldX = segunda.x + 40;
+    const worldY = segunda.y + 150;
+
+    const naSegunda = pointIn(places, 1, worldX, worldY)!;
+    near(naSegunda.y, 150, 0.01, "na página de destino, o ponto está a 150 do topo");
+
+    const naPrimeira = pointIn(places, 0, worldX, worldY)!;
+    assert(
+      naPrimeira.y > local.list.pages[0]!.height,
+      `medido a partir da primeira página o mesmo ponto tem de estar para lá do fim dela, veio ${naPrimeira.y}`,
+    );
+
+    // É esta a diferença que faz o arraste funcionar: contínua, e não a saltar.
+    near(
+      naPrimeira.y - naSegunda.y,
+      local.list.pages[0]!.height + PAGE_GAP,
+      0.01,
+      "a distância entre as duas leituras é exactamente a altura da página mais o intervalo",
+    );
+  });
+
+  check("um documento sem wrap continua sem wrap", () => {
+    const local = new Store(engine, normalize(structuredClone(SIMPLE)));
+    const frame = local.doc.pages[0]!.frames[0]!;
+    assert(!("wrap" in frame) || !(frame as { wrap?: unknown }).wrap, "wrap apareceu do nada");
+  });
+
+  // ── Tracing a silhouette ──────────────────────────────────────────────────
+
+  /** A bitmap drawn here, so the shape under test is known exactly. */
+  async function painted(
+    width: number,
+    height: number,
+    draw: (context: OffscreenCanvasRenderingContext2D) => void,
+  ): Promise<ImageBitmap> {
+    const canvas = new OffscreenCanvas(width, height);
+    const context = canvas.getContext("2d")!;
+    context.clearRect(0, 0, width, height);
+    draw(context);
+    return createImageBitmap(canvas);
+  }
+
+  const triangle = await painted(200, 200, (context) => {
+    // Apex at the top, base along the bottom, transparent either side.
+    context.fillStyle = "#000";
+    context.beginPath();
+    context.moveTo(100, 0);
+    context.lineTo(200, 200);
+    context.lineTo(0, 200);
+    context.closePath();
+    context.fill();
+  });
+
+  check("a silhueta de um triângulo estreita no topo e alarga na base", () => {
+    const result = trace(triangle);
+    assert(result, "não traçou nada");
+    assert(result.points.length >= 6, `poucos pontos: ${result.points.length}`);
+    equal(result.opaque, false, "há transparência nos cantos");
+
+    // Width of the ring at a given height, from the two edges it carries.
+    const widthAt = (target: number) => {
+      const near = result.points.filter((p) => Math.abs(p[1] - target) < 0.06);
+      const xs = near.map((p) => p[0]);
+      return Math.max(...xs) - Math.min(...xs);
+    };
+
+    const top = widthAt(0.1);
+    const bottom = widthAt(0.9);
+    assert(
+      bottom > top * 2,
+      `a base (${bottom.toFixed(3)}) deveria ser bem mais larga que o topo (${top.toFixed(3)})`,
+    );
+  });
+
+  check("traçar duas vezes a mesma imagem dá o mesmo anel", () => {
+    const a = trace(triangle);
+    const b = trace(triangle);
+    equal(JSON.stringify(a), JSON.stringify(b), "o traçado precisa ser determinístico");
+  });
+
+  const solid = await painted(120, 80, (context) => {
+    context.fillStyle = "#000";
+    context.fillRect(0, 0, 120, 80);
+  });
+
+  check("uma imagem opaca é reconhecida como caixa, não como silhueta", () => {
+    const result = trace(solid);
+    assert(result, "uma imagem opaca ainda tem anel");
+    equal(result.opaque, true, "não há nada a recortar");
+
+    const xs = result.points.map((p) => p[0]);
+    assert(
+      Math.min(...xs) < 0.01 && Math.max(...xs) > 0.99,
+      "o anel de uma imagem opaca cobre a largura toda",
+    );
+  });
+
+  const blank = await painted(60, 60, () => {});
+
+  check("uma imagem toda transparente não produz anel nenhum", () => {
+    equal(trace(blank), null, "não há silhueta a traçar");
+  });
+
+  check("o anel é levado para dentro do frame conforme o ajuste da imagem", () => {
+    const result = trace(triangle)!;
+    // A 200×200 image inside a 400×200 frame, contained and centred: it
+    // occupies the middle half of the frame, so the ring has to as well.
+    const frame = {
+      type: "image" as const,
+      src: "x.png",
+      rect: [0, 0, 400, 200] as [number, number, number, number],
+      fit: "contain" as const,
+      align: "center",
+    };
+    const box = placement(frame, { width: 200, height: 200 });
+    equal(Math.round(box.w * 1000) / 1000, 0.5, "metade da largura do frame");
+    equal(Math.round(box.x * 1000) / 1000, 0.25, "centrada");
+
+    const moved = toFrame(result.points, box);
+    const xs = moved.map((p) => p[0]);
+    assert(
+      Math.min(...xs) >= 0.249 && Math.max(...xs) <= 0.751,
+      `o anel saiu da caixa da imagem: ${Math.min(...xs)}..${Math.max(...xs)}`,
+    );
   });
 
   // ── Layers panel ──────────────────────────────────────────────────────────

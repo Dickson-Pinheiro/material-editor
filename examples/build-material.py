@@ -87,6 +87,75 @@ def card(fid, name, rect, blocks, fill, border_color, style, pad=14, radius=8):
                 fill=fill, radius=radius, padding=pad,
                 border={"width": 1, "color": border_color})
 
+# ── Silhuetas ────────────────────────────────────────────────────────────────
+#
+# O motor nunca olha um pixel: lê um anel de números do documento e desvia o
+# texto dele. Traçar esse anel é trabalho de autoria, e é isto — o mesmo que o
+# botão "Detectar silhueta" faz no editor, aqui feito na geração para o exemplo
+# já nascer pronto.
+
+ALFA, LADO, LINHAS, SUAVE = 12, 320, 52, 2
+
+def silhueta(ficheiro):
+    """Anel fechado em 0..1 da caixa da imagem, lido do canal alfa."""
+    from PIL import Image
+
+    im = Image.open(f"examples/images/{ficheiro}").convert("LA")
+    escala = LADO / max(im.size)
+    im = im.resize((max(8, round(im.width * escala)), max(8, round(im.height * escala))))
+    alfa = im.getchannel("A").load()
+    w, h = im.size
+
+    bordas = {}
+    for y in range(h):
+        opacos = [x for x in range(w) if alfa[x, y] >= ALFA]
+        if opacos:
+            bordas[y] = (opacos[0], opacos[-1] + 1)
+    if not bordas:
+        raise SystemExit(f"{ficheiro}: imagem sem pixels opacos")
+
+    linhas = sorted(bordas)
+    # Envelope: o extremo da vizinhança, para o anel nunca cortar a figura.
+    suave = {}
+    for y in linhas:
+        volta = [bordas[v] for v in range(y - SUAVE, y + SUAVE + 1) if v in bordas]
+        suave[y] = (min(a for a, _ in volta), max(b for _, b in volta))
+
+    passo = max(1, len(linhas) // LINHAS)
+    amostra = linhas[::passo]
+    if amostra[-1] != linhas[-1]:
+        amostra.append(linhas[-1])
+
+    anel = [[round(suave[y][0] / w, 4), round((y + 0.5) / h, 4)] for y in amostra]
+    anel += [[round(suave[y][1] / w, 4), round((y + 0.5) / h, 4)] for y in reversed(amostra)]
+    return anel
+
+def proporcao(ficheiro):
+    from PIL import Image
+    im = Image.open(f"examples/images/{ficheiro}")
+    return im.width / im.height
+
+def figura(fid, name, ficheiro, x, y, largura, folga=10, altura=None):
+    """Imagem cuja moldura acompanha a proporção do ficheiro.
+
+    Declare-a **depois** do bloco de texto que ela contorna. A ordem do array
+    é a ordem de pintura, e o editor selecciona o frame mais acima sob o
+    cursor: com a figura por baixo, a moldura do texto — que cobre a coluna
+    inteira, transparente — apanha o clique e a figura fica impossível de
+    agarrar. Por cima, clica-se na figura e arrasta-se.
+
+    Com a moldura na proporção certa e `fit: contain`, a imagem preenche-a
+    exactamente — e então o anel lido da imagem serve tal e qual para a
+    moldura, sem ter de refazer a conta do enquadramento.
+    """
+    alt = altura if altura is not None else largura / proporcao(ficheiro)
+    return {
+        "id": fid, "name": name, "type": "image", "src": ficheiro,
+        "rect": [x, y, round(largura, 2), round(alt, 2)], "fit": "contain",
+        "wrap": {"mode": {"kind": "contour", "points": silhueta(ficheiro)},
+                 "padding": folga},
+    }
+
 CHAPTER = "Unidade 3 · A água no planeta"
 pages = []
 
@@ -547,6 +616,137 @@ pages.append({"frames": [
              "casa — vamos ler juntos o que está escrito nela."),
     ], WARM, "#fcd34d", {**BODY, "textAlign": "left"}),
     *footer(10, CHAPTER),
+]})
+
+# ── 11. Quem vive na água ────────────────────────────────────────────────────
+#
+# A figura ocupa a direita da mancha e o texto corre à esquerda dela, com
+# medida suficiente para justificar sem rios. Abaixo da barbatana o texto volta
+# à largura inteira.
+
+pages.append({"frames": [
+    *header(11, "Capítulo 4 · Vida na água"),
+    *title(11, "Quem vive na água",
+           "A água não é só cenário: é casa. Cada corpo de água sustenta uma "
+           "comunidade inteira, e a forma de cada ser conta como ele resolve "
+           "viver ali."),
+    text("p11-corpo", "Corpo", [X0, 200, CW, 520], [
+        para("As baleias-de-barbatana filtram a água em busca de krill. Uma "
+             "baleia-azul adulta chega a engolir noventa toneladas de água numa "
+             "única bocada e, ao fechar a boca, empurra tudo para fora pelas "
+             "barbatanas, retendo o alimento."),
+        para("O corpo alongado que se vê ao lado é resposta directa a esse modo "
+             "de vida: pouca resistência ao avanço, muito volume para "
+             "armazenar. A cauda, que ocupa quase um terço do comprimento, bate "
+             "de cima para baixo — ao contrário dos peixes, que batem de lado."),
+        para("Repare no que o texto faz nesta página. Ele não contorna uma caixa "
+             "rectangular à volta da figura: contorna a própria silhueta, linha "
+             "a linha. Onde a cauda afina, a linha avança; onde o corpo "
+             "engrossa, a linha recua. É o que um diagramador faz à mão numa "
+             "revista, e é o motor que o faz aqui, a cada tecla que se escreve."),
+        para("A folga entre o texto e a figura é um número que se escolhe — "
+             "nesta página, doze pontos. Aumentá-la afasta o texto de todos os "
+             "lados de uma vez, sem tocar no desenho. E quem quiser que um "
+             "parágrafo passe por cima da figura, ignorando o contorno, "
+             "assinala «ignorar contornos» nesse quadro de texto: a decisão é "
+             "do texto, não da imagem."),
+        para("Uma baleia-azul pesa o mesmo que trinta elefantes e o seu coração "
+             "tem o tamanho de um carro pequeno. O canto de um macho atravessa "
+             "centenas de quilómetros de oceano — abaixo dos vinte hertz, perto "
+             "do limite do que um ouvido humano alcança."),
+    ], BODY),
+    figura("p11-baleia", "Silhueta da baleia", "agua-baleia.png", X0 + 200, 214, 300, folga=12),
+    *footer(11, CHAPTER),
+]})
+
+# ── 12. Dos dois lados ───────────────────────────────────────────────────────
+#
+# O caso que separa "coluna que estreita" de "texto que contorna". Alinhado à
+# esquerda de propósito: justificar uma medida estreita dos dois lados de uma
+# figura abre rios, e nenhum diagramador o faria.
+
+pages.append({"frames": [
+    *header(12, "Capítulo 4 · Vida na água"),
+    *title(12, "Dos dois lados",
+           "Quando a figura fica no meio da mancha, cada linha de texto parte-se "
+           "em duas e continua do outro lado."),
+    text("p12-corpo", "Corpo", [X0, 210, CW, 500], [
+        para("O polvo tem três corações e sangue azul. Dois deles bombeiam para "
+             "as brânquias e o terceiro trata do resto do corpo — e pára quando "
+             "o animal nada, o que explica por que prefere andar a nadar."),
+        para("A pele muda de cor e de textura em menos de um segundo, graças a "
+             "células que se contraem e se abrem como diafragmas. Cada braço tem "
+             "mais neurónios do que o cérebro central e resolve problemas "
+             "sozinho: um polvo abre um frasco com um braço enquanto os outros "
+             "exploram o fundo."),
+        para("Esta página existe para mostrar uma coisa concreta. Repare que "
+             "várias linhas começam à esquerda da figura, saltam por cima dela e "
+             "continuam à direita, na mesma altura. A ordem de leitura mantém-se "
+             "— esquerda primeiro, depois direita, e só então a linha de baixo — "
+             "e nenhuma palavra se repete ou se perde na passagem."),
+        para("Bibliotecas de composição de texto costumam calcular todos os vãos "
+             "de uma linha e ficar-se pelo mais largo, deitando os outros fora. "
+             "É mais simples e quase ninguém repara, porque o resultado ainda "
+             "parece razoável: o texto desvia-se da figura, só que por um lado "
+             "só. Aqui todos os vãos são usados."),
+        para("Abaixo da figura o texto volta a ocupar a largura toda, sem "
+             "descontinuidade e sem uma linha vazia a marcar a passagem. Se "
+             "arrastar a figura no editor, tudo se recompõe enquanto arrasta."),
+    ], {**BODY, "textAlign": "left"}),
+    figura("p12-polvo", "Silhueta do polvo", "agua-polvo.png", X0 + 175, 226, 150, folga=12),
+    *footer(12, CHAPTER),
+]})
+
+# ── 13. Prancha de silhuetas ─────────────────────────────────────────────────
+#
+# Quatro formas na mesma mancha, uma delas côncava e outra com um pescoço fino
+# que deixa passar texto dos dois lados. É a página que revela erro de
+# geometria: os vãos deixam de ser dois e passam a ser vários.
+
+pages.append({"frames": [
+    *header(13, "Capítulo 4 · Vida na água"),
+    *title(13, "Uma prancha de formas",
+           "Corpos diferentes, problemas diferentes. Quatro silhuetas na mesma "
+           "mancha de texto."),
+    text("p13-corpo", "Corpo", [X0, 204, CW, 500], [
+        para("A medusa não tem cérebro, nem coração, nem sangue. Tem uma rede de "
+             "nervos espalhada pelo corpo e um sino que se contrai e relaxa, "
+             "empurrando água para trás. É feita de água em mais de noventa e "
+             "cinco por cento: fora dela, desfaz-se no chão."),
+        para("O cavalo-marinho nada de pé e devagar, com uma barbatana dorsal "
+             "que bate dezenas de vezes por segundo. Enrola a cauda em algas "
+             "para não ser levado pela corrente. É o macho que engravida: "
+             "carrega os ovos numa bolsa até nascerem."),
+        para("O tubarão existe há mais tempo do que as árvores. Não tem osso — o "
+             "esqueleto é de cartilagem, mais leve, o que ajuda a manter-se na "
+             "água sem gastar energia. A pele é coberta de dentículos minúsculos "
+             "que reduzem o atrito, um desenho que a indústria já copiou para "
+             "fatos de natação e para cascos de navio."),
+        para("A garça não vive dentro de água, mas da água. Espera imóvel na "
+             "margem, às vezes durante minutos, e desfere o bico num movimento "
+             "que dura um vigésimo de segundo. O pescoço dobrado em S é uma mola "
+             "carregada à espera de disparar, e as asas abertas contam a "
+             "envergadura de quem precisa de sair depressa de um lugar raso."),
+        para("Quatro formas, quatro modos de ocupar a página. A do "
+             "cavalo-marinho é estreita e alta; a do tubarão é larga e baixa; a "
+             "da medusa termina em tentáculos que abrem e fecham vãos linha a "
+             "linha; a da garça tem asas que deixam passar texto por baixo. "
+             "Nenhuma delas é um rectângulo, e é exactamente isso que interessa."),
+        para("Repare em como o texto se comporta junto de cada uma. Nos "
+             "tentáculos da medusa os vãos abrem e fecham de linha para linha, "
+             "porque a forma muda de largura a cada poucos pontos. Junto ao "
+             "tubarão a fronteira é quase recta e a mancha estabiliza. Sob as "
+             "asas da garça o texto passa por baixo do corpo e volta a subir "
+             "junto às pontas, que são finas."),
+        para("Um contorno demasiado justo é tão mau como nenhum: as palavras "
+             "encostam ao desenho. Folgado de mais, desperdiça a mancha. A "
+             "folga é o botão que se ajusta até a página respirar."),
+    ], {**BODY, "textAlign": "left"}),
+    figura("p13-medusa", "Silhueta da medusa", "agua-medusa.png", X0, 216, 88, folga=10),
+    figura("p13-cavalo", "Silhueta do cavalo-marinho", "agua-cavalo.png", X0 + 428, 212, 68, folga=10),
+    figura("p13-tubarao", "Silhueta do tubarão", "agua-tubarao.png", X0 + 120, 392, 220, folga=11),
+    figura("p13-garca", "Silhueta da garça", "agua-garca.png", X0 + 300, 556, 175, folga=11),
+    *footer(13, CHAPTER),
 ]})
 
 doc = {

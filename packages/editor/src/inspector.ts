@@ -18,6 +18,8 @@ import {
   section,
   textField,
 } from "./controls";
+import { placement, toFrame, trace } from "./contour";
+import type { Point } from "./contour";
 import type { Store } from "./store";
 import type { TextEditor } from "./text";
 import type {
@@ -51,6 +53,11 @@ export interface InspectorHandlers {
   align(kind: Alignment): void;
   distribute(axis: "x" | "y"): void;
   fontFamilies(): string[];
+  /**
+   * Pixels of a registered image, for tracing its silhouette. `null` when the
+   * image never loaded — the button then has nothing to work from.
+   */
+  bitmapFor?(src: string): ImageBitmap | null;
 }
 
 const PAGE_SIZES = ["A3", "A4", "A5", "A6", "letter", "legal", "livro-didatico"];
@@ -62,6 +69,9 @@ export class Inspector {
     private readonly text: TextEditor,
     private readonly handlers: InspectorHandlers,
   ) {}
+
+  /** What the last trace had to say, shown under the button. */
+  private message: string | null = null;
 
   render(state: InspectorState): void {
     this.root.replaceChildren();
@@ -478,6 +488,13 @@ export class Inspector {
           "Ao transbordar sem 'Continua em', o motor cria uma página igual a esta e segue nela.",
           "autoFlow",
         ),
+        checkbox(
+          "Ignorar contornos",
+          frame.ignoreWrap === true,
+          (value) => change((f) => void ((f as TextFrame).ignoreWrap = value || undefined)),
+          "Este texto passa por cima dos contornos da página. É o que deixa uma legenda ficar sobre a própria foto.",
+          "ignoreWrap",
+        ),
       ]),
     );
 
@@ -592,6 +609,123 @@ export class Inspector {
         ),
       ]),
     );
+
+    this.renderWrap(frame, change);
+  }
+
+  /**
+   * How this picture pushes text aside.
+   *
+   * `Contorno` keeps whatever ring the frame already carries; tracing a new
+   * one from the image's pixels is a separate action. Until a ring exists the
+   * engine falls back to the box, which is why the option is offered rather
+   * than hidden — the author picks the intent first, the shape second.
+   */
+  private renderWrap(
+    frame: ImageFrame,
+    change: (mutate: (frame: Frame) => void) => void,
+  ): void {
+    const wrap = frame.wrap ?? null;
+    const mode = wrap === null ? "none" : wrap.mode.kind;
+    const ring = wrap?.mode.kind === "contour" ? wrap.mode.points : null;
+
+    const setMode = (value: string) =>
+      change((f) => {
+        const image = f as ImageFrame;
+        if (value === "none") {
+          image.wrap = undefined;
+          return;
+        }
+        const padding = image.wrap?.padding ?? 0;
+        image.wrap =
+          value === "contour"
+            ? { mode: { kind: "contour", points: ring ?? [] }, padding }
+            : { mode: { kind: "box" }, padding };
+      });
+
+    this.root.append(
+      section("Contorno", [
+        pick(
+          [
+            { value: "none", label: "Nenhum" },
+            { value: "box", label: "Caixa" },
+            { value: "contour", label: "Contorno" },
+          ],
+          mode,
+          setMode,
+          "Desvio",
+          "image.wrap.mode",
+        ),
+        mode === "none"
+          ? null
+          : textField(
+              "padding",
+              formatLenList(wrap?.padding ?? 0),
+              (value) => {
+                const parsed = parseLenList(value);
+                if (parsed === null) return false;
+                change((f) => {
+                  const image = f as ImageFrame;
+                  if (image.wrap) image.wrap.padding = parsed;
+                });
+                return true;
+              },
+              "Folga entre a imagem e o texto",
+              true,
+              "image.wrap.padding",
+            ),
+        mode === "none" ? null : this.traceButton(frame, ring, change),
+      ]),
+    );
+  }
+
+  /**
+   * Read the silhouette out of the picture's own alpha channel.
+   *
+   * The pixels are read here and only here: what reaches the document is a
+   * ring of numbers, so the engine stays deterministic and the PDF cannot
+   * disagree with the canvas.
+   */
+  private traceButton(
+    frame: ImageFrame,
+    ring: Point[] | null,
+    change: (mutate: (frame: Frame) => void) => void,
+  ): HTMLElement {
+    const bitmap = this.handlers.bitmapFor?.(frame.src) ?? null;
+    const traced = ring !== null && ring.length >= 3;
+
+    const button = iconButton(
+      "image",
+      bitmap === null ? "A imagem não está carregada" : "Ler a silhueta dos pixels da imagem",
+      () => {
+        if (bitmap === null) return;
+        this.message = null;
+        const result = trace(bitmap);
+        if (result === null) {
+          this.message = "A imagem é toda transparente: não há silhueta a traçar.";
+          return;
+        }
+        if (result.opaque) {
+          this.message = "A imagem não tem transparência: a silhueta é a própria caixa.";
+        }
+        const points = toFrame(result.points, placement(frame, bitmap));
+        change((f) => {
+          const image = f as ImageFrame;
+          image.wrap = { mode: { kind: "contour", points }, padding: image.wrap?.padding ?? 0 };
+        });
+      },
+      { label: traced ? "Detectar de novo" : "Detectar silhueta" },
+    );
+    button.disabled = bitmap === null;
+    button.dataset.field = "image.wrap.trace";
+
+    return grid(1, [
+      button,
+      traced
+        ? note(`Silhueta com ${ring!.length} pontos.`)
+        : note("Sem silhueta ainda: o motor usa a caixa até haver uma."),
+      this.message === null ? null : note(this.message),
+    ]);
   }
 
   private renderShapeFrame(

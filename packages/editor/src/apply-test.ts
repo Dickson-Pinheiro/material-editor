@@ -47,7 +47,8 @@ const DOC: DocumentSpec = {
         },
         { id: "outro", type: "text", rect: [40, 300, 300, 100] },
         { id: "forma", type: "shape", shape: "rect", rect: [360, 40, 120, 120] },
-        { id: "foto", type: "image", rect: [360, 200, 200, 150], src: "a.png" },
+        { id: "foto", type: "image", rect: [360, 200, 200, 150], src: "terra.jpg",
+          wrap: { mode: { kind: "box" }, padding: 4 } },
       ],
     },
   ],
@@ -94,6 +95,7 @@ const FRAME_PROBES: Probe[] = [
   { field: "overflow", as: "select", value: "grow", read: (s) => textOf(s, "texto").overflow, expect: "grow" },
   { field: "threadNext", as: "select", value: "outro", read: (s) => textOf(s, "texto").threadNext, expect: "outro" },
   { field: "autoFlow", as: "check", read: (s) => textOf(s, "texto").autoFlow, expect: true },
+  { field: "ignoreWrap", as: "check", read: (s) => textOf(s, "texto").ignoreWrap, expect: true },
   { field: "style.fontFamily", as: "select", value: "plex", read: (s) => textOf(s, "texto").style?.fontFamily, expect: "plex" },
   { field: "style.fontSize", as: "number", set: 14, read: (s) => Number(textOf(s, "texto").style?.fontSize), expect: 14 },
   { field: "style.lineHeight", as: "number", set: 1.8, read: (s) => Number(textOf(s, "texto").style?.lineHeight), expect: 1.8 },
@@ -110,8 +112,13 @@ const SHAPE_PROBES: Probe[] = [
 ];
 
 const IMAGE_PROBES: Probe[] = [
+  // Traçar primeiro: as sondas partilham o documento, e trocar `src` depois
+  // deixaria a imagem sem pixels para ler.
+  { field: "image.wrap.trace", as: "button", read: (s) => (frameOf(s, "foto") as ImageFrame).wrap?.mode.kind, expect: "contour" },
   { field: "image.src", as: "text", set: "b.png", read: (s) => (frameOf(s, "foto") as ImageFrame).src, expect: "b.png" },
   { field: "image.fit", as: "select", value: "cover", read: (s) => (frameOf(s, "foto") as ImageFrame).fit, expect: "cover" },
+  { field: "image.wrap.mode", as: "select", value: "contour", read: (s) => (frameOf(s, "foto") as ImageFrame).wrap?.mode.kind, expect: "contour" },
+  { field: "image.wrap.padding", as: "text", set: "9", read: (s) => (frameOf(s, "foto") as ImageFrame).wrap?.padding, expect: 9 },
 ];
 
 const DOC_PROBES: Probe[] = [
@@ -163,6 +170,7 @@ async function run(): Promise<void> {
     align: () => {},
     distribute: () => {},
     fontFamilies: () => engine.fontFamilies(),
+    bitmapFor: (src) => engine.images().get(src) ?? null,
   });
 
   const render = () => inspector.render({ selected, list: store.list, editing });
