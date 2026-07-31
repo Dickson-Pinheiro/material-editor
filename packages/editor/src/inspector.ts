@@ -29,6 +29,7 @@ import type {
   Frame,
   ImageFit,
   ImageFrame,
+  Len,
   Overflow,
   ShapeFrame,
   ShapeKind,
@@ -193,19 +194,7 @@ export class Inspector {
           ],
           "segmented",
         ),
-        textField(
-          "Margens",
-          formatLenList(page.margins ?? 56.7),
-          (value) => {
-            const parsed = parseLenList(value);
-            if (parsed === null) return false;
-            this.handlers.docChange((doc) => void ((doc.page ??= {}).margins = parsed));
-            return true;
-          },
-          'Um valor, "v h" ou "t r b l". Aceita unidades: 20mm',
-          false,
-          "page.margins",
-        ),
+        this.margins(page.margins ?? 56.7),
         checkbox(
           "Páginas espelhadas",
           page.facing === true,
@@ -231,6 +220,65 @@ export class Inspector {
         note("Entrar no grupo", "duplo clique"),
         note("Ajustar à janela", "Shift+1"),
       ]),
+    );
+  }
+
+  /**
+   * The four page margins, one field each.
+   *
+   * They were a single box taking `"20mm"` or `"10 20"` or `"1 2 3 4"` —
+   * compact, and unusable: to widen only the gutter you had to know the
+   * shorthand, work out the other three values and retype all of them. Four
+   * boxes is what the sides are.
+   *
+   * Each keeps its unit, so `20mm` stays `20mm`, and what is written back is
+   * the shortest form that means the same thing: one value when all four
+   * agree, a pair when they mirror, four otherwise. A document does not gain
+   * noise for having been edited.
+   */
+  private margins(current: Len | Len[]): HTMLElement {
+    return this.insets(
+      current,
+      (next) => this.handlers.docChange((doc) => void ((doc.page ??= {}).margins = next)),
+      "page.margins",
+      "Margem",
+    );
+  }
+
+  /** Four sides, four boxes. Used by the page margins and by frame padding. */
+  private insets(
+    current: Len | Len[],
+    write: (next: Len | Len[]) => void,
+    field: string,
+    label: string,
+  ): HTMLElement {
+    const sides = fourSides(current);
+    const NAMES: [string, string][] = [
+      ["Topo", "top"],
+      ["Dir.", "right"],
+      ["Base", "bottom"],
+      ["Esq.", "left"],
+    ];
+
+    return grid(
+      2,
+      NAMES.map(([name, key], index) =>
+        textField(
+          name,
+          String(sides[index]),
+          (value) => {
+            const one = parseLenList(value);
+            if (one === null || Array.isArray(one)) return false;
+            const next: [Len, Len, Len, Len] = [...sides];
+            next[index] = one;
+            write(shortest(next));
+            return true;
+          },
+          `${label}: ${name.toLowerCase()}. Aceita unidades: 20mm`,
+          false,
+          `${field}.${key}`,
+        ),
+      ),
     );
   }
 
@@ -272,27 +320,18 @@ export class Inspector {
 
     this.root.append(
       section("Aparência", [
-        grid(2, [
-          num(
-            "opacity",
-            Math.round((frame.opacity ?? 1) * 100),
-            (value) => change((f) => void (f.opacity = clamp(value / 100, 0, 1))),
-            { min: 0, max: 100, title: "Opacidade", icon: true, field: "opacity" },
-          ),
-          textField(
-            "padding",
-            formatLenList(frame.padding ?? 0),
-            (value) => {
-              const parsed = parseLenList(value);
-              if (parsed === null) return false;
-              change((f) => void (f.padding = parsed));
-              return true;
-            },
-            "Espaçamento interno",
-            true,
-            "padding",
-          ),
-        ]),
+        num(
+          "opacity",
+          Math.round((frame.opacity ?? 1) * 100),
+          (value) => change((f) => void (f.opacity = clamp(value / 100, 0, 1))),
+          { min: 0, max: 100, title: "Opacidade", icon: true, field: "opacity" },
+        ),
+        this.insets(
+          frame.padding ?? 0,
+          (next) => change((f) => void (f.padding = next)),
+          "padding",
+          "Espaçamento interno",
+        ),
         checkbox(
           "Recortar conteúdo",
           frame.clip === true,
@@ -434,20 +473,33 @@ export class Inspector {
 
     this.root.append(
       section("Fluxo", [
-        grid(2, [
-          num(
-            "columns",
-            frame.columns ?? 1,
-            (value) => change((f) => void ((f as TextFrame).columns = Math.max(1, Math.round(value)))),
-            { min: 1, title: "Colunas", icon: true, field: "columns" },
+        // One, two or three. A page wider than three columns of readable text
+        // is not something this panel needs to help anyone make.
+        row(
+          ([1, 2, 3] as const).map((count) =>
+            iconButton(
+              "columns",
+              `${count} coluna${count > 1 ? "s" : ""}`,
+              () => change((f) => void ((f as TextFrame).columns = count)),
+              {
+                active: (frame.columns ?? 1) === count,
+                label: String(count),
+                field: "columns",
+                value: String(count),
+              },
+            ),
           ),
-          num(
-            "gap",
-            Number(frame.columnGap ?? 14),
-            (value) => change((f) => void ((f as TextFrame).columnGap = value)),
-            { min: 0, title: "Medianiz", icon: true, field: "columnGap" },
-          ),
-        ]),
+          "segmented",
+        ),
+        // The gutter is only a thing when there is more than one column.
+        (frame.columns ?? 1) > 1
+          ? num(
+              "gap",
+              Number(frame.columnGap ?? 14),
+              (value) => change((f) => void ((f as TextFrame).columnGap = value)),
+              { min: 0, title: "Medianiz", icon: true, field: "columnGap" },
+            )
+          : null,
         row(
           (
             [
@@ -829,6 +881,27 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /** Show a length list the way it is typed back in. */
+/**
+ * A CSS-style shorthand spread over the four sides.
+ *
+ * One value means all four; two mean vertical then horizontal; three add a
+ * distinct bottom; four are top, right, bottom, left — the order the whole
+ * schema uses.
+ */
+function fourSides(value: Len | Len[]): [Len, Len, Len, Len] {
+  const list = Array.isArray(value) ? value : [value];
+  const [a = 0, b = a, c = a, d = b] = list;
+  return [a, b, c, d];
+}
+
+/** The shortest shorthand that still means these four sides. */
+function shortest(sides: [Len, Len, Len, Len]): Len | Len[] {
+  const [top, right, bottom, left] = sides;
+  if (top === right && right === bottom && bottom === left) return top;
+  if (top === bottom && right === left) return [top, right];
+  return [top, right, bottom, left];
+}
+
 function formatLenList(value: unknown): string {
   return Array.isArray(value) ? value.join(" ") : String(value);
 }

@@ -69,6 +69,22 @@ interface Probe {
 }
 
 const frameOf = (store: Store, id: string) => store.frame(id) as Frame;
+
+/** A frame's padding spread over the four sides, however it was written. */
+const inset = (store: Store, id: string): [unknown, unknown, unknown, unknown] => {
+  const value = frameOf(store, id).padding ?? 0;
+  const list = Array.isArray(value) ? value : [value];
+  const [a = 0, b = a, c = a, d = b] = list;
+  return [a, b, c, d];
+};
+
+/** The page margins spread over the four sides, however they were written. */
+const sides = (store: Store): [unknown, unknown, unknown, unknown] => {
+  const value = store.doc.page?.margins ?? 0;
+  const list = Array.isArray(value) ? value : [value];
+  const [a = 0, b = a, c = a, d = b] = list;
+  return [a, b, c, d];
+};
 const textOf = (store: Store, id: string) => store.frame(id) as TextFrame;
 
 const FRAME_PROBES: Probe[] = [
@@ -79,7 +95,10 @@ const FRAME_PROBES: Probe[] = [
   { field: "rotation", as: "number", set: 15, read: (s) => frameOf(s, "texto").rotation, expect: 15 },
   { field: "radius", as: "number", set: 8, read: (s) => frameOf(s, "texto").radius, expect: 8 },
   { field: "opacity", as: "number", set: 40, read: (s) => frameOf(s, "texto").opacity, expect: 0.4, near: true },
-  { field: "padding", as: "text", set: "6mm 8mm", read: (s) => JSON.stringify(frameOf(s, "texto").padding), expect: '["6mm","8mm"]' },
+  { field: "padding.top", as: "text", set: "6mm", read: (s) => inset(s, "texto")[0], expect: "6mm" },
+  { field: "padding.right", as: "text", set: "8mm", read: (s) => inset(s, "texto")[1], expect: "8mm" },
+  { field: "padding.bottom", as: "text", set: "10mm", read: (s) => inset(s, "texto")[2], expect: "10mm" },
+  { field: "padding.left", as: "text", set: "12mm", read: (s) => inset(s, "texto")[3], expect: "12mm" },
   { field: "clip", as: "check", read: (s) => frameOf(s, "texto").clip, expect: true },
   { field: "fill", as: "color", set: "#336699", read: (s) => frameOf(s, "texto").fill, expect: "#336699" },
   { field: "border.color", as: "color", set: "#aa0044", read: (s) => frameOf(s, "texto").border?.color, expect: "#aa0044" },
@@ -89,7 +108,8 @@ const FRAME_PROBES: Probe[] = [
   { field: "border.sides.right", as: "button", read: (s) => frameOf(s, "texto").border?.sides?.right, expect: false },
   { field: "border.sides.bottom", as: "button", read: (s) => frameOf(s, "texto").border?.sides?.bottom, expect: false },
   { field: "border.sides.left", as: "button", read: (s) => frameOf(s, "texto").border?.sides?.left, expect: false },
-  { field: "columns", as: "number", set: 2, read: (s) => textOf(s, "texto").columns, expect: 2 },
+  // Colunas primeiro: a medianiz só existe no painel quando há mais de uma.
+  { field: "columns", as: "button", value: "3", read: (s) => textOf(s, "texto").columns, expect: 3 },
   { field: "columnGap", as: "number", set: 20, read: (s) => Number(textOf(s, "texto").columnGap), expect: 20 },
   { field: "verticalAlign", as: "button", value: "middle", read: (s) => textOf(s, "texto").verticalAlign, expect: "middle" },
   { field: "overflow", as: "select", value: "grow", read: (s) => textOf(s, "texto").overflow, expect: "grow" },
@@ -124,7 +144,12 @@ const IMAGE_PROBES: Probe[] = [
 const DOC_PROBES: Probe[] = [
   { field: "page.size", as: "select", value: "A5", read: (s) => s.doc.page?.size, expect: "A5" },
   { field: "page.orientation", as: "button", value: "landscape", read: (s) => String(s.doc.page?.size).includes("landscape"), expect: true },
-  { field: "page.margins", as: "text", set: "25mm", read: (s) => s.doc.page?.margins, expect: "25mm" },
+  // Uma por lado. A ordem importa: cada sonda parte do que a anterior deixou,
+  // e o documento guarda a forma mais curta que ainda significa o mesmo.
+  { field: "page.margins.top", as: "text", set: "25mm", read: (s) => sides(s)[0], expect: "25mm" },
+  { field: "page.margins.right", as: "text", set: "30mm", read: (s) => sides(s)[1], expect: "30mm" },
+  { field: "page.margins.bottom", as: "text", set: "35mm", read: (s) => sides(s)[2], expect: "35mm" },
+  { field: "page.margins.left", as: "text", set: "40mm", read: (s) => sides(s)[3], expect: "40mm" },
   { field: "page.facing", as: "check", read: (s) => s.doc.page?.facing, expect: true },
 ];
 
