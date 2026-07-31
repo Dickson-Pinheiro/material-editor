@@ -1,0 +1,96 @@
+{
+  "meta": {
+    "title": "Duas páginas"
+  },
+  "page": {
+    "size": "A4",
+    "margins": 48
+  },
+  "style": {
+    "fontFamily": "corpo",
+    "fontSize": 10,
+    "lineHeight": 1.5
+  },
+  "pages": [
+    {
+      "frames": [
+        {
+          "id": "a",
+          "name": "Bloco",
+          "type": "text",
+          "rect": [
+            48,
+            60,
+            499,
+            90
+          ],
+          "fill": "#ecfeff",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#a5f3fc"
+          },
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Conteúdo da página 1"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "invasor",
+          "name": "Invade a página 2",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            170,
+            790,
+            255,
+            115
+          ],
+          "fill": "#0d99ff",
+          "radius": 6
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "b",
+          "name": "Bloco 2",
+          "type": "text",
+          "rect": [
+            48,
+            120,
+            499,
+            90
+          ],
+          "fill": "#fffbeb",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#fcd34d"
+          },
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Conteúdo da página 2"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>diagramador</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="toolbar-left">
+        <span class="brand" title="diagramador">◈</span>
+        <div class="tools" id="tools"></div>
+      </div>
+
+      <div class="toolbar-center">
+        <input
+          id="doc-title"
+          class="doc-title"
+          aria-label="Nome do documento"
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="toolbar-right">
+        <div class="zoom-control">
+          <button id="zoom-out" class="icon-button" title="Diminuir (Ctrl+−)">−</button>
+          <button id="zoom-label" class="zoom-label" title="Ajustar à janela (Shift+1)">
+            100%
+          </button>
+          <button id="zoom-in" class="icon-button" title="Aumentar (Ctrl++)">+</button>
+        </div>
+        <div class="actions" id="actions"></div>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside id="layers" class="sidebar left" aria-label="Páginas e camadas"></aside>
+
+      <section class="canvas-holder">
+        <canvas id="canvas" tabindex="0"></canvas>
+        <div id="status" class="status" role="status"></div>
+        <div id="hint" class="hint"></div>
+      </section>
+
+      <aside id="inspector" class="sidebar right" aria-label="Propriedades"></aside>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

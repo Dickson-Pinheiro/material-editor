@@ -1,0 +1,7 @@
+/target
+/wasm
+/out.pdf
+packages/editor/src/wasm/
+packages/editor/dist/
+node_modules/
+*.log

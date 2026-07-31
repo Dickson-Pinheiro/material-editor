@@ -1,0 +1,341 @@
+//! The parity contract.
+//!
+//! The browser paints the display list; the PDF emitter writes the same display
+//! list. The claim that they agree is only worth anything if it is checked, so
+//! this test reads the coordinates back out of the generated PDF and compares
+//! them, number by number, against the ones the layout engine produced.
+//!
+//! Content streams are written uncompressed, which is what makes this possible
+//! without a PDF parser.
+
+use diagramador::display::{DisplayItem, DisplayList, GlyphRun};
+use diagramador::spec::{Document, FontWeight};
+use diagramador::{Engine, ImageStore};
+
+/// Positions must match to within a hundredth of a point.
+const TOLERANCE: f64 = 0.01;
+
+fn engine() -> Option<Engine> {
+    let mut engine = Engine::new();
+    for (file, weight, italic) in [
+        ("DejaVuSans.ttf", 400u16, false),
+        ("DejaVuSans-Bold.ttf", 700, false),
+    ] {
+        let bytes = std::fs::read(format!("../../fonts/{file}"))
+            .or_else(|_| std::fs::read(format!("fonts/{file}")))
+            .ok()?;
+        engine
+            .add_font("corpo", bytes, Some(FontWeight(weight)), Some(italic))
+            .ok()?;
+    }
+    Some(engine)
+}
+
+fn document() -> Document {
+    serde_json::from_str(
+        r##"{
+            "meta": { "title": "Paridade", "language": "pt-BR" },
+            "page": { "size": "A4", "margins": "20mm" },
+            "style": { "fontFamily": "corpo", "fontSize": 11 },
+            "pages": [{
+                "frames": [
+                    { "id": "titulo", "type": "text", "rect": ["20mm", "20mm", "170mm", "30mm"],
+                      "blocks": [{ "type": "paragraph",
+                                   "style": { "fontSize": 24, "fontWeight": "bold" },
+                                   "content": ["Fotossíntese"] }] },
+                    { "id": "corpo", "type": "text", "rect": ["20mm", "55mm", "80mm", "120mm"],
+                      "style": { "textAlign": "justify" },
+                      "blocks": [
+                        { "type": "paragraph", "content": [
+                            "As plantas convertem a luz solar em energia química através da ",
+                            { "type": "text", "text": "fotossíntese", "style": { "fontWeight": "bold" } },
+                            ", processo essencial para a vida no planeta."
+                        ]},
+                        { "type": "paragraph", "marker": { "text": "a)" },
+                          "content": ["primeira alternativa"] }
+                      ]},
+                    { "id": "caixa", "type": "shape", "shape": "rect",
+                      "rect": ["110mm", "55mm", "80mm", "40mm"],
+                      "fill": "#eef4fb", "border": { "width": 1, "color": "#1f4e79" }, "radius": 6 },
+                    { "id": "faixa", "type": "shape", "shape": "rect",
+                      "rect": [100, 700, 200, 12], "fill": "#1f4e79" }
+                ]
+            }]
+        }"##,
+    )
+    .expect("fixture parses")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PDF content stream extraction
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Concatenate every uncompressed `stream … endstream` body that looks like a
+/// content stream (i.e. contains text or path operators).
+fn content_streams(pdf: &[u8]) -> String {
+    let mut out = String::new();
+    let mut cursor = 0usize;
+
+    while let Some(start) = find(pdf, b"stream", cursor) {
+        let body_start = match pdf.get(start + 6) {
+            Some(b'\r') => start + 8, // CRLF
+            Some(b'\n') => start + 7,
+            _ => start + 6,
+        };
+        let Some(end) = find(pdf, b"endstream", body_start) else {
+            break;
+        };
+        if let Ok(text) = std::str::from_utf8(&pdf[body_start..end])
+            && (text.contains("BT") || text.contains(" re"))
+        {
+            out.push_str(text);
+            out.push('\n');
+        }
+        cursor = end + 9;
+    }
+
+    out
+}
+
+fn find(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+    haystack
+        .get(from..)?
+        .windows(needle.len())
+        .position(|window| window == needle)
+        .map(|index| index + from)
+}
+
+/// Every `a b c d e f Tm` in the stream, as `(e, f)` — the text origin.
+fn text_origins(stream: &str) -> Vec<(f64, f64)> {
+    let tokens: Vec<&str> = stream.split_whitespace().collect();
+    let mut out = Vec::new();
+
+    for (index, token) in tokens.iter().enumerate() {
+        if *token != "Tm" || index < 6 {
+            continue;
+        }
+        let x = tokens[index - 2].parse::<f64>();
+        let y = tokens[index - 1].parse::<f64>();
+        if let (Ok(x), Ok(y)) = (x, y) {
+            out.push((x, y));
+        }
+    }
+
+    out
+}
+
+fn glyph_runs(list: &DisplayList) -> Vec<GlyphRun> {
+    fn walk(items: &[DisplayItem], out: &mut Vec<GlyphRun>) {
+        for item in items {
+            match item {
+                DisplayItem::Glyphs(run) => out.push(run.clone()),
+                DisplayItem::Group(group) => walk(&group.items, out),
+                _ => {}
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for page in &list.pages {
+        walk(&page.items, &mut out);
+    }
+    out
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Every run the browser would paint appears in the PDF at the same place.
+#[test]
+fn every_glyph_run_lands_at_its_display_list_position() {
+    let Some(engine) = engine() else {
+        eprintln!("fontes ausentes — teste ignorado");
+        return;
+    };
+
+    let document = document();
+    let list = engine.layout(&document);
+    let pdf = engine
+        .render_display_list(&list, &document)
+        .expect("render succeeds");
+
+    let runs = glyph_runs(&list);
+    assert!(runs.len() >= 5, "fixture should produce several runs");
+
+    let origins = text_origins(&content_streams(&pdf));
+    assert!(!origins.is_empty(), "no text matrices found in the PDF");
+
+    let page_height = list.pages[0].height;
+
+    for run in &runs {
+        // The display list measures y downward from the top of the page; PDF
+        // measures it upward from the bottom.
+        let expected = (run.x, page_height - run.y);
+
+        let matched = origins.iter().any(|(x, y)| {
+            (x - expected.0).abs() < TOLERANCE && (y - expected.1).abs() < TOLERANCE
+        });
+
+        assert!(
+            matched,
+            "run {:?} at ({:.3}, {:.3}) has no matching Tm at ({:.3}, {:.3})",
+            run.text, run.x, run.y, expected.0, expected.1
+        );
+    }
+}
+
+/// The PDF carries one text matrix per run — no stray, no missing.
+#[test]
+fn the_pdf_contains_exactly_one_matrix_per_run() {
+    let Some(engine) = engine() else { return };
+
+    let document = document();
+    let list = engine.layout(&document);
+    let pdf = engine.render_display_list(&list, &document).unwrap();
+
+    assert_eq!(
+        text_origins(&content_streams(&pdf)).len(),
+        glyph_runs(&list).len(),
+        "text matrices and glyph runs must correspond one to one"
+    );
+}
+
+/// Advances survive the trip: the sum of a run's TJ offsets equals its width.
+#[test]
+fn run_widths_agree_with_the_sum_of_their_advances() {
+    let Some(engine) = engine() else { return };
+
+    let list = engine.layout(&document());
+    for run in glyph_runs(&list) {
+        let total: f64 = run.glyphs.iter().map(|glyph| glyph.advance).sum();
+        assert!(
+            (total - run.width).abs() < TOLERANCE,
+            "run {:?}: advances sum to {total}, width says {}",
+            run.text,
+            run.width
+        );
+
+        // Glyph x offsets must be the running total of the advances, which is
+        // what lets the browser hit-test with a single scan.
+        let mut pen = 0.0;
+        for glyph in &run.glyphs {
+            assert!(
+                (glyph.x - pen).abs() < TOLERANCE,
+                "run {:?}: glyph at {} breaks the running total {pen}",
+                run.text,
+                glyph.x
+            );
+            pen += glyph.advance;
+        }
+    }
+}
+
+/// Shapes are placed with the same flip as text.
+///
+/// Square-cornered rectangles come out as a single `re` operator, so their
+/// coordinates can be read straight back and compared.
+#[test]
+fn rectangles_land_at_their_display_list_position() {
+    let Some(engine) = engine() else { return };
+
+    let document = document();
+    let list = engine.layout(&document);
+    let pdf = engine.render_display_list(&list, &document).unwrap();
+    let emitted = rect_operators(&content_streams(&pdf));
+    assert!(!emitted.is_empty(), "no `re` operators in the content stream");
+
+    let page_height = list.pages[0].height;
+
+    fn walk(items: &[DisplayItem], out: &mut Vec<diagramador::display::RectItem>) {
+        for item in items {
+            match item {
+                DisplayItem::Rect(rect) => out.push(rect.clone()),
+                DisplayItem::Group(group) => walk(&group.items, out),
+                _ => {}
+            }
+        }
+    }
+    let mut rects = Vec::new();
+    walk(&list.pages[0].items, &mut rects);
+
+    let square: Vec<_> = rects.iter().filter(|rect| rect.radius == 0.0).collect();
+    assert!(!square.is_empty(), "fixture should contain a square-cornered rect");
+
+    for rect in square {
+        let expected = (
+            rect.rect.x,
+            page_height - rect.rect.y - rect.rect.h,
+            rect.rect.w,
+            rect.rect.h,
+        );
+        let matched = emitted.iter().any(|(x, y, w, h)| {
+            (x - expected.0).abs() < TOLERANCE
+                && (y - expected.1).abs() < TOLERANCE
+                && (w - expected.2).abs() < TOLERANCE
+                && (h - expected.3).abs() < TOLERANCE
+        });
+        assert!(
+            matched,
+            "rect at {:?} has no matching `re` at {expected:?}",
+            rect.rect
+        );
+    }
+}
+
+/// Every `x y w h re` in the stream.
+fn rect_operators(stream: &str) -> Vec<(f64, f64, f64, f64)> {
+    let tokens: Vec<&str> = stream.split_whitespace().collect();
+    let mut out = Vec::new();
+
+    for (index, token) in tokens.iter().enumerate() {
+        if *token != "re" || index < 4 {
+            continue;
+        }
+        let parsed: Option<Vec<f64>> = tokens[index - 4..index]
+            .iter()
+            .map(|value| value.parse::<f64>().ok())
+            .collect();
+        if let Some(values) = parsed {
+            out.push((values[0], values[1], values[2], values[3]));
+        }
+    }
+
+    out
+}
+
+/// The same document renders identically twice — no map iteration order or
+/// timestamp leaking into the bytes.
+#[test]
+fn output_is_reproducible() {
+    let Some(engine) = engine() else { return };
+    let document = document();
+
+    let first = engine.render_pdf(&document).unwrap();
+    let second = engine.render_pdf(&document).unwrap();
+    assert_eq!(first, second);
+}
+
+/// Laying out twice gives the same display list, which is what makes the editor
+/// safe to re-render on every keystroke.
+#[test]
+fn layout_is_deterministic() {
+    let Some(engine) = engine() else { return };
+    let document = document();
+
+    let first = serde_json::to_string(&engine.layout(&document)).unwrap();
+    let second = serde_json::to_string(&engine.layout(&document)).unwrap();
+    assert_eq!(first, second);
+}
+
+/// A document with no fonts still lays out, so the editor can show it.
+#[test]
+fn layout_degrades_without_fonts() {
+    let engine = Engine::new();
+    let list = engine.layout(&document());
+
+    assert_eq!(list.pages.len(), 1);
+    assert!(list.has_errors(), "missing fonts should be reported");
+    // But rendering a PDF without fonts is refused rather than silently blank.
+    assert!(engine.render_pdf(&document()).is_err());
+    let _ = ImageStore::new();
+}

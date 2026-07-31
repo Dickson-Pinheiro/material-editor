@@ -1,0 +1,48 @@
+[package]
+name = "diagramador"
+description = "Generic document diagramming engine: JSON in, display list + PDF out"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["images", "browser"]
+
+# Browser target via wasm-bindgen (editor + PDF in the page)
+browser = ["dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:js-sys", "dep:serde_json"]
+
+# WASI C-ABI target for Python / Go / any wasm runtime
+wasi-lib = ["dep:serde_json"]
+
+# Raster image embedding (PNG + JPEG)
+images = ["dep:image"]
+
+[dependencies]
+serde      = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1", optional = true }
+
+# Pinned: the crate version must match the installed `wasm-bindgen` CLI, which
+# is what generates the JS glue. Bump both together.
+wasm-bindgen       = { version = "=0.2.114", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+js-sys             = { version = "0.3", optional = true }
+
+pdf-writer = "0.14"
+thiserror  = "2"
+
+ttf-parser = { version = "0.25", features = ["opentype-layout"] }
+rustybuzz  = "0.20"
+subsetter  = "0.2"
+
+miniz_oxide       = "0.8"
+unicode-linebreak = "0.1"
+
+image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg"] }
+
+[dev-dependencies]
+serde_json = "1"

@@ -1,0 +1,5307 @@
+{
+  "meta": {
+    "title": "Unidade 3 — A água no planeta",
+    "language": "pt-BR"
+  },
+  "page": {
+    "size": "A4",
+    "margins": 48
+  },
+  "style": {
+    "fontFamily": "corpo",
+    "fontSize": 9.5,
+    "lineHeight": 1.55,
+    "color": "#0f172a"
+  },
+  "pages": [
+    {
+      "frames": [
+        {
+          "id": "c-photo",
+          "name": "Fotografia da capa",
+          "type": "image",
+          "rect": [
+            0,
+            0,
+            595.28,
+            400
+          ],
+          "src": "terra.jpg",
+          "fit": "cover"
+        },
+        {
+          "id": "c-band",
+          "name": "Faixa do título",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            0,
+            400,
+            595.28,
+            196
+          ],
+          "fill": "#0a2540"
+        },
+        {
+          "id": "c-accent",
+          "name": "Filete de destaque",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            0,
+            396,
+            595.28,
+            4
+          ],
+          "fill": "#f59e0b"
+        },
+        {
+          "id": "c-kicker",
+          "name": "Rótulo",
+          "type": "text",
+          "rect": [
+            48,
+            428,
+            300,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "UNIDADE 03"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 10,
+            "fontWeight": "bold",
+            "color": "#7dd3fc"
+          }
+        },
+        {
+          "id": "c-title",
+          "name": "Título da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            448,
+            460,
+            92
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A água"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 34,
+            "lineHeight": 1.16,
+            "fontWeight": "bold",
+            "color": "#ffffff"
+          }
+        },
+        {
+          "id": "c-sub",
+          "name": "Subtítulo",
+          "type": "text",
+          "rect": [
+            48,
+            546,
+            460,
+            20
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ciências da Natureza · 7º ano do Ensino Fundamental"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 10.5,
+            "color": "#bfdbfe"
+          }
+        },
+        {
+          "id": "c-box",
+          "name": "O que você vai estudar",
+          "type": "text",
+          "rect": [
+            48,
+            628,
+            499,
+            140
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Nesta unidade você vai estudar",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 11.5
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O ciclo da água e as transformações entre seus estados físicos."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A distribuição da água no planeta e a escassez da parte potável."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A relação entre vegetação, solo e recarga dos lençóis freáticos."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O consumo doméstico e as escolhas que reduzem o desperdício."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 6
+          },
+          "fill": "#eef4fb",
+          "radius": 8,
+          "padding": 12,
+          "border": {
+            "width": 1,
+            "color": "#bcd4ec"
+          }
+        },
+        {
+          "id": "c-school",
+          "name": "Escola",
+          "type": "text",
+          "rect": [
+            48,
+            792,
+            499,
+            20
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Escola Municipal Paulo Freire · Material de apoio"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8.5,
+            "lineHeight": 1.45,
+            "color": "#64748b",
+            "textAlign": "center"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p2-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p2-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "ABERTURA"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p2-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Objetivos de aprendizagem"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p2-stand",
+          "name": "Linha de apoio",
+          "type": "text",
+          "rect": [
+            48,
+            128,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ao final desta unidade, espera-se que você consiga explicar, com suas palavras, os itens abaixo."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 10.5,
+            "lineHeight": 1.5,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p2-goals",
+          "name": "Objetivos",
+          "type": "text",
+          "rect": [
+            48,
+            176,
+            240,
+            330
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O que você deve saber fazer",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 11,
+                    "color": "#0a2540"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "→  Descrever as etapas do ciclo da água, nomeando as mudanças de estado."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "→  Explicar por que a água do planeta é abundante, mas a água potável é escassa."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "→  Relacionar o desmatamento à diminuição da recarga dos lençóis freáticos."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "→  Ler e interpretar dados sobre consumo de água apresentados em gráficos."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "→  Propor três mudanças de hábito viáveis na sua casa e justificá-las."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 10
+          }
+        },
+        {
+          "id": "p2-key",
+          "name": "Conceitos-chave",
+          "type": "text",
+          "rect": [
+            307,
+            176,
+            240,
+            330
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Conceitos-chave",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 11,
+                    "color": "#92400e"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Evaporação  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "passagem do líquido para o gasoso pela ação do calor."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Condensação  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "passagem do gasoso para o líquido quando o vapor esfria."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Precipitação  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "retorno da água à superfície como chuva, neve ou granizo."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Infiltração  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "entrada da água no solo, alimentando os lençóis freáticos."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Transpiração  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "liberação de vapor pelas plantas, sobretudo pelas folhas."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 9
+          },
+          "fill": "#fffbeb",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#fcd34d"
+          }
+        },
+        {
+          "id": "p2-tip",
+          "name": "Antes de começar",
+          "type": "text",
+          "rect": [
+            48,
+            530,
+            499,
+            120
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Antes de começar  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#0a2540"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Converse com um colega: de onde vem a água que chega à torneira da sua casa? Anote a resposta agora, sem pesquisar, e guarde. Ao final da unidade, compare com o que você aprendeu."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          },
+          "fill": "#f8fafc",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#cbd5e1"
+          }
+        },
+        {
+          "id": "p2-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p2-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p2-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p3-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p3-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "CAPÍTULO 1 · O CICLO DA ÁGUA"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p3-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Um movimento que nunca para"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p3-body",
+          "name": "Texto principal",
+          "type": "text",
+          "rect": [
+            48,
+            140,
+            499,
+            312
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A água que existe hoje na Terra é praticamente a mesma desde a formação do planeta. Ela não desaparece nem é criada: muda de estado e de lugar, num movimento contínuo que chamamos de "
+                },
+                {
+                  "type": "text",
+                  "text": "ciclo da água",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " ou ciclo hidrológico."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O motor desse ciclo é o Sol. Ao aquecer a superfície dos oceanos, dos rios e dos lagos, ele fornece a energia necessária para que a água líquida passe ao estado gasoso — a evaporação. Uma parcela importante desse vapor não vem da água exposta, e sim das plantas, que liberam vapor pelas folhas num processo chamado transpiração."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "À medida que sobe, o vapor encontra camadas mais frias da atmosfera. Ao perder calor, volta ao estado líquido em gotículas minúsculas que, reunidas, formam as nuvens. É a condensação. Quando essas gotículas crescem o suficiente para que o ar não as sustente, elas caem: é a precipitação, na forma de chuva, neve ou granizo."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "De volta à superfície, a água segue dois caminhos. Parte escoa sobre o terreno até rios e oceanos; parte penetra no solo por infiltração e alimenta os lençóis freáticos, reservatórios subterrâneos que abastecem nascentes e poços. Em ambos os casos, mais cedo ou mais tarde, ela voltará a evaporar — e o ciclo recomeça."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A vegetação tem papel decisivo nesse equilíbrio. Suas raízes seguram o solo e abrem caminhos por onde a água desce; a copa das árvores reduz o impacto da chuva, evitando que o terreno se compacte. Onde a mata foi retirada, a água escorre depressa demais, carrega a camada fértil e chega em excesso aos rios, provocando enchentes — enquanto os lençóis recebem cada vez menos."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "justify",
+            "spaceAfter": 7
+          },
+          "columns": 2,
+          "columnGap": 19
+        },
+        {
+          "id": "p3-did",
+          "name": "Você sabia?",
+          "type": "text",
+          "rect": [
+            48,
+            476,
+            499,
+            150
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Você sabia?",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 11.5,
+                    "color": "#92400e"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Uma única árvore adulta da Amazônia pode lançar mais de mil litros de água por dia na atmosfera. Multiplicado por bilhões de árvores, esse vapor forma correntes de ar úmido apelidadas de "
+                },
+                {
+                  "type": "text",
+                  "text": "rios voadores",
+                  "style": {
+                    "fontStyle": "italic"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": ", que atravessam o continente e levam chuva ao Centro-Oeste, ao Sudeste e ao norte da Argentina."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          },
+          "fill": "#fffbeb",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#fcd34d"
+          }
+        },
+        {
+          "id": "p3-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p3-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p3-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p4-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p4-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "CAPÍTULO 1 · O CICLO DA ÁGUA"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p4-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "As quatro etapas, em ordem"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p4-bg",
+          "name": "Fundo do diagrama",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            150,
+            499,
+            330
+          ],
+          "fill": "#f8fafc",
+          "radius": 10
+        },
+        {
+          "id": "p4-l1",
+          "name": "Seta 1",
+          "type": "shape",
+          "shape": "line",
+          "rect": [
+            200,
+            205,
+            150,
+            1.6
+          ],
+          "border": {
+            "width": 1.6,
+            "color": "#14497e"
+          }
+        },
+        {
+          "id": "p4-l2",
+          "name": "Seta 2",
+          "type": "shape",
+          "shape": "line",
+          "rect": [
+            400,
+            235,
+            1.6,
+            120
+          ],
+          "border": {
+            "width": 1.6,
+            "color": "#14497e"
+          }
+        },
+        {
+          "id": "p4-l3",
+          "name": "Seta 3",
+          "type": "shape",
+          "shape": "line",
+          "rect": [
+            200,
+            390,
+            150,
+            1.6
+          ],
+          "border": {
+            "width": 1.6,
+            "color": "#14497e"
+          }
+        },
+        {
+          "id": "p4-l4",
+          "name": "Seta 4",
+          "type": "shape",
+          "shape": "line",
+          "rect": [
+            175,
+            235,
+            1.6,
+            120
+          ],
+          "border": {
+            "width": 1.6,
+            "color": "#14497e"
+          }
+        },
+        {
+          "id": "p4-p1",
+          "name": "Evaporação",
+          "type": "text",
+          "rect": [
+            95,
+            186,
+            110,
+            38
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Evaporação"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 10,
+            "fontWeight": "bold",
+            "color": "#ffffff",
+            "textAlign": "center"
+          },
+          "fill": "#14497e",
+          "radius": 18,
+          "padding": [
+            9,
+            6
+          ],
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p4-p2",
+          "name": "Condensação",
+          "type": "text",
+          "rect": [
+            345,
+            186,
+            110,
+            38
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Condensação"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 10,
+            "fontWeight": "bold",
+            "color": "#ffffff",
+            "textAlign": "center"
+          },
+          "fill": "#0a2540",
+          "radius": 18,
+          "padding": [
+            9,
+            6
+          ],
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p4-p3",
+          "name": "Precipitação",
+          "type": "text",
+          "rect": [
+            345,
+            371,
+            110,
+            38
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Precipitação"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 10,
+            "fontWeight": "bold",
+            "color": "#ffffff",
+            "textAlign": "center"
+          },
+          "fill": "#14497e",
+          "radius": 18,
+          "padding": [
+            9,
+            6
+          ],
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p4-p4",
+          "name": "Infiltração",
+          "type": "text",
+          "rect": [
+            95,
+            371,
+            110,
+            38
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Infiltração"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 10,
+            "fontWeight": "bold",
+            "color": "#ffffff",
+            "textAlign": "center"
+          },
+          "fill": "#0a2540",
+          "radius": 18,
+          "padding": [
+            9,
+            6
+          ],
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p4-sun",
+          "name": "Energia",
+          "type": "text",
+          "rect": [
+            242,
+            279,
+            66,
+            38
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Sol"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 10,
+            "fontWeight": "bold",
+            "color": "#92400e",
+            "textAlign": "center"
+          },
+          "fill": "#f59e0b",
+          "radius": 18,
+          "padding": [
+            9,
+            6
+          ],
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p4-n1",
+          "name": "Nota 1",
+          "type": "text",
+          "rect": [
+            66,
+            230,
+            170,
+            44
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O calor do Sol transforma água líquida em vapor."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8.5,
+            "lineHeight": 1.45,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p4-n2",
+          "name": "Nota 2",
+          "type": "text",
+          "rect": [
+            345,
+            230,
+            170,
+            44
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O vapor esfria ao subir e forma as nuvens."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8.5,
+            "lineHeight": 1.45,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p4-n3",
+          "name": "Nota 3",
+          "type": "text",
+          "rect": [
+            345,
+            415,
+            170,
+            44
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A água retorna como chuva, neve ou granizo."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8.5,
+            "lineHeight": 1.45,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p4-n4",
+          "name": "Nota 4",
+          "type": "text",
+          "rect": [
+            66,
+            415,
+            170,
+            44
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Parte penetra no solo e recarrega os lençóis."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8.5,
+            "lineHeight": 1.45,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p4-cap",
+          "name": "Legenda",
+          "type": "text",
+          "rect": [
+            48,
+            494,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Figura 1  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "O ciclo da água. As setas indicam o sentido do movimento; o Sol, no centro, é a fonte de energia que mantém todo o processo."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8.5,
+            "lineHeight": 1.45,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p4-act",
+          "name": "Atividade em aula",
+          "type": "text",
+          "rect": [
+            48,
+            550,
+            499,
+            200
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Para fazer em dupla",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 11,
+                    "color": "#0a2540"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "1.  Percorram o diagrama com o dedo, dizendo em voz alta o que acontece com a água em cada etapa."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "2.  Escolham uma etapa e imaginem que ela deixasse de acontecer. Escrevam três consequências para a região onde vocês moram."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "3.  Confrontem a resposta de vocês com a de outra dupla e anotem uma diferença que valha discutir com a turma."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 9
+          },
+          "fill": "#eef4fb",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#bcd4ec"
+          }
+        },
+        {
+          "id": "p4-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p4-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p4-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p5-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p5-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "CAPÍTULO 2 · ESTADOS FÍSICOS"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p5-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A mesma substância, três estados"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p5-stand",
+          "name": "Linha de apoio",
+          "type": "text",
+          "rect": [
+            48,
+            128,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O que muda de um estado para outro não é a substância, e sim a proximidade e a agitação de suas moléculas."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 10.5,
+            "lineHeight": 1.5,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p5-h0",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            48,
+            186,
+            140,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Estado"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#ffffff",
+            "textAlign": "left"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#0a2540",
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p5-h1",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            188,
+            186,
+            120,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Mudança"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#ffffff",
+            "textAlign": "left"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#0a2540",
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p5-h2",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            308,
+            186,
+            239,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Onde observamos"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#ffffff",
+            "textAlign": "left"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#0a2540",
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p5-r0c0",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            48,
+            216,
+            140,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Sólido"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "lineHeight": 1.45,
+            "color": "#0a2540",
+            "textAlign": "left",
+            "fontWeight": "bold"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#ffffff",
+          "verticalAlign": "middle",
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p5-r0c1",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            188,
+            216,
+            120,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Fusão · Solidificação"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "lineHeight": 1.45,
+            "color": "#0f172a",
+            "textAlign": "left"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#ffffff",
+          "verticalAlign": "middle",
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p5-r0c2",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            308,
+            216,
+            239,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Geleiras, calotas polares e o granizo que cai em tempestades fortes."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "lineHeight": 1.45,
+            "color": "#0f172a",
+            "textAlign": "left"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#ffffff",
+          "verticalAlign": "middle",
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p5-r1c0",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            48,
+            262,
+            140,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Líquido"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "lineHeight": 1.45,
+            "color": "#0a2540",
+            "textAlign": "left",
+            "fontWeight": "bold"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#f8fafc",
+          "verticalAlign": "middle",
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p5-r1c1",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            188,
+            262,
+            120,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Vaporização · Condensação"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "lineHeight": 1.45,
+            "color": "#0f172a",
+            "textAlign": "left"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#f8fafc",
+          "verticalAlign": "middle",
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p5-r1c2",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            308,
+            262,
+            239,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Oceanos, rios, lagos, lençóis freáticos e a água da torneira."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "lineHeight": 1.45,
+            "color": "#0f172a",
+            "textAlign": "left"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#f8fafc",
+          "verticalAlign": "middle",
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p5-r2c0",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            48,
+            308,
+            140,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Gasoso"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "lineHeight": 1.45,
+            "color": "#0a2540",
+            "textAlign": "left",
+            "fontWeight": "bold"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#ffffff",
+          "verticalAlign": "middle",
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p5-r2c1",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            188,
+            308,
+            120,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Condensação · Sublimação"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "lineHeight": 1.45,
+            "color": "#0f172a",
+            "textAlign": "left"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#ffffff",
+          "verticalAlign": "middle",
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p5-r2c2",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            308,
+            308,
+            239,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Vapor invisível na atmosfera; as nuvens já são água líquida em gotículas."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "lineHeight": 1.45,
+            "color": "#0f172a",
+            "textAlign": "left"
+          },
+          "padding": [
+            8,
+            9
+          ],
+          "fill": "#ffffff",
+          "verticalAlign": "middle",
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p5-note",
+          "name": "Atenção",
+          "type": "text",
+          "rect": [
+            48,
+            366,
+            499,
+            100
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Atenção a um engano comum.  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#92400e"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "A nuvem que vemos no céu não é vapor: o vapor de água é invisível. A nuvem é formada por gotículas de água já "
+                },
+                {
+                  "type": "text",
+                  "text": "líquida",
+                  "style": {
+                    "fontStyle": "italic"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": ", pequenas o bastante para permanecer suspensas."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          },
+          "fill": "#fffbeb",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#fcd34d"
+          }
+        },
+        {
+          "id": "p5-body",
+          "name": "Texto",
+          "type": "text",
+          "rect": [
+            48,
+            486,
+            499,
+            290
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Por que a temperatura muda tudo",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 11.5,
+                    "color": "#0a2540"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "No estado sólido, as moléculas de água ocupam posições fixas e vibram sem trocar de lugar. Ao receber calor, essa vibração aumenta até que as ligações se afrouxem: a água derrete e passa ao estado líquido, no qual as moléculas deslizam umas sobre as outras."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Com mais calor ainda, algumas moléculas ganham energia suficiente para escapar da superfície e se espalhar pelo ar. É por isso que uma poça seca mesmo sem ferver: a evaporação acontece em qualquer temperatura, só que mais depressa quando está quente, seco e ventando."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O caminho inverso funciona do mesmo jeito. Ao perder calor, as moléculas se aproximam e a substância volta ao estado anterior — e nenhuma delas deixa de ser água em momento algum."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "justify",
+            "spaceAfter": 7
+          },
+          "columns": 2,
+          "columnGap": 19
+        },
+        {
+          "id": "p5-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p5-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p5-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p6-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p6-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "CAPÍTULO 2 · ESTADOS FÍSICOS"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p6-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Muita água, pouca água potável"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p6-stand",
+          "name": "Linha de apoio",
+          "type": "text",
+          "rect": [
+            48,
+            128,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Cerca de 71% da superfície do planeta é coberta por água. Ainda assim, a parcela doce, líquida e ao nosso alcance é minúscula."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 10.5,
+            "lineHeight": 1.5,
+            "color": "#64748b"
+          }
+        },
+        {
+          "id": "p6-bl0",
+          "name": "Rótulo",
+          "type": "text",
+          "rect": [
+            48,
+            210,
+            439,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Oceanos e mares (água salgada)"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          }
+        },
+        {
+          "id": "p6-bp0",
+          "name": "Percentual",
+          "type": "text",
+          "rect": [
+            487,
+            210,
+            60,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "97.5%"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        },
+        {
+          "id": "p6-bt0",
+          "name": "Trilho",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            230,
+            369,
+            14
+          ],
+          "fill": "#e2e8f0",
+          "radius": 7
+        },
+        {
+          "id": "p6-bf0",
+          "name": "Barra",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            230,
+            359.775,
+            14
+          ],
+          "fill": "#14497e",
+          "radius": 7
+        },
+        {
+          "id": "p6-bl1",
+          "name": "Rótulo",
+          "type": "text",
+          "rect": [
+            48,
+            272,
+            439,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Geleiras e calotas polares"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          }
+        },
+        {
+          "id": "p6-bp1",
+          "name": "Percentual",
+          "type": "text",
+          "rect": [
+            487,
+            272,
+            60,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "1.75%"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#0a2540",
+            "textAlign": "right"
+          }
+        },
+        {
+          "id": "p6-bt1",
+          "name": "Trilho",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            292,
+            369,
+            14
+          ],
+          "fill": "#e2e8f0",
+          "radius": 7
+        },
+        {
+          "id": "p6-bf1",
+          "name": "Barra",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            292,
+            6.4575000000000005,
+            14
+          ],
+          "fill": "#0a2540",
+          "radius": 7
+        },
+        {
+          "id": "p6-bl2",
+          "name": "Rótulo",
+          "type": "text",
+          "rect": [
+            48,
+            334,
+            439,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Lençóis freáticos"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          }
+        },
+        {
+          "id": "p6-bp2",
+          "name": "Percentual",
+          "type": "text",
+          "rect": [
+            487,
+            334,
+            60,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "0.72%"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#2563eb",
+            "textAlign": "right"
+          }
+        },
+        {
+          "id": "p6-bt2",
+          "name": "Trilho",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            354,
+            369,
+            14
+          ],
+          "fill": "#e2e8f0",
+          "radius": 7
+        },
+        {
+          "id": "p6-bf2",
+          "name": "Barra",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            354,
+            6,
+            14
+          ],
+          "fill": "#2563eb",
+          "radius": 7
+        },
+        {
+          "id": "p6-bl3",
+          "name": "Rótulo",
+          "type": "text",
+          "rect": [
+            48,
+            396,
+            439,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Rios, lagos e atmosfera"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          }
+        },
+        {
+          "id": "p6-bp3",
+          "name": "Percentual",
+          "type": "text",
+          "rect": [
+            487,
+            396,
+            60,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "0.03%"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#f59e0b",
+            "textAlign": "right"
+          }
+        },
+        {
+          "id": "p6-bt3",
+          "name": "Trilho",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            416,
+            369,
+            14
+          ],
+          "fill": "#e2e8f0",
+          "radius": 7
+        },
+        {
+          "id": "p6-bf3",
+          "name": "Barra",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            416,
+            6,
+            14
+          ],
+          "fill": "#f59e0b",
+          "radius": 7
+        },
+        {
+          "id": "p6-read",
+          "name": "Como ler o gráfico",
+          "type": "text",
+          "rect": [
+            48,
+            470,
+            499,
+            120
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Como ler este gráfico.  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#0a2540"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "As barras estão na mesma escala. A última é tão fina que quase não aparece — e é justamente dela que vêm a água dos rios e dos lagos, a mais fácil de captar e tratar para o consumo humano."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          },
+          "fill": "#eef4fb",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#bcd4ec"
+          }
+        },
+        {
+          "id": "p6-body",
+          "name": "Texto",
+          "type": "text",
+          "rect": [
+            48,
+            616,
+            499,
+            92
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Se toda a água do planeta coubesse em um balde de dez litros, a água doce não passaria de meio copo — e a fração acessível em rios e lagos seria pouco mais que uma gota. É essa gota que abastece cidades, irriga lavouras e sustenta a indústria."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Por isso, tratar a água como recurso infinito é um erro de leitura: ela é abundante no planeta e escassa onde precisamos dela."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "justify",
+            "spaceAfter": 7
+          },
+          "columns": 2,
+          "columnGap": 19
+        },
+        {
+          "id": "p6-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p6-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p6-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p7-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p7-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "CAPÍTULO 3 · LEITURA E INTERPRETAÇÃO"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p7-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Texto para leitura"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p7-src",
+          "name": "Texto-base",
+          "type": "text",
+          "rect": [
+            48,
+            146,
+            499,
+            330
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A cidade que ficou sem chuva",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 13,
+                    "fontFamily": "plex",
+                    "color": "#0a2540"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Entre 2014 e 2015, a região metropolitana de São Paulo viveu a pior crise hídrica de sua história. O principal sistema de abastecimento, o Cantareira, chegou a operar com menos de 5% do volume útil. Bairros inteiros passaram a receber água apenas em parte do dia."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "As causas foram várias e se somaram. Houve uma sequência atípica de meses com pouca chuva. Houve também perdas na distribuição: parte da água tratada escapava por canos antigos antes de chegar às casas. E houve o avanço do desmatamento nas áreas que abastecem os mananciais, reduzindo a capacidade do solo de reter e devolver água aos rios."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A saída combinou medidas de emergência e mudanças de hábito. A empresa responsável passou a oferecer desconto a quem reduzisse o consumo; escolas incorporaram o tema ao currículo; famílias reaproveitaram a água da máquina de lavar. Quando as chuvas voltaram, os reservatórios se recuperaram — mas a lição ficou: a crise não começou no céu, começou muito antes, nas escolhas feitas em terra."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Texto elaborado para fins didáticos.",
+                  "style": {
+                    "fontStyle": "italic",
+                    "fontSize": 8.5,
+                    "color": "#64748b"
+                  }
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "justify",
+            "spaceAfter": 8
+          },
+          "fill": "#ffffff",
+          "radius": 8,
+          "padding": 18,
+          "border": {
+            "width": 1,
+            "color": "#cbd5e1"
+          }
+        },
+        {
+          "id": "p7-q",
+          "name": "Perguntas",
+          "type": "text",
+          "rect": [
+            48,
+            500,
+            499,
+            260
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Depois de ler, responda",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 11.5,
+                    "color": "#0a2540"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "1.  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "O texto afirma que “a crise não começou no céu”. Explique essa frase com base em duas causas citadas."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "2.  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Releia o terceiro parágrafo. Separe as medidas em dois grupos: as que dependem do poder público e as que dependem de cada família."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "3.  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Que relação existe entre o desmatamento mencionado no texto e o ciclo da água estudado no Capítulo 1?"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 11
+          }
+        },
+        {
+          "id": "p7-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p7-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p7-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p8-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p8-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "ATIVIDADES"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p8-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Atividades — parte 1"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p8-q1",
+          "name": "Questão 1",
+          "type": "text",
+          "rect": [
+            48,
+            148,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "1.  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#14497e"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Descreva, em três frases, o caminho percorrido por uma gota de água desde o oceano até voltar a ele."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p8-a1-0",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            206,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p8-a1-1",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            228,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p8-a1-2",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            250,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p8-a1-3",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            272,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p8-q2",
+          "name": "Questão 2",
+          "type": "text",
+          "rect": [
+            48,
+            306,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "2.  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#14497e"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Explique por que a nuvem não pode ser chamada de vapor de água. Use os termos "
+                },
+                {
+                  "type": "text",
+                  "text": "condensação",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " e "
+                },
+                {
+                  "type": "text",
+                  "text": "gotícula",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p8-a2-0",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            364,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p8-a2-1",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            386,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p8-a2-2",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            408,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p8-a2-3",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            430,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p8-q3",
+          "name": "Questão 3",
+          "type": "text",
+          "rect": [
+            48,
+            464,
+            499,
+            60
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "3.  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#14497e"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Observe o gráfico da página 6. Se a água doce acessível corresponde a 0,03% do total, quantos litros dela existiriam num conjunto de 10 000 litros? Mostre o cálculo."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p8-calc",
+          "name": "Espaço para cálculo",
+          "type": "text",
+          "rect": [
+            48,
+            528,
+            499,
+            110
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "justify",
+            "spaceAfter": 7
+          },
+          "fill": "#f8fafc",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#cbd5e1"
+          }
+        },
+        {
+          "id": "p8-q4",
+          "name": "Questão 4",
+          "type": "text",
+          "rect": [
+            48,
+            654,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "4.  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#14497e"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Marque a alternativa correta. A retirada da mata ciliar às margens de um rio tende a:"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p8-alt",
+          "name": "Alternativas",
+          "type": "text",
+          "rect": [
+            64,
+            700,
+            483,
+            80
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "a)  aumentar a infiltração e reduzir as enchentes."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "b)  aumentar o escoamento superficial e o assoreamento."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "c)  não alterar o ciclo da água na região."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 5
+          }
+        },
+        {
+          "id": "p8-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p8-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p8-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p9-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p9-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "ATIVIDADES"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p9-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Atividades — parte 2"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p9-brief",
+          "name": "Pesquisa de campo",
+          "type": "text",
+          "rect": [
+            48,
+            148,
+            499,
+            130
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Investigação em casa",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 11.5,
+                    "color": "#0a2540"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Durante uma semana, anote quanto tempo cada pessoa da casa passa no banho. Some os minutos e multiplique por 9 litros — a vazão média de um chuveiro elétrico por minuto. Traga o resultado para a próxima aula."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          },
+          "fill": "#eef4fb",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#bcd4ec"
+          }
+        },
+        {
+          "id": "p9-t",
+          "name": "Tabela",
+          "type": "text",
+          "rect": [
+            48,
+            296,
+            499,
+            20
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Registro do consumo",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 10.5,
+                    "color": "#0a2540"
+                  }
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p9-h0",
+          "name": "Cabeçalho",
+          "type": "text",
+          "rect": [
+            48,
+            322,
+            150,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Pessoa"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#ffffff"
+          },
+          "fill": "#0a2540",
+          "padding": [
+            7,
+            9
+          ],
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p9-h1",
+          "name": "Cabeçalho",
+          "type": "text",
+          "rect": [
+            198,
+            322,
+            110,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Minutos/dia"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#ffffff"
+          },
+          "fill": "#0a2540",
+          "padding": [
+            7,
+            9
+          ],
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p9-h2",
+          "name": "Cabeçalho",
+          "type": "text",
+          "rect": [
+            308,
+            322,
+            120,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Litros/semana"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#ffffff"
+          },
+          "fill": "#0a2540",
+          "padding": [
+            7,
+            9
+          ],
+          "verticalAlign": "middle"
+        },
+        {
+          "id": "p9-c00",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            48,
+            352,
+            150,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c01",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            198,
+            352,
+            110,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c02",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            308,
+            352,
+            120,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c10",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            48,
+            382,
+            150,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c11",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            198,
+            382,
+            110,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c12",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            308,
+            382,
+            120,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c20",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            48,
+            412,
+            150,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c21",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            198,
+            412,
+            110,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c22",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            308,
+            412,
+            120,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c30",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            48,
+            442,
+            150,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c31",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            198,
+            442,
+            110,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c32",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            308,
+            442,
+            120,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c40",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            48,
+            472,
+            150,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c41",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            198,
+            472,
+            110,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-c42",
+          "name": "Célula",
+          "type": "text",
+          "rect": [
+            308,
+            472,
+            120,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " "
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9,
+            "color": "#0f172a"
+          },
+          "padding": [
+            7,
+            9
+          ],
+          "border": {
+            "width": 0.75,
+            "color": "#cbd5e1",
+            "sides": {
+              "top": false,
+              "right": false,
+              "bottom": true,
+              "left": false
+            }
+          }
+        },
+        {
+          "id": "p9-q5",
+          "name": "Questão 5",
+          "type": "text",
+          "rect": [
+            48,
+            520,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "5.  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#14497e"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Com os dados da tabela, calcule o consumo mensal da casa apenas com banhos. Compare com o consumo de outra família da turma."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p9-a5-0",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            578,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p9-a5-1",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            600,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p9-a5-2",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            622,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p9-q6",
+          "name": "Questão 6",
+          "type": "text",
+          "rect": [
+            48,
+            656,
+            499,
+            46
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "6.  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#14497e"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Proponha três mudanças de hábito na sua casa e estime, para cada uma, quantos litros seriam poupados por semana."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p9-a6-0",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            714,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p9-a6-1",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            736,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p9-a6-2",
+          "name": "Linha de resposta",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            758,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p9-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p9-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p9-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "id": "p10-rule",
+          "name": "Régua do topo",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            44,
+            499,
+            2.5
+          ],
+          "fill": "#14497e"
+        },
+        {
+          "id": "p10-label",
+          "name": "Rótulo da unidade",
+          "type": "text",
+          "rect": [
+            48,
+            53,
+            499,
+            16
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "ENCERRAMENTO"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 8,
+            "color": "#64748b",
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "p10-title",
+          "name": "Título",
+          "type": "text",
+          "rect": [
+            48,
+            96,
+            499,
+            30
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Síntese da unidade"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 20,
+            "lineHeight": 1.2,
+            "fontWeight": "bold",
+            "color": "#0a2540"
+          }
+        },
+        {
+          "id": "p10-sum",
+          "name": "Resumo",
+          "type": "text",
+          "rect": [
+            48,
+            146,
+            499,
+            262
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O essencial em cinco pontos",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 11.5,
+                    "color": "#0a2540"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A quantidade de água no planeta é praticamente constante: ela muda de estado e de lugar, não de quantidade."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "O Sol fornece a energia do ciclo; a vegetação participa dele pela transpiração e pela proteção do solo."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Nuvem não é vapor: é água líquida em gotículas suspensas."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Quase toda a água do planeta é salgada; a doce e acessível não chega a um décimo de um por cento do total."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Crises de abastecimento raramente têm uma causa só — clima, perdas na rede e uso do solo costumam agir juntos."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 8
+          },
+          "fill": "#eef4fb",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#bcd4ec"
+          }
+        },
+        {
+          "id": "p10-gt",
+          "name": "Título do glossário",
+          "type": "text",
+          "rect": [
+            48,
+            428,
+            499,
+            22
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Glossário",
+                  "style": {
+                    "fontWeight": "bold",
+                    "fontSize": 13,
+                    "fontFamily": "plex",
+                    "color": "#0a2540"
+                  }
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          }
+        },
+        {
+          "id": "p10-g",
+          "name": "Glossário",
+          "type": "text",
+          "rect": [
+            48,
+            454,
+            499,
+            190
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Assoreamento  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "acúmulo de terra e areia no leito de um rio, que reduz sua profundidade e sua capacidade de escoar água."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Lençol freático  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "camada de água subterrânea que ocupa os espaços entre grãos de solo e fendas de rocha."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Manancial  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "fonte de água — rio, lago ou reservatório — usada para abastecer uma população."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Mata ciliar  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "vegetação que acompanha as margens dos rios e protege o solo da erosão."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Vazão  ",
+                  "style": {
+                    "fontWeight": "bold"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "volume de água que passa por um ponto em determinado tempo, medido em litros por minuto ou metros cúbicos por segundo."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 8
+          },
+          "columns": 2,
+          "columnGap": 19
+        },
+        {
+          "id": "p10-next",
+          "name": "Para a próxima unidade",
+          "type": "text",
+          "rect": [
+            48,
+            654,
+            499,
+            110
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Na próxima unidade  ",
+                  "style": {
+                    "fontWeight": "bold",
+                    "color": "#92400e"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "vamos acompanhar o caminho da água depois que ela desce pelo ralo: o esgoto, o tratamento e o retorno ao rio. Traga a conta de água da sua casa — vamos ler juntos o que está escrito nela."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "color": "#0f172a",
+            "textAlign": "left",
+            "spaceAfter": 7
+          },
+          "fill": "#fffbeb",
+          "radius": 8,
+          "padding": 14,
+          "border": {
+            "width": 1,
+            "color": "#fcd34d"
+          }
+        },
+        {
+          "id": "p10-frule",
+          "name": "Régua do rodapé",
+          "type": "shape",
+          "shape": "rect",
+          "rect": [
+            48,
+            792,
+            499,
+            0.75
+          ],
+          "fill": "#cbd5e1"
+        },
+        {
+          "id": "p10-foot",
+          "name": "Rodapé",
+          "type": "text",
+          "rect": [
+            48,
+            800,
+            459,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Unidade 3 · A água no planeta"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "color": "#94a3b8"
+          }
+        },
+        {
+          "id": "p10-num",
+          "name": "Número da página",
+          "type": "text",
+          "rect": [
+            507,
+            800,
+            40,
+            14
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{page}"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "plex",
+            "fontSize": 9,
+            "fontWeight": "bold",
+            "color": "#14497e",
+            "textAlign": "right"
+          }
+        }
+      ]
+    }
+  ]
+}

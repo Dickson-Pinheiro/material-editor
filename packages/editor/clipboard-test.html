@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>diagramador — teste da área de transferência</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="toolbar-left"><span class="brand">◈</span><div class="tools" id="tools"></div></div>
+      <div class="toolbar-center"><input id="doc-title" class="doc-title" /></div>
+      <div class="toolbar-right">
+        <div class="zoom-control">
+          <button id="zoom-out" class="icon-button">−</button>
+          <button id="zoom-label" class="zoom-label">100%</button>
+          <button id="zoom-in" class="icon-button">+</button>
+        </div>
+        <div class="actions" id="actions"></div>
+      </div>
+    </header>
+    <main class="workspace">
+      <aside id="layers" class="sidebar left"></aside>
+      <section class="canvas-holder">
+        <canvas id="canvas" tabindex="0"></canvas>
+        <div id="status" class="status"></div>
+        <div id="hint" class="hint"></div>
+      </section>
+      <aside id="inspector" class="sidebar right"></aside>
+    </main>
+    <div id="results" style="position:fixed;inset:auto 0 0 0;background:#fff;padding:8px;font:12px monospace;z-index:9">executando…</div>
+    <script type="module" src="/src/clipboard-test.ts"></script>
+  </body>
+</html>

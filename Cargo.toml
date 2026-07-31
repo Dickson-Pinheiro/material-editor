@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = ["crates/diagramador"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Dickson Pinheiro"]
+repository = "https://github.com/Dickson-Pinheiro/gerador-de-materiais"
+
+[profile.release]
+opt-level     = 'z'
+lto           = true
+codegen-units = 1
+strip         = true
+panic         = "abort"
+
+[profile.release.package."*"]
+opt-level = 'z'
