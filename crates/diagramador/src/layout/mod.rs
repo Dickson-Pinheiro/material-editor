@@ -332,6 +332,23 @@ impl<'a> LayoutEngine<'a> {
             FrameContent::Image(image) => {
                 items.extend(self.layout_image_frame(image, content_box, &source, diagnostics, page, &id));
             }
+            FrameContent::Chart(chart) => {
+                // Marks arrive in T4.2 onward. What is settled now is where a
+                // chart that cannot find its numbers ends up: an empty frame
+                // and a line saying why, never a document that will not open.
+                if chart.rows(&doc.resources.data).is_none() {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            "missingData",
+                            format!(
+                                "o gráfico refere a série `{}`, que não está em resources.data",
+                                chart.dataset.as_deref().unwrap_or(""),
+                            ),
+                        )
+                        .on(page, id.clone()),
+                    );
+                }
+            }
             FrameContent::Shape(shape) => {
                 items.push(match shape.shape {
                     ShapeKind::Rect => DisplayItem::Rect(RectItem {
@@ -446,6 +463,7 @@ impl<'a> LayoutEngine<'a> {
                 FrameContent::Image(_) => "image",
                 FrameContent::Shape(_) => "shape",
                 FrameContent::Group(_) => "group",
+                FrameContent::Chart(_) => "chart",
             }
             .to_string(),
             locked: frame.locked,
@@ -2399,6 +2417,89 @@ texto disponível aqui."
             return;
         };
         assert!(all_runs(&bottom)[0].y > all_runs(&top)[0].y + 100.0);
+    }
+
+    // ── Charts ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn a_chart_naming_a_series_that_is_not_there_is_a_warning_not_a_refusal() {
+        let Some(list) = layout_json(
+            r##"{"pages":[{"frames":[
+                {"id":"grafico","type":"chart","rect":[10,10,200,150],
+                 "fill":"#eeeeee","dataset":"vendas",
+                 "encoding":{"x":{"field":"mes"},"y":{"field":"v"}}}
+            ]}]}"##,
+        ) else {
+            return;
+        };
+        let said = list
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "missingData")
+            .expect("a série em falta é dita");
+        assert_eq!(said.page, Some(0));
+        assert_eq!(said.frame.as_deref(), Some("grafico"));
+        assert!(said.message.contains("vendas"), "e nomeada: {}", said.message);
+
+        // The frame is still there, still the right size, still filled: an
+        // empty box on the page is something the author can see and fix.
+        assert_eq!(list.pages[0].frames.len(), 1);
+        assert_eq!(list.pages[0].frames[0].kind, "chart");
+        assert!(
+            list.pages[0].items.iter().any(|item| matches!(
+                item,
+                DisplayItem::Rect(r) if r.rect == Rect::new(10.0, 10.0, 200.0, 150.0)
+            )),
+            "a moldura vazia é desenhada: {:?}",
+            list.pages[0].items,
+        );
+    }
+
+    #[test]
+    fn a_chart_that_finds_its_series_says_nothing() {
+        let Some(list) = layout_json(
+            r#"{"resources":{"data":{"vendas":[{"mes":"jan","v":1}]}},
+                "pages":[{"frames":[
+                {"id":"grafico","type":"chart","rect":[10,10,200,150],"dataset":"vendas",
+                 "encoding":{"x":{"field":"mes"},"y":{"field":"v"}}}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+        assert!(
+            !list.diagnostics.iter().any(|d| d.code == "missingData"),
+            "sem queixa: {:?}",
+            list.diagnostics,
+        );
+    }
+
+    #[test]
+    fn a_chart_carrying_its_own_rows_needs_no_series_at_all() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"id":"grafico","type":"chart","rect":[0,0,100,100],
+                 "data":[{"mes":"jan","v":1}],
+                 "encoding":{"x":{"field":"mes"},"y":{"field":"v"}}}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+        assert!(list.diagnostics.is_empty(), "{:?}", list.diagnostics);
+        assert_eq!(list.pages[0].frames[0].kind, "chart");
+    }
+
+    #[test]
+    fn a_whole_document_with_a_chart_survives_a_round_trip() {
+        let json = r#"{"resources":{"data":{"v":[{"a":1,"b":"x"}]}},
+            "pages":[{"frames":[
+                {"id":"g","type":"chart","rect":[0,0,100,100],"dataset":"v","mark":"line",
+                 "encoding":{"x":{"field":"a"},"y":{"field":"b","kind":"categorical"}},
+                 "axes":{"y":{"grid":true}}}
+            ]}]}"#;
+        let doc: Document = serde_json::from_str(json).expect("lê");
+        let written = serde_json::to_string(&doc).expect("escreve");
+        let again: Document = serde_json::from_str(&written).expect("volta a ler");
+        assert_eq!(doc, again, "o documento gravado volta a ler-se igual:\n{written}");
     }
 
     // ── Table diagnostics ───────────────────────────────────────────────────

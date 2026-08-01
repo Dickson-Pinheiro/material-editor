@@ -10,6 +10,7 @@
 //! only ever sees the raw core. Documents that want none of it can omit
 //! `resources` entirely.
 
+pub mod chart;
 pub mod content;
 pub mod document;
 pub mod frame;

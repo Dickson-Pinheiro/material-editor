@@ -155,6 +155,9 @@ pub struct Resources {
     pub masters: BTreeMap<String, Master>,
     /// Named text flows that can be threaded across frames.
     pub stories: BTreeMap<String, Vec<Block>>,
+    /// Named tables of observations, so two charts of the same numbers are not
+    /// two copies of the numbers.
+    pub data: BTreeMap<String, Vec<crate::spec::chart::Row>>,
     /// Named colours, so a palette change is a one-line edit.
     pub colors: BTreeMap<String, Color>,
 }

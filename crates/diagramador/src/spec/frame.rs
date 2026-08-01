@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::content::Block;
+use super::chart::ChartFrame;
 use super::style::{Overflow, Style, VerticalAlign};
 use crate::color::Color;
 use crate::units::{Insets, Len, Rect};
@@ -121,6 +122,7 @@ pub enum FrameContent {
     Image(ImageFrame),
     Shape(ShapeFrame),
     Group(GroupFrame),
+    Chart(ChartFrame),
 }
 
 impl Default for FrameContent {

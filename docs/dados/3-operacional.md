@@ -709,6 +709,44 @@ e desenha a moldura vazia, não recusa o documento.
 
 **Depende de.** Nada.
 
+**Estado: feita.** `spec/chart.rs` (novo) — `ChartFrame`, `Encoding`,
+`Channel`, `Value`, `Row`, `Mark`, `FieldKind`, `ScaleSpec`, `Axes`, `Axis`,
+`Legend`; `FrameContent::Chart`; `resources.data`. 7 testes no módulo e 4 no
+layout (355 na biblioteca).
+
+Decisões que a implementação fixou:
+
+- **Dados por linha, não por coluna, e por mapa, não por posição.** É como
+  alguém escreve dados à mão, e dados escritos à mão é o que um documento
+  didáctico tem. Guardar por coluna seria mais denso e tornaria ilegível cada
+  fixture.
+- **`null` é um buraco, não um erro.** Dados verdadeiros têm buracos, e um
+  gráfico que se recusa a carregar porque falta um mês é menos útil que um que
+  desenha os outros onze.
+- **Um número serve de categoria.** `{"ano": 2024}` não obriga ninguém a pôr
+  aspas à volta do ano.
+- **`data` em linha e `dataset` por nome**, o mesmo par que `blocks` e `story`
+  já são num frame de texto, e pelo mesmo motivo. Chama-se `dataset` e não
+  `series` porque uma série é uma linha *dentro* de um gráfico, e confundir as
+  duas custaria uma explicação de cada vez.
+- **Quem nomeia uma série quer essa série.** Nomear uma que não existe não cai
+  para os dados em linha: dá diagnóstico e moldura vazia. Cair de volta
+  desenharia calado um gráfico que não é o pedido.
+
+**Duas coisas do plano táctico que não se materializaram assim:**
+
+- O esboço tinha um `DataSource`. Ficou o par de campos, por consistência com
+  o frame de texto que já existe — inventar uma forma nova para o mesmo
+  problema custa mais do que rende.
+- `FieldKind::Temporal` ficou de fora. `scale.rs` não tem escala de tempo, e
+  uma variante que o esquema aceita e o motor não honra é uma promessa falsa.
+  Acrescentar uma variante ao enum depois é aditivo e não quebra documento
+  nenhum, portanto adiar não custa nada.
+
+Cinco mutações, cinco quedas. A primeira — calar a série em falta — serve
+também de prova de que estes testes correm mesmo, em vez de se ignorarem por
+falta de fontes.
+
 ### T4.2 — Moldura e eixos · M
 
 **Objetivo.** Separar a área de desenho da margem dos eixos, e emitir eixos.
