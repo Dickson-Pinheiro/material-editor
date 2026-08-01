@@ -15,10 +15,10 @@ import { Store, normalize, parseLen } from "./store";
 import { TextEditor, byteToIndex, indexToByte, utf8Length } from "./text";
 import { caretAt, caretGeometry, collectRuns, compareCarets, frameAt } from "./hit";
 import { placement, toFrame, trace } from "./contour";
-import { PAGE_GAP, placePages, pointIn } from "./renderer";
+import { PAGE_GAP, Renderer, placePages, pointIn } from "./renderer";
 import { LayersPanel } from "./layers";
 import type { LayersState } from "./layers";
-import type { Block, Caret, DocumentSpec, DisplayPage, Paragraph } from "./types";
+import type { Block, Caret, DisplayItem, DisplayList, DocumentSpec, DisplayPage, Paragraph } from "./types";
 
 const results: { name: string; error: string | null }[] = [];
 
@@ -655,6 +655,115 @@ async function run(): Promise<void> {
     const story = threaded.doc.resources!.stories!.corpo as Paragraph[];
     const text = (story[caret.block]!.content[caret.inline] as { text: string }).text;
     assert(text.includes("§"), "a story não recebeu o caractere");
+  });
+
+  // ── Path primitive ────────────────────────────────────────────────────────
+
+  /**
+   * Paint one display list through the real renderer and read pixels back.
+   *
+   * Building a `Path2D` in the test would only prove the browser works. This
+   * goes through `Renderer.render`, which is the code that has to agree with
+   * the PDF emitter.
+   */
+  function pintado(items: DisplayItem[]): (x: number, y: number) => number {
+    const canvas = document.createElement("canvas");
+    canvas.width = 200;
+    canvas.height = 200;
+    // The renderer reads clientWidth/clientHeight, which are zero for a
+    // detached element, so it has to be in the document to paint anything.
+    canvas.style.width = "200px";
+    canvas.style.height = "200px";
+    canvas.style.position = "fixed";
+    canvas.style.left = "-500px";
+    document.body.append(canvas);
+
+    const renderer = new Renderer(canvas, engine);
+    const list: DisplayList = {
+      version: 1,
+      fonts: [],
+      diagnostics: [],
+      pages: [
+        {
+          index: 0,
+          width: 200,
+          height: 200,
+          marginBox: { x: 0, y: 0, w: 200, h: 200 },
+          frames: [],
+          items,
+        },
+      ],
+    };
+    renderer.render(list, { zoom: 1, panX: 0, panY: 0 }, {
+      selected: new Set(),
+      hovered: null,
+      editing: null,
+      caret: null,
+      caretVisible: false,
+      highlights: [],
+      guides: [],
+      marquee: null,
+      contours: new Map(),
+    });
+
+    const context = canvas.getContext("2d")!;
+    const ratio = window.devicePixelRatio || 1;
+    const [place] = placePages(list);
+
+    // Darkness, not alpha: the renderer paints the white sheet before the
+    // items, so every pixel inside the page is opaque and alpha measures the
+    // paper. 0 is black ink, 255 is bare paper.
+    return (x, y) => {
+      const px = Math.round((place!.x + x) * ratio);
+      const py = Math.round((place!.y + y) * ratio);
+      return context.getImageData(px, py, 1, 1).data[0]!;
+    };
+  }
+
+  check("o renderizador pinta um caminho onde a display list o põe", () => {
+    const at = pintado([
+      {
+        type: "path",
+        fill: "#000000",
+        commands: [
+          { op: "moveTo", x: 100, y: 20 },
+          { op: "lineTo", x: 160, y: 140 },
+          { op: "lineTo", x: 40, y: 140 },
+          { op: "close" },
+        ],
+      },
+    ]);
+
+    assert(at(100, 110) < 40, "o interior do triângulo tem de estar pintado");
+    assert(at(100, 8) > 200, "acima do ápice tem de ficar papel");
+    assert(at(15, 30) > 200, "o canto de fora tem de ficar papel");
+  });
+
+  check("a regra par-ímpar abre buraco, a não-nula não", () => {
+    // Two nested rings, same winding: only even-odd leaves the middle empty.
+    const rings: DisplayItem = {
+      type: "path",
+      fill: "#000000",
+      commands: [
+        { op: "moveTo", x: 20, y: 20 },
+        { op: "lineTo", x: 180, y: 20 },
+        { op: "lineTo", x: 180, y: 180 },
+        { op: "lineTo", x: 20, y: 180 },
+        { op: "close" },
+        { op: "moveTo", x: 70, y: 70 },
+        { op: "lineTo", x: 130, y: 70 },
+        { op: "lineTo", x: 130, y: 130 },
+        { op: "lineTo", x: 70, y: 130 },
+        { op: "close" },
+      ],
+    };
+
+    const vazado = pintado([{ ...rings, fillRule: "evenOdd" }]);
+    const cheio = pintado([{ ...rings, fillRule: "nonZero" }]);
+
+    assert(vazado(100, 100) > 200, "par-ímpar tem de deixar o miolo em papel");
+    assert(cheio(100, 100) < 40, "não-nula tem de preencher o miolo");
+    assert(vazado(40, 100) < 40, "e a moldura fica pintada nos dois casos");
   });
 
   // ── Text wrap ─────────────────────────────────────────────────────────────

@@ -8,7 +8,10 @@
 //! Content streams are written uncompressed, which is what makes this possible
 //! without a PDF parser.
 
-use diagramador::display::{DisplayItem, DisplayList, GlyphRun};
+use diagramador::color::Color;
+use diagramador::display::{
+    DisplayItem, DisplayList, FillRule, GlyphRun, PathCommand, PathItem, Stroke,
+};
 use diagramador::spec::{Document, FontWeight};
 use diagramador::{Engine, ImageStore};
 
@@ -388,6 +391,96 @@ fn wrapped_layout_is_deterministic() {
     let first = serde_json::to_string(&engine.layout(&document)).unwrap();
     let second = serde_json::to_string(&engine.layout(&document)).unwrap();
     assert_eq!(first, second);
+}
+
+/// An outline reaches the PDF at the coordinates the display list gave it.
+///
+/// The path primitive is the only item no layout produces yet, so it is
+/// exercised by building a display list by hand and rendering it. That is on
+/// purpose: the contract between the display list and the two emitters has to
+/// hold before anything depends on it, not after.
+#[test]
+fn a_path_reaches_the_pdf_where_the_display_list_put_it() {
+    let Some(engine) = engine() else {
+        eprintln!("fontes ausentes — teste ignorado");
+        return;
+    };
+
+    let document = document();
+    let mut list = engine.layout(&document);
+    let height = list.pages[0].height;
+
+    // A filled triangle and a stroked L, in page coordinates, y down.
+    let triangle = PathItem {
+        commands: vec![
+            PathCommand::MoveTo { x: 100.0, y: 200.0 },
+            PathCommand::LineTo { x: 180.0, y: 340.0 },
+            PathCommand::LineTo { x: 20.0, y: 340.0 },
+            PathCommand::Close,
+        ],
+        fill: Some(Color::rgb(0.12, 0.31, 0.47)),
+        stroke: None,
+        fill_rule: FillRule::NonZero,
+        source: None,
+    };
+    let bend = PathItem {
+        commands: vec![
+            PathCommand::MoveTo { x: 300.0, y: 200.0 },
+            PathCommand::LineTo { x: 300.0, y: 300.0 },
+            PathCommand::LineTo { x: 400.0, y: 300.0 },
+        ],
+        fill: None,
+        stroke: Some(Stroke { color: Color::rgb(0.88, 0.27, 0.48), width: 2.0, dash: None }),
+        fill_rule: FillRule::NonZero,
+        source: None,
+    };
+
+    list.pages[0].items.push(DisplayItem::Path(triangle.clone()));
+    list.pages[0].items.push(DisplayItem::Path(bend.clone()));
+
+    let pdf = engine
+        .render_display_list(&list, &document)
+        .expect("render succeeds");
+    let stream = content_streams(&pdf);
+
+    // Every point of both paths, flipped, must appear as a path operator.
+    for path in [&triangle, &bend] {
+        for command in &path.commands {
+            let (x, y) = match *command {
+                PathCommand::MoveTo { x, y } | PathCommand::LineTo { x, y } => (x, y),
+                PathCommand::CurveTo { x, y, .. } => (x, y),
+                PathCommand::Close => continue,
+            };
+            let expected = (x, height - y);
+            assert!(
+                point_appears(&stream, expected),
+                "ponto {expected:?} não aparece no fluxo de conteúdo",
+            );
+        }
+    }
+
+    // Filled and stroked are different operators, and using the wrong one
+    // would still put the points in the right place.
+    // Operators sit on their own line. Filled and stroked are different ones,
+    // and the wrong one would still put every point in the right place — so
+    // checking the coordinates alone would pass on a path painted invisibly.
+    let operators: Vec<&str> = stream.lines().map(str::trim).collect();
+    assert!(operators.contains(&"f"), "o triângulo tem de ser preenchido");
+    assert!(operators.contains(&"S"), "o L tem de ser traçado");
+    assert!(operators.contains(&"h"), "o triângulo tem de fechar");
+}
+
+/// Whether some `x y` pair in the stream matches, within tolerance.
+fn point_appears(stream: &str, expected: (f64, f64)) -> bool {
+    let tokens: Vec<&str> = stream.split_whitespace().collect();
+    tokens.windows(2).any(|pair| {
+        match (pair[0].parse::<f64>(), pair[1].parse::<f64>()) {
+            (Ok(x), Ok(y)) => {
+                (x - expected.0).abs() < TOLERANCE && (y - expected.1).abs() < TOLERANCE
+            }
+            _ => false,
+        }
+    })
 }
 
 /// The same document renders identically twice — no map iteration order or

@@ -19,8 +19,8 @@ use super::images::{ImageMap, collect_images, embed_images};
 use super::{PdfError, RefAlloc};
 use crate::color::Color;
 use crate::display::{
-    DisplayItem, DisplayList, DisplayPage, EllipseItem, GlyphRun, ImageItem, LineItem, RectItem,
-    Stroke,
+    DisplayItem, DisplayList, DisplayPage, EllipseItem, FillRule, GlyphRun, ImageItem, LineItem,
+    PathCommand, PathItem, RectItem, Stroke,
 };
 use crate::fonts::FontRegistry;
 use crate::images::ImageStore;
@@ -196,6 +196,14 @@ fn collect_alphas(list: &DisplayList) -> BTreeSet<u32> {
                     note_stroke(out, ellipse.stroke.as_ref());
                 }
                 DisplayItem::Line(line) => note(out, line.stroke.color.a),
+                DisplayItem::Path(path) => {
+                    if let Some(fill) = path.fill {
+                        note(out, fill.a);
+                    }
+                    if let Some(stroke) = &path.stroke {
+                        note(out, stroke.color.a);
+                    }
+                }
                 DisplayItem::Image(_) => {}
             }
         }
@@ -271,6 +279,7 @@ fn write_items(content: &mut Content, items: &[DisplayItem], context: &EmitConte
             DisplayItem::Rect(rect) => write_rect(content, rect, context),
             DisplayItem::Ellipse(ellipse) => write_ellipse(content, ellipse, context),
             DisplayItem::Line(line) => write_line(content, line, context),
+            DisplayItem::Path(path) => write_path(content, path, context),
             DisplayItem::Image(image) => write_image(content, image, context),
         }
     }
@@ -368,6 +377,51 @@ fn write_rect(content: &mut Content, rect: &RectItem, context: &EmitContext<'_>)
     prepare_paint(content, fill, stroke, context);
     path_rect(content, rect.rect, rect.radius, context.height);
     paint(content, fill.is_some(), stroke.is_some());
+    content.restore_state();
+}
+
+/// Write an outline.
+///
+/// The y flip happens here, once per point, the same way `path_rect` and
+/// `path_ellipse` do it — the display list is y-down and PDF is y-up, and the
+/// boundary between them is this module.
+fn write_path(content: &mut Content, item: &PathItem, context: &EmitContext<'_>) {
+    let fill = item.fill.filter(|c| !c.is_transparent());
+    let stroke = item.stroke.as_ref().filter(|s| s.width > 0.0);
+    if (fill.is_none() && stroke.is_none()) || item.commands.is_empty() {
+        return;
+    }
+
+    content.save_state();
+    prepare_paint(content, fill, stroke, context);
+
+    let f = |v: f64| v as f32;
+    let up = |y: f64| f(context.height - y);
+    for command in &item.commands {
+        match *command {
+            PathCommand::MoveTo { x, y } => {
+                content.move_to(f(x), up(y));
+            }
+            PathCommand::LineTo { x, y } => {
+                content.line_to(f(x), up(y));
+            }
+            PathCommand::CurveTo { x1, y1, x2, y2, x, y } => {
+                content.cubic_to(f(x1), up(y1), f(x2), up(y2), f(x), up(y));
+            }
+            PathCommand::Close => {
+                content.close_path();
+            }
+        };
+    }
+
+    match (fill.is_some(), stroke.is_some(), item.fill_rule) {
+        (true, true, FillRule::EvenOdd) => content.fill_even_odd_and_stroke(),
+        (true, true, FillRule::NonZero) => content.fill_nonzero_and_stroke(),
+        (true, false, FillRule::EvenOdd) => content.fill_even_odd(),
+        (true, false, FillRule::NonZero) => content.fill_nonzero(),
+        (false, true, _) => content.stroke(),
+        (false, false, _) => content.end_path(),
+    };
     content.restore_state();
 }
 

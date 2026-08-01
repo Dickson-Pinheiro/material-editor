@@ -1028,6 +1028,11 @@ fn translate_items(items: &mut [DisplayItem], dx: f64, dy: f64) {
             }
             DisplayItem::Rect(r) => r.rect = r.rect.translate(dx, dy),
             DisplayItem::Ellipse(e) => e.rect = e.rect.translate(dx, dy),
+            DisplayItem::Path(path) => {
+                for command in &mut path.commands {
+                    command.translate(dx, dy);
+                }
+            }
             DisplayItem::Image(i) => i.rect = i.rect.translate(dx, dy),
             DisplayItem::Line(l) => {
                 l.x1 += dx;

@@ -296,6 +296,29 @@ export interface LineItem {
   source?: SourceRef | null;
 }
 
+/**
+ * An arbitrary filled or stroked outline.
+ *
+ * Structured commands rather than an SVG path string: the browser would parse
+ * a string for free, but the PDF emitter would have to parse it back, and a
+ * path parser is code you write once and debug for years.
+ */
+export interface PathItem {
+  type: "path";
+  commands: PathCommand[];
+  fill?: string | null;
+  stroke?: Stroke | null;
+  fillRule?: "nonZero" | "evenOdd";
+  source?: SourceRef | null;
+}
+
+export type PathCommand =
+  | { op: "moveTo"; x: number; y: number }
+  | { op: "lineTo"; x: number; y: number }
+  /** Cubic Bézier. The only curve; every other reduces to it. */
+  | { op: "curveTo"; x1: number; y1: number; x2: number; y2: number; x: number; y: number }
+  | { op: "close" };
+
 export interface ImageItem {
   type: "image";
   src: string;
@@ -320,6 +343,7 @@ export type DisplayItem =
   | RectItem
   | EllipseItem
   | LineItem
+  | PathItem
   | ImageItem;
 
 export interface DisplayFrame {

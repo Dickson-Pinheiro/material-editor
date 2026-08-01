@@ -132,6 +132,7 @@ pub enum DisplayItem {
     Rect(RectItem),
     Ellipse(EllipseItem),
     Line(LineItem),
+    Path(PathItem),
     Image(ImageItem),
 }
 
@@ -210,6 +211,71 @@ pub struct RectItem {
     pub fill: Option<Color>,
     pub stroke: Option<Stroke>,
     pub source: Option<SourceRef>,
+}
+
+/// An arbitrary filled or stroked outline.
+///
+/// The one primitive a rectangle, an ellipse and a line cannot express: a
+/// closed region of any shape. Areas under a curve, doughnut holes and smooth
+/// series all reduce to this.
+///
+/// Coordinates are points from the top-left of the page, `y` growing down —
+/// the same space as every other item. The PDF emitter flips once, at the
+/// boundary, exactly as it does for rectangles.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PathItem {
+    pub commands: Vec<PathCommand>,
+    pub fill: Option<Color>,
+    pub stroke: Option<Stroke>,
+    /// How overlapping subpaths combine. Even-odd is what leaves a hole.
+    pub fill_rule: FillRule,
+    pub source: Option<SourceRef>,
+}
+
+/// One step of an outline.
+///
+/// Cubic is the only curve. Every quadratic is a cubic, and an arc is a few
+/// cubics within a fraction of a point — so there is exactly one curve case to
+/// get right in the PDF emitter and one in the canvas renderer, rather than a
+/// family of them to keep in agreement.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "camelCase")]
+pub enum PathCommand {
+    MoveTo { x: f64, y: f64 },
+    LineTo { x: f64, y: f64 },
+    CurveTo { x1: f64, y1: f64, x2: f64, y2: f64, x: f64, y: f64 },
+    Close,
+}
+
+impl PathCommand {
+    /// Shift the command's points. Vertical alignment and column offsets move
+    /// already-positioned items, so every item has to know how to move.
+    pub fn translate(&mut self, dx: f64, dy: f64) {
+        match self {
+            PathCommand::MoveTo { x, y } | PathCommand::LineTo { x, y } => {
+                *x += dx;
+                *y += dy;
+            }
+            PathCommand::CurveTo { x1, y1, x2, y2, x, y } => {
+                *x1 += dx;
+                *y1 += dy;
+                *x2 += dx;
+                *y2 += dy;
+                *x += dx;
+                *y += dy;
+            }
+            PathCommand::Close => {}
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FillRule {
+    #[default]
+    NonZero,
+    EvenOdd,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

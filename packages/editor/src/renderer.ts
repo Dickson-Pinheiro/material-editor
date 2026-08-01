@@ -270,6 +270,9 @@ export class Renderer {
         case "ellipse":
           this.drawEllipse(item);
           break;
+        case "path":
+          this.drawPath(item);
+          break;
         case "line":
           this.drawLine(item);
           break;
@@ -337,6 +340,45 @@ export class Renderer {
     if (item.fill) {
       ctx.fillStyle = item.fill;
       ctx.fill(path);
+    }
+    if (item.stroke) {
+      this.applyStroke(item.stroke);
+      ctx.stroke(path);
+      ctx.setLineDash([]);
+    }
+  }
+
+  /**
+   * An outline, built command by command.
+   *
+   * Mirrors what the PDF emitter writes: the same commands, in the same
+   * order, with the same fill rule. Neither side parses anything, which is
+   * what keeps the two from drifting.
+   */
+  private drawPath(item: Extract<DisplayItem, { type: "path" }>): void {
+    const { ctx } = this;
+    const path = new Path2D();
+
+    for (const command of item.commands) {
+      switch (command.op) {
+        case "moveTo":
+          path.moveTo(command.x, command.y);
+          break;
+        case "lineTo":
+          path.lineTo(command.x, command.y);
+          break;
+        case "curveTo":
+          path.bezierCurveTo(command.x1, command.y1, command.x2, command.y2, command.x, command.y);
+          break;
+        case "close":
+          path.closePath();
+          break;
+      }
+    }
+
+    if (item.fill) {
+      ctx.fillStyle = item.fill;
+      ctx.fill(path, item.fillRule === "evenOdd" ? "evenodd" : "nonzero");
     }
     if (item.stroke) {
       this.applyStroke(item.stroke);
