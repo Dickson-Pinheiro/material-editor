@@ -1,0 +1,119 @@
+# três por três, tudo automático
+  texto  y=  74.46    60.00..98.46    "Espécie"
+  texto  y=  74.46   122.93..189.09   "Profundidade"
+  texto  y=  74.46   197.09..220.24   "Peso"
+  texto  y=  96.46    60.00..110.04   "Cachalote"
+  texto  y=  96.46   122.93..161.30   "2000 m"
+  texto  y=  96.46   197.09..216.91   "40 t"
+  texto  y= 118.46    60.00..114.93   "Baleia-azul"
+  texto  y= 118.46   122.93..154.93   "100 m"
+  texto  y= 118.46   197.09..223.28   "150 t"
+
+# cabeçalho que atravessa duas colunas
+  texto  y=  74.46    60.00..156.71   "Mergulho registado"
+  texto  y=  74.46   164.71..193.57   "Notas"
+  texto  y=  96.46    60.00..110.04   "Cachalote"
+  texto  y=  96.46   118.19..156.56   "2000 m"
+  texto  y=  96.46   164.71..214.06   "verificado"
+  texto  y= 118.46    60.00..83.14    "Foca"
+  texto  y= 118.46   118.19..150.20   "700 m"
+  texto  y= 118.46   164.71..211.11   "estimado"
+
+# célula que atravessa duas linhas
+  texto  y=  74.46    60.00..323.33   "Mamíferos que mergulham fundo e por muito tempo"
+  texto  y=  74.46   331.33..381.37   "Cachalote"
+  texto  y=  96.46   331.33..399.20   "Baleia-bicuda"
+  texto  y= 118.46    60.00..83.54    "Aves"
+  texto  y= 118.46   331.33..426.90   "Pinguim-imperador"
+
+# réguas à booktabs
+  régua  (  56.00,  60.00)..( 197.09,  60.00)  1.20
+  régua  (  56.00,  84.00)..( 197.09,  84.00)  0.50
+  régua  (  56.00, 132.00)..( 197.09, 132.00)  1.20
+  texto  y=  75.46    61.00..99.46    "Espécie"
+  texto  y=  75.46   125.93..192.09   "Profundidade"
+  texto  y=  99.46    61.00..111.04   "Cachalote"
+  texto  y=  99.46   125.93..164.30   "2000 m"
+  texto  y= 123.46    61.00..115.93   "Baleia-azul"
+  texto  y= 123.46   125.93..157.93   "100 m"
+
+# zebrado
+  fundo  [  56.00   60.00   28.71   88.00]  #f7fafc
+  fundo  [  56.00   82.00   28.71   22.00]  #e2e8f0
+  fundo  [  56.00  126.00   28.71   22.00]  #e2e8f0
+  texto  y=  74.46    60.00..66.13    "a"
+  texto  y=  74.46    74.35..80.71    "1"
+  texto  y=  96.46    60.00..66.35    "b"
+  texto  y=  96.46    74.35..80.71    "2"
+  texto  y= 118.46    60.00..65.50    "c"
+  texto  y= 118.46    74.35..80.71    "3"
+  texto  y= 140.46    60.00..66.35    "d"
+  texto  y= 140.46    74.35..80.71    "4"
+
+# pistas misturadas: fixa, fracção, percentagem
+  texto  y=  74.46    60.00..78.34    "fixa"
+  texto  y=  74.46   140.00..346.63   "o resto, que é bastante e por isso quebra"
+  texto  y=  88.46   140.00..222.09   "em várias linhas"
+  texto  y=  74.46   360.00..412.22   "um quarto"
+  texto  y= 110.46    60.00..66.35    "b"
+  texto  y= 110.46   140.00..145.50   "c"
+  texto  y= 110.46   360.00..366.35   "d"
+
+# célula com três parágrafos
+  texto  y=  74.46    60.00..101.92   "primeiro"
+  texto  y=  88.46    60.00..102.85   "segundo"
+  texto  y= 102.46    60.00..98.40    "terceiro"
+  texto  y=  74.46   110.85..147.65   "ao lado"
+
+# intervalos entre pistas
+  régua  ( 114.61,  60.00)..( 114.61, 108.00)  0.50
+  texto  y=  73.46    59.00..105.61   "esquerda"
+  texto  y=  73.46   123.61..155.61   "direita"
+  texto  y= 101.46    59.00..92.11    "abaixo"
+  texto  y= 101.46   123.61..165.64   "também"
+
+# palavra mais larga que a coluna
+  texto  y=  72.46    58.00..169.08   "incompreensibilíssimo"
+  texto  y=  72.46    98.00..104.35   "b"
+
+# tabela dentro de célula
+  texto  y=  74.46    60.00..79.88    "fora"
+  texto  y=  76.46    89.88..184.67   "camada superficial"
+  texto  y=  76.46   188.67..265.35   "até 200 metros"
+  texto  y=  94.46    89.88..151.47   "zona abissal"
+  texto  y=  94.46   188.67..266.08   "abaixo de 4000"
+
+# texto antes e depois
+  texto  y=  70.46    56.00..365.25   "Uma frase que ocupa a linha inteira antes da tabela começar."
+  régua  (  56.00,  74.00)..( 145.20,  74.00)  1.00
+  texto  y=  88.46    60.00..98.46    "Espécie"
+  texto  y=  88.46   118.04..141.20   "Peso"
+  texto  y= 110.46    60.00..110.04   "Cachalote"
+  texto  y= 110.46   118.04..137.87   "40 t"
+  texto  y= 128.46    56.00..330.72   "E outra frase depois dela, que tem de começar abaixo."
+
+# os quatro alinhamentos, lado a lado
+  texto  y=  74.46    60.00..82.50    "topo"
+  texto  y=  95.46   130.00..154.79   "meio"
+  texto  y= 116.46   200.00..223.84   "base"
+  texto  y=  74.46   270.00..294.36   "linha"
+  texto  y=  74.46   340.00..417.19   "uma célula alta"
+  texto  y=  88.46   340.00..397.98   "o suficiente"
+  texto  y= 102.46   340.00..421.11   "para dar espaço"
+  texto  y= 116.46   340.00..392.23   "aos outros"
+
+# linha de base com corpos diferentes
+  texto  y=  87.02    60.00..115.99   "2000"
+  texto  y=  87.02   123.99..155.52   "metros"
+  texto  y=  87.02   163.52..245.85   "de profundidade"
+
+# célula vazia entre células com linha de base
+  texto  y=  74.46    60.00..87.75    "antes"
+  texto  y=  74.46   135.75..168.70   "depois"
+
+# posições fixadas e buracos
+  texto  y=  74.46   195.94..223.94   "canto"
+  texto  y=  74.46    60.00..101.92   "primeiro"
+  texto  y=  74.46   145.09..187.94   "segundo"
+  texto  y=  96.46    60.00..137.09   "salta uma linha"
+

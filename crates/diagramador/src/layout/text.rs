@@ -156,6 +156,26 @@ struct LineRange {
     hard_end: bool,
 }
 
+/// The room a paragraph gives away before any text is placed.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct Indents {
+    left: f64,
+    right: f64,
+    /// Extra taken from the first line only, for `indentFirst` and for a
+    /// marker that does not hang.
+    first_extra: f64,
+}
+
+/// How narrow and how wide a piece of content can be laid out.
+///
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct Intrinsic {
+    /// Below this, some line overflows.
+    pub min: f64,
+    /// At this, nothing wraps.
+    pub max: f64,
+}
+
 /// Vertical metrics of one line box.
 #[derive(Debug, Clone, Copy)]
 struct LineMetrics {
@@ -308,14 +328,8 @@ impl TextLayouter<'_> {
         let pieces = build_pieces(&text, &spans);
 
         // Marker geometry has to be known before the first line's indent.
-        let marker = para.marker.as_ref().filter(|m| !m.text.is_empty());
-        let marker_shape = marker.map(|m| self.shape_marker(m, &style));
-        let marker_column = marker_shape.as_ref().map_or(0.0, |s| s.column);
-        let hanging = marker.is_some_and(|m| m.hanging);
-
-        let indent_left = style.indent_left + if hanging { marker_column } else { 0.0 };
-        let first_extra = style.indent_first + if hanging { 0.0 } else { marker_column };
-        let indent_right = style.indent_right;
+        let (indents, marker_shape) = self.indents_of(para, &style);
+        let Indents { left: indent_left, right: indent_right, first_extra } = indents;
 
         let boundaries: Vec<usize> = pieces.iter().map(|p| p.start).collect();
 
@@ -692,6 +706,52 @@ impl TextLayouter<'_> {
             .and_then(|id| self.registry.face(id))
             .map(|face| face.metrics)
             .unwrap_or(FALLBACK_METRICS)
+    }
+
+    /// The room a paragraph gives away before any text is placed.
+    ///
+    /// Pulled out so that measuring a paragraph and laying it out cannot
+    /// disagree about it: a marker that hangs changes the left indent, one
+    /// that does not changes the first line's, and getting that wrong in only
+    /// one of the two places would make a table column the wrong width for a
+    /// reason nobody would find.
+    fn indents_of(&self, para: &Paragraph, style: &ResolvedStyle) -> (Indents, Option<MarkerShape>) {
+        let marker = para.marker.as_ref().filter(|m| !m.text.is_empty());
+        let shape = marker.map(|m| self.shape_marker(m, style));
+        let column = shape.as_ref().map_or(0.0, |s| s.column);
+        let hanging = marker.is_some_and(|m| m.hanging);
+
+        (
+            Indents {
+                left: style.indent_left + if hanging { column } else { 0.0 },
+                right: style.indent_right,
+                first_extra: style.indent_first + if hanging { 0.0 } else { column },
+            },
+            shape,
+        )
+    }
+
+    /// How narrow and how wide this paragraph can be.
+    ///
+    /// `min` is the width below which some line would overflow; `max` is the
+    /// width at which nothing wraps. A table apportions its columns between
+    /// the two, which is the whole reason this exists.
+    ///
+    /// Costs one pass over numbers that already exist: `build_pieces` measured
+    /// every piece to find the break opportunities, and this reads them back.
+    /// Nothing is shaped twice.
+    #[allow(dead_code)]
+    pub(crate) fn measure_paragraph(&self, para: &Paragraph, parent: &ResolvedStyle) -> Intrinsic {
+        let style = cascade::resolve(
+            parent,
+            self.styles,
+            para.use_style.as_deref(),
+            para.style.as_ref(),
+        );
+        let (text, spans) = self.build_spans(para, &style);
+        let pieces = build_pieces(&text, &spans);
+        let (indents, _) = self.indents_of(para, &style);
+        intrinsic_of(&pieces, &indents)
     }
 
     /// Every stretch a line of `height` may use at `top`, left to right.
@@ -1411,6 +1471,55 @@ fn break_one_line(
     )
 }
 
+/// Narrowest and widest layout of a run of pieces.
+///
+/// `min` has two candidates and takes the larger. The first piece has to fit
+/// the *first* line, which is the narrow one when there is an indent; every
+/// other piece has to fit some later line. Taking only the widest piece would
+/// under-report a paragraph whose first word is short and whose indent is
+/// deep.
+///
+/// `max` is measured per segment, because a hard break ends a line no matter
+/// how much room there is: a paragraph of three short lines separated by
+/// breaks is as wide as its longest line, not as their sum. Trailing
+/// whitespace is dropped from each segment — it hangs past the margin rather
+/// than demanding width.
+fn intrinsic_of(pieces: &[Piece], indents: &Indents) -> Intrinsic {
+    let sides = indents.left + indents.right;
+    let first_line = sides + indents.first_extra;
+
+    if pieces.is_empty() {
+        return Intrinsic { min: first_line, max: first_line };
+    }
+
+    let mut widest_piece = 0.0f64;
+    let mut max = 0.0f64;
+
+    let mut segment = 0.0f64;
+    let mut trailing = 0.0f64;
+    let mut first_segment = true;
+
+    for piece in pieces {
+        widest_piece = widest_piece.max(piece.trimmed_width);
+        segment += piece.width;
+        trailing = piece.width - piece.trimmed_width;
+
+        if piece.mandatory {
+            let room = if first_segment { first_line } else { sides };
+            max = max.max(segment - trailing + room);
+            segment = 0.0;
+            trailing = 0.0;
+            first_segment = false;
+        }
+    }
+
+    let room = if first_segment { first_line } else { sides };
+    max = max.max(segment - trailing + room);
+
+    let min = (pieces[0].trimmed_width + first_line).max(widest_piece + sides);
+    Intrinsic { min, max: max.max(min) }
+}
+
 /// Next default tab stop, every 4 em from the column's left edge.
 fn next_tab_stop(x: f64, font_size: f64) -> f64 {
     let stop = font_size * 4.0;
@@ -1483,6 +1592,12 @@ mod tests {
             self.run_capped(json, width, None)
         }
 
+        fn measure(&self, json: &str) -> Intrinsic {
+            let block: Block = serde_json::from_str(json).unwrap();
+            let para = block.as_paragraph().unwrap().clone();
+            self.layouter().measure_paragraph(&para, &ResolvedStyle::default())
+        }
+
         fn run_capped(&self, json: &str, width: f64, max: Option<f64>) -> ParagraphLayout {
             let block: Block = serde_json::from_str(json).unwrap();
             let para = block.as_paragraph().unwrap().clone();
@@ -1495,6 +1610,108 @@ mod tests {
                 &SourceRef::frame(0, "f1"),
             )
         }
+    }
+
+    #[test]
+    fn one_word_is_as_narrow_as_it_is_wide() {
+        let Some(h) = Harness::new() else { return };
+        let m = h.measure(r#"{"type":"paragraph","content":["incompreensivelmente"]}"#);
+        assert!(
+            (m.min - m.max).abs() < 0.01,
+            "uma palavra só não tem por onde quebrar: {m:?}",
+        );
+        assert!(m.min > 0.0);
+    }
+
+    #[test]
+    fn the_minimum_is_the_widest_word() {
+        let Some(h) = Harness::new() else { return };
+        let curto = h.measure(r#"{"type":"paragraph","content":["ab cd ef"]}"#);
+        let longo = h.measure(r#"{"type":"paragraph","content":["ab incompreensivelmente ef"]}"#);
+        let sozinha = h.measure(r#"{"type":"paragraph","content":["incompreensivelmente"]}"#);
+
+        assert!(longo.min > curto.min, "a palavra longa levanta o mínimo");
+        assert!(
+            (longo.min - sozinha.min).abs() < 0.01,
+            "e o mínimo é exactamente essa palavra: {} vs {}",
+            longo.min,
+            sozinha.min,
+        );
+        assert!(longo.max > longo.min, "com espaços há por onde quebrar");
+    }
+
+    #[test]
+    fn a_hard_break_caps_the_maximum_at_its_longest_line() {
+        let Some(h) = Harness::new() else { return };
+        let corrido = h.measure(r#"{"type":"paragraph","content":["alpha bravo charlie delta"]}"#);
+        let partido = h.measure(
+            r#"{"type":"paragraph","content":["alpha bravo",{"type":"break"},"charlie delta"]}"#,
+        );
+        assert!(
+            partido.max < corrido.max,
+            "a quebra rígida impede o parágrafo de ser uma linha só: {} vs {}",
+            partido.max,
+            corrido.max,
+        );
+    }
+
+    #[test]
+    fn a_trailing_space_does_not_demand_width() {
+        let Some(h) = Harness::new() else { return };
+        let justo = h.measure(r#"{"type":"paragraph","content":["alpha bravo"]}"#);
+        let sobrando = h.measure(r#"{"type":"paragraph","content":["alpha bravo "]}"#);
+
+        // The space at the end hangs past the margin instead of asking for
+        // room, exactly as it does when a line breaks. Counting it would make
+        // every table column a space wider than it needs to be.
+        assert!(
+            (sobrando.max - justo.max).abs() < 0.01,
+            "o espaço final não pode alargar o máximo: {} vs {}",
+            sobrando.max,
+            justo.max,
+        );
+    }
+
+    /// The test that matters: the numbers have to mean something about layout.
+    #[test]
+    fn the_measurement_agrees_with_the_layout_it_predicts() {
+        let Some(h) = Harness::new() else { return };
+        let json = r#"{"type":"paragraph","content":["Um parágrafo com várias palavras, algumas delas compridas, para haver por onde quebrar."]}"#;
+        let m = h.measure(json);
+
+        let largo = h.run(json, m.max + 0.5);
+        assert_eq!(baselines(&largo).len(), 1, "à largura máxima cabe numa linha");
+
+        let apertado = h.run(json, m.min);
+        assert!(baselines(&apertado).len() > 1, "à largura mínima quebra em várias");
+        for run in runs(&apertado) {
+            assert!(
+                visible_right(run) <= m.min + 0.5,
+                "nenhuma linha pode transbordar o mínimo: {} > {}",
+                visible_right(run),
+                m.min,
+            );
+        }
+    }
+
+    #[test]
+    fn indents_and_markers_are_part_of_the_width() {
+        let Some(h) = Harness::new() else { return };
+        let liso = h.measure(r#"{"type":"paragraph","content":["alpha bravo"]}"#);
+        let recuado = h.measure(
+            r#"{"type":"paragraph","style":{"indentLeft":20,"indentRight":10},"content":["alpha bravo"]}"#,
+        );
+        let marcado = h.measure(
+            r#"{"type":"paragraph","marker":{"text":"a)"},"content":["alpha bravo"]}"#,
+        );
+
+        assert!(
+            (recuado.max - liso.max - 30.0).abs() < 0.01,
+            "os recuos entram no máximo: {} vs {}",
+            recuado.max,
+            liso.max,
+        );
+        assert!(marcado.max > liso.max, "o marcador ocupa largura");
     }
 
     fn runs(layout: &ParagraphLayout) -> Vec<&GlyphRun> {

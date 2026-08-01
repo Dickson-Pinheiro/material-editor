@@ -5,8 +5,10 @@
 //! a layout decision — this module is the sole authority.
 
 pub mod cascade;
+pub(crate) mod grid;
 pub mod shape;
 pub(crate) mod scale;
+pub(crate) mod table;
 pub(crate) mod ticks;
 mod text;
 pub mod wrap;
@@ -554,6 +556,7 @@ impl<'a> LayoutEngine<'a> {
                 leftover,
                 stopped,
                 walled_in,
+                diagnostics: said,
             } = self.flow_blocks(
                 &layouter,
                 &blocks,
@@ -576,6 +579,7 @@ impl<'a> LayoutEngine<'a> {
             items.extend(column_items);
             max_used = max_used.max(used);
             blocks = leftover;
+            diagnostics.extend(said);
 
             // Once per frame: ten paragraphs behind the same photograph are
             // one problem, not ten.
@@ -689,6 +693,7 @@ impl<'a> LayoutEngine<'a> {
     ) -> FlowResult {
         let mut items = Vec::new();
         let mut walled_in = false;
+        let mut diagnostics = Vec::new();
         let mut y = 0.0f64;
         let budget = max_height.unwrap_or(f64::INFINITY);
 
@@ -729,14 +734,14 @@ impl<'a> LayoutEngine<'a> {
                     if let Some(remainder) = layout.remainder {
                         let mut leftover = vec![Block::Paragraph(remainder)];
                         leftover.extend_from_slice(&blocks[index + 1..]);
-                        return FlowResult { items, used: y, leftover, stopped: None, walled_in };
+                        return FlowResult { items, used: y, leftover, stopped: None, walled_in, diagnostics };
                     }
                 }
 
                 Block::Rule(rule) => {
                     let thickness = rule.thickness.map_or(0.75, |t| t.get());
                     if y + thickness > budget {
-                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in };
+                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in, diagnostics };
                     }
                     let width = column.w * rule.width.unwrap_or(1.0).clamp(0.0, 1.0);
                     items.push(DisplayItem::Line(LineItem {
@@ -757,24 +762,57 @@ impl<'a> LayoutEngine<'a> {
                 Block::Spacer(spacer) => {
                     let height = spacer.height.get();
                     if y + height > budget && y > 0.0 {
-                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in };
+                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in, diagnostics };
                     }
                     y += height;
                 }
 
+                Block::Table(table_block) => {
+                    let cells = CellFlow { engine: self, text: layouter };
+                    let mut here = source.clone();
+                    here.block = Some(index as u32);
+
+                    // At the top of an empty column there is nowhere better to
+                    // send a row that does not fit, so it goes out anyway.
+                    let room = match max_height {
+                        None => table::Room::Unlimited,
+                        Some(_) if y > 0.0 => table::Room::Upto(remaining),
+                        Some(_) => table::Room::AtLeast(remaining),
+                    };
+
+                    let laid = table::emit(
+                        table_block,
+                        style,
+                        &cells,
+                        Rect::new(column.x, column.y + y, column.w, 0.0),
+                        room,
+                        &here,
+                    );
+
+                    diagnostics.extend(diagnose(&laid, &here));
+                    items.extend(laid.items);
+                    y += laid.height;
+
+                    if let Some(rest) = laid.leftover {
+                        let mut over = vec![Block::Table(rest)];
+                        over.extend_from_slice(&blocks[index + 1..]);
+                        return FlowResult { items, used: y, leftover: over, stopped: None, walled_in, diagnostics };
+                    }
+                }
+
                 Block::ColumnBreak => {
-                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Column), walled_in };
+                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Column), walled_in, diagnostics };
                 }
                 Block::FrameBreak => {
-                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Frame), walled_in };
+                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Frame), walled_in, diagnostics };
                 }
                 Block::PageBreak => {
-                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Page), walled_in };
+                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Page), walled_in, diagnostics };
                 }
             }
         }
 
-        FlowResult { items, used: y, leftover: Vec::new(), stopped: None, walled_in }
+        FlowResult { items, used: y, leftover: Vec::new(), stopped: None, walled_in, diagnostics }
     }
 
     // ── Image frames ─────────────────────────────────────────────────────────
@@ -836,6 +874,150 @@ impl<'a> LayoutEngine<'a> {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// What a table's findings sound like to the person who wrote it.
+///
+/// One line per cause, never one per row: a table where thirty cells overlap
+/// has one mistake in it, not thirty. The count goes in the message, where it
+/// is information, instead of in the list, where it is noise.
+fn diagnose(laid: &table::Layout, source: &SourceRef) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    let here = |diagnostic: Diagnostic| diagnostic.on(source.page, source.frame.clone());
+
+    let overlaps = laid
+        .issues
+        .iter()
+        .filter(|issue| matches!(issue, table::Issue::Overlap { .. }))
+        .count();
+    if overlaps > 0 {
+        out.push(here(Diagnostic::warning(
+            "tableCellOverlap",
+            format!("{overlaps} célula(s) da tabela caem sobre lugares já ocupados e não foram desenhadas"),
+        )));
+    }
+
+    let wide = laid
+        .issues
+        .iter()
+        .filter(|issue| matches!(issue, table::Issue::TooWide { .. }))
+        .count();
+    if wide > 0 {
+        out.push(here(Diagnostic::warning(
+            "tableCellTooWide",
+            format!("{wide} célula(s) atravessam mais colunas do que a tabela tem"),
+        )));
+    }
+
+    if laid.issues.iter().any(|issue| matches!(issue, table::Issue::RowTooTall { .. })) {
+        out.push(here(Diagnostic::warning(
+            "tableRowTooTall",
+            "uma linha da tabela é mais alta que o espaço inteiro e transbordou",
+        )));
+    }
+
+    if laid.sizes.overflow > 0.0 {
+        out.push(here(Diagnostic::warning(
+            "tableOverflows",
+            format!(
+                "as colunas da tabela excedem a largura disponível em {:.1} pt",
+                laid.sizes.overflow,
+            ),
+        )));
+    }
+
+    out
+}
+
+/// The engine, wearing the face a table asks for.
+///
+/// A cell holds blocks and blocks are what `flow_blocks` already stacks, so
+/// this is a shim and not a second text path — which is the point. Obstacles
+/// stop at the table: text inside a cell wrapping around an image elsewhere on
+/// the page would be a layout nobody asked for.
+struct CellFlow<'a, 'b> {
+    engine: &'a LayoutEngine<'a>,
+    text: &'a TextLayouter<'b>,
+}
+
+impl table::Cells for CellFlow<'_, '_> {
+    fn intrinsic(&self, blocks: &[Block], style: &ResolvedStyle) -> text::Intrinsic {
+        let mut out = text::Intrinsic::default();
+        for block in blocks {
+            let want = match block {
+                Block::Paragraph(para) => self.text.measure_paragraph(para, style),
+                Block::Table(nested) => table::intrinsic(nested, self, style),
+                // A rule is a share of whatever width it is given and a spacer
+                // has none, so neither has an opinion about how wide the
+                // column should be.
+                _ => continue,
+            };
+            out.min = out.min.max(want.min);
+            out.max = out.max.max(want.max);
+        }
+        out
+    }
+
+    fn height(&self, blocks: &[Block], style: &ResolvedStyle, width: f64) -> f64 {
+        self.engine
+            .flow_blocks(
+                self.text,
+                blocks,
+                style,
+                Rect::new(0.0, 0.0, width.max(1.0), 0.0),
+                None,
+                &SourceRef::default(),
+                &[],
+            )
+            .used
+    }
+
+    /// Where the first line of type lands, measured from the content's top.
+    ///
+    /// Laid out and looked at rather than derived from the font: what a first
+    /// baseline is depends on the leading, on a first-line indent, on whether
+    /// a rule or a spacer comes before the text. Asking the layout is the only
+    /// answer that stays true when any of those change.
+    fn first_baseline(
+        &self,
+        blocks: &[Block],
+        style: &ResolvedStyle,
+        width: f64,
+    ) -> Option<f64> {
+        let laid = self.engine.flow_blocks(
+            self.text,
+            blocks,
+            style,
+            Rect::new(0.0, 0.0, width.max(1.0), 0.0),
+            None,
+            &SourceRef::default(),
+            &[],
+        );
+        fn first(items: &[DisplayItem]) -> Option<f64> {
+            items
+                .iter()
+                .filter_map(|item| match item {
+                    DisplayItem::Glyphs(run) => Some(run.y),
+                    DisplayItem::Group(group) => first(&group.items),
+                    _ => None,
+                })
+                .min_by(f64::total_cmp)
+        }
+        first(&laid.items)
+    }
+
+    fn render(
+        &self,
+        blocks: &[Block],
+        style: &ResolvedStyle,
+        rect: Rect,
+        source: &SourceRef,
+    ) -> Vec<DisplayItem> {
+        // No height budget: the row was sized from `height` at this same
+        // width, so anything that spills is a disagreement worth seeing rather
+        // than content quietly dropped.
+        self.engine.flow_blocks(self.text, blocks, style, rect, None, source, &[]).items
+    }
+}
+
 /// Content queued for a frame further down a thread.
 #[derive(Debug, Default)]
 /// What one pass over a column produced.
@@ -852,6 +1034,12 @@ struct FlowResult {
     stopped: Option<BreakKind>,
     /// A wrap, not the height, is what stopped the text.
     walled_in: bool,
+    /// What the author should be told, already placed on a page and a frame.
+    ///
+    /// Built here rather than handed up as raw findings because this is the
+    /// last place that knows which block they came from — and the first that
+    /// knows the page and the frame, both of which are in `source`.
+    diagnostics: Vec<Diagnostic>,
 }
 
 struct PendingFlow {
@@ -2211,6 +2399,132 @@ texto disponível aqui."
             return;
         };
         assert!(all_runs(&bottom)[0].y > all_runs(&top)[0].y + 100.0);
+    }
+
+    // ── Table diagnostics ───────────────────────────────────────────────────
+
+    /// One table in one frame, with the given extra declarations.
+    fn table_page(extra: &str, cells: &str) -> String {
+        format!(
+            r#"{{"pages":[{{"frames":[
+                {{"id":"quadro","type":"text","rect":[0,0,200,400],"blocks":[
+                    {{"type":"table",{extra}"cells":[{cells}]}}
+                ]}}
+            ]}}]}}"#
+        )
+    }
+
+    fn codes(list: &DisplayList) -> Vec<&str> {
+        list.diagnostics.iter().map(|d| d.code.as_str()).collect()
+    }
+
+    #[test]
+    fn a_table_that_fits_says_nothing_at_all() {
+        let Some(list) = layout_json(&table_page(
+            r#""columns":["auto","auto"],"#,
+            r#"{"blocks":["a"]},{"blocks":["b"]},{"blocks":["c"]},{"blocks":["d"]}"#,
+        )) else {
+            return;
+        };
+        assert!(codes(&list).is_empty(), "sem queixas: {:?}", list.diagnostics);
+    }
+
+    #[test]
+    fn two_cells_on_the_same_slot_are_reported_once_with_a_count() {
+        let Some(list) = layout_json(&table_page(
+            r#""columns":["auto","auto"],"#,
+            r#"{"x":0,"y":0,"blocks":["a"]},
+               {"x":0,"y":0,"blocks":["b"]},
+               {"x":0,"y":0,"blocks":["c"]}"#,
+        )) else {
+            return;
+        };
+        let said: Vec<_> = list
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "tableCellOverlap")
+            .collect();
+        assert_eq!(said.len(), 1, "uma linha por causa: {:?}", codes(&list));
+        assert!(said[0].message.contains('2'), "com a conta: {}", said[0].message);
+        assert_eq!(said[0].page, Some(0), "página, contada de zero como as outras");
+        assert_eq!(said[0].frame.as_deref(), Some("quadro"));
+    }
+
+    #[test]
+    fn a_cell_wider_than_the_table_is_named_for_what_it_is() {
+        let Some(list) = layout_json(&table_page(
+            r#""columns":["auto","auto"],"#,
+            r#"{"x":0,"y":0,"colspan":5,"blocks":["larga"]},{"blocks":["b"]}"#,
+        )) else {
+            return;
+        };
+        assert!(
+            codes(&list).contains(&"tableCellTooWide"),
+            "e não confundida com uma sobreposição: {:?}",
+            codes(&list),
+        );
+    }
+
+    #[test]
+    fn columns_that_do_not_fit_report_by_how_much() {
+        // A word of its own, in a column narrower than the word.
+        let Some(list) = layout_json(&table_page(
+            r#""columns":["auto"],"#,
+            r#"{"blocks":["incompreensibilissimamenteinterminavel"]}"#,
+        )) else {
+            return;
+        };
+        let said = list
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "tableOverflows")
+            .expect("transbordo reportado");
+        assert!(said.message.contains("pt"), "com a medida: {}", said.message);
+        assert_eq!(said.page, Some(0));
+        assert_eq!(said.frame.as_deref(), Some("quadro"));
+    }
+
+    #[test]
+    fn a_row_taller_than_the_frame_says_so() {
+        let filler = "palavra ".repeat(200);
+        let Some(list) = layout_json(&format!(
+            r#"{{"pages":[{{"frames":[
+                {{"id":"quadro","type":"text","rect":[0,0,200,60],"blocks":[
+                    {{"type":"table","columns":["auto"],"cells":[{{"blocks":["{filler}"]}}]}}
+                ]}}
+            ]}}]}}"#
+        )) else {
+            return;
+        };
+        assert!(
+            codes(&list).contains(&"tableRowTooTall"),
+            "a linha que transbordou é dita: {:?}",
+            codes(&list),
+        );
+    }
+
+    #[test]
+    fn every_table_diagnostic_carries_a_page_and_a_frame() {
+        // A word too wide for the frame, and a second cell claiming the slot
+        // it already took. A cell dropped for being too wide would never size
+        // a column, so the two faults have to be independent to both show.
+        let Some(list) = layout_json(&table_page(
+            r#""columns":["auto"],"#,
+            r#"{"x":0,"y":0,"blocks":["incompreensibilissimamenteinterminavel"]},
+               {"x":0,"y":0,"blocks":["b"]}"#,
+        )) else {
+            return;
+        };
+        let table_said: Vec<_> = list
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.starts_with("table"))
+            .collect();
+        assert!(table_said.len() >= 2, "mais de um código: {:?}", codes(&list));
+        for said in table_said {
+            assert!(said.page.is_some(), "{} sem página", said.code);
+            assert!(said.frame.is_some(), "{} sem frame", said.code);
+        }
     }
 
     #[test]
