@@ -6,6 +6,8 @@
 
 pub mod cascade;
 pub mod shape;
+pub(crate) mod scale;
+pub(crate) mod ticks;
 mod text;
 pub mod wrap;
 
