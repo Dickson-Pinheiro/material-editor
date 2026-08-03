@@ -359,22 +359,31 @@ impl<'a> LayoutEngine<'a> {
                             source: source.clone(),
                         };
 
-                        // Marks arrive from T4.3 into `plotted.plot`; what is
-                        // settled here is where that rectangle is.
                         let plotted = chart::plot(spec, rows, &style, &text, content_box);
                         items.extend(plotted.items);
 
                         for issue in plotted.issues {
-                            let chart::Issue::LogDomainCrossesZero { axis } = issue;
-                            diagnostics.push(
-                                Diagnostic::warning(
+                            let said = match issue {
+                                chart::Issue::LogDomainCrossesZero { axis } => Diagnostic::warning(
                                     "chartLogDomain",
                                     format!(
                                         "o eixo `{axis}` foi pedido logarítmico mas os dados chegam a zero ou abaixo; ficou linear",
                                     ),
-                                )
-                                .on(page, id.clone()),
-                            );
+                                ),
+                                chart::Issue::BarsWithoutCategories => Diagnostic::warning(
+                                    "chartBarsWithoutCategories",
+                                    "um gráfico de barras precisa de um eixo categórico onde as assentar",
+                                ),
+                                chart::Issue::SeriesOutnumberPalette { series, colours } => {
+                                    Diagnostic::warning(
+                                        "chartSeriesOutnumberPalette",
+                                        format!(
+                                            "{series} séries para {colours} cores: há cores repetidas. Agrupe as menores ou declare uma paleta maior",
+                                        ),
+                                    )
+                                }
+                            };
+                            diagnostics.push(said.on(page, id.clone()));
                         }
                     }
                 }

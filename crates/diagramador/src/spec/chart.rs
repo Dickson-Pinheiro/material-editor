@@ -129,7 +129,15 @@ pub struct ScaleSpec {
 pub struct Channel {
     /// Name of the field in the data.
     pub field: String,
-    pub kind: FieldKind,
+    /// What the field means. Absent means "read it off the data", which is
+    /// only ever asked when the answer is not in doubt: a field holding no
+    /// numbers at all cannot go on a continuous scale, so it is categorical.
+    ///
+    /// Optional rather than defaulting to quantitative, because the default
+    /// was wrong in the commonest case there is. `{"field": "mes"}` over
+    /// months is what anyone writes first, and reading it as a quantity gave
+    /// a numeric axis over text and a bar chart with nothing to stand on.
+    pub kind: Option<FieldKind>,
     pub scale: Option<ScaleSpec>,
     /// Shown beside the axis. Absent means the field's own name.
     pub title: Option<String>,
@@ -279,8 +287,11 @@ mod tests {
         );
         assert_eq!(chart.mark, Mark::Bar);
         assert_eq!(chart.data.len(), 3);
-        assert_eq!(chart.encoding.x.kind, FieldKind::Categorical);
-        assert_eq!(chart.encoding.y.kind, FieldKind::Quantitative, "por omissão");
+        assert_eq!(chart.encoding.x.kind, Some(FieldKind::Categorical));
+        assert_eq!(
+            chart.encoding.y.kind, None,
+            "o que não foi dito fica por dizer, e quem lê os dados decide",
+        );
         assert!(chart.axes.y.grid);
         assert!(!chart.axes.x.grid, "a grelha não se liga sozinha no outro eixo");
         assert!(chart.axes.x.visible, "e o eixo não se apaga sozinho");

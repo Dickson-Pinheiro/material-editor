@@ -747,6 +747,11 @@ Cinco mutações, cinco quedas. A primeira — calar a série em falta — serve
 também de prova de que estes testes correm mesmo, em vez de se ignorarem por
 falta de fontes.
 
+**Corrigido na T4.3.** `Channel.kind` era `FieldKind` com omissão em
+quantitativo, e a omissão estava errada no caso mais comum que existe: ver a
+entrada da T4.3. Passou a `Option<FieldKind>`, com o tipo lido dos dados
+quando o autor não o diz.
+
 ### T4.2 — Moldura e eixos · M
 
 **Objetivo.** Separar a área de desenho da margem dos eixos, e emitir eixos.
@@ -836,6 +841,80 @@ agrupadas por `color` repartem a banda.
 uma categoria só, onze categorias com rótulos longos.
 
 **Depende de.** T4.2.
+
+**Estado: feita.** `layout/chart.rs` — `marks`, `series`, `Series`, `bars`,
+`lines`, `share`, `position`, `infer`, `PALETTE`. 16 testes novos no módulo
+(382 na biblioteca).
+
+**A paleta é escolhida, não inventada.** Oito matizes numa ordem fixa, e a
+ordem é o mecanismo e não a decoração: é uma ordenação cujos pares *vizinhos*
+se mantêm distintos sob simulação de daltonismo, que é precisamente o que um
+gráfico põe lado a lado. Verificada contra papel branco — pior par adjacente
+ΔE 9,1 sob protanopia e 19,6 em visão normal, contra pisos de 8 e 15.
+
+Três das oito ficam abaixo de 3:1 contra o branco, e daí uma consequência que
+vale escrever: **a legenda da T4.4 não é um enfeite, é o que sustenta a
+identidade**. Um gráfico de duas séries ou mais sem legenda não se lê, e o
+corpus visual desta tarefa mostra-o — as três séries agrupadas são três cores
+sem nome. A T4.4 passa a ser a tarefa que fecha a T4.3, não a que a segue.
+
+**Um defeito no modelo da T4.1, que só apareceu quando houve o que desenhar.**
+`{"field": "mes"}` sem `kind` é o que qualquer pessoa escreve primeiro, e o
+modelo lia-o como quantidade: eixo numérico de 0 a 1 sobre uma coluna de nomes
+de meses, e um gráfico de barras sem onde assentar. `Channel.kind` passou a
+`Option<FieldKind>`, e quando está ausente o tipo lê-se dos dados. A inferência
+só responde onde não há dúvida — um campo com um número em qualquer linha é
+quantidade, e só um campo sem número nenhum é categórico, porque texto não
+assenta numa escala contínua de forma alguma. Mudança aditiva no JSON: ausente
+já era o caso comum, e agora acerta.
+
+Decisões que a implementação fixou:
+
+- **A cor pertence à série, nunca ao seu posto.** As séries saem na ordem em
+  que são encontradas, que é a ordem em que foram escritas. Ordená-las por
+  tamanho faria com que acrescentar uma linha repintasse o gráfico inteiro.
+- **Uma linha segue o eixo, não o ficheiro.** Os pontos ligam-se por ordem de
+  posição, e não pela ordem das linhas do documento — uma linha por pontos
+  desordenados é um rabisco.
+- **Um buraco parte a linha**, em vez de a fazer passar por cima do vazio. E
+  uma leitura sem lugar no eixo horizontal não é um buraco na linha: não está
+  na linha, e é deixada de fora.
+- **O grupo é limitado e depois dividido**, não o contrário: limitar cada
+  barra abriria vãos dentro de um grupo, e as barras de um grupo são uma coisa
+  só.
+- **Uma série só fica com a banda inteira.** A folga entre barras agrupadas
+  sai do grupo; com uma série não há vizinho de quem se afastar, e descontá-la
+  à mesma estreitaria todas as barras de todos os gráficos comuns.
+- **O eixo desenha-se por cima das barras.** A régua que o leitor mede tem de
+  ser a que ele vê.
+- **Mais séries do que cores é dito em voz alta** (`chartSeriesOutnumberPalette`)
+  e as cores repetem-se. Inventar um nono matiz põe duas cores
+  indistinguíveis na página sem aviso; deitar fora a nona série deita fora
+  dados que o autor escreveu. Repetir e avisar é o único dos três que o autor
+  pode corrigir.
+
+**Duas passagens da orientação de dataviz que não se seguiram, e porquê.** O
+limite de 24px por barra e a ponta arredondada de 4px são medidas de ecrã: uma
+página compõe-se em A6 ou em A2, e um limite em píxeis não atravessa isso. O
+limite ficou como fracção da área de desenho — um sexto — que faz o mesmo
+trabalho (uma categoria só dá uma barra, não uma laje) em qualquer tamanho de
+papel. A ponta arredondada ficou de fora por ser um traço de painel de
+controlo, e não de material didático impresso; a folga entre barras vizinhas,
+que é o que a orientação usa para as separar, já vem do `padding` da banda.
+
+**O corpus visual apanhou o que os testes não apanhavam.** Nas barras
+deitadas, as categorias saíam ao contrário — a primeira linha dos dados no pé
+do gráfico. O eixo vertical inverte o intervalo porque é o que uma quantidade
+quer, e estava a invertê-lo também para nomes. Uma lista lê-se de cima para
+baixo. Nenhum teste de unidade o teria dito, porque nenhum tinha razão para
+perguntar por que lado começa uma lista; ver o desenho disse-o em três
+segundos.
+
+**Cinco mutações, quatro quedas.** A quinta — distribuir as cores por tamanho
+da série em vez de por ordem de chegada — passou por tudo: o teste comparava
+listas de cores lidas dos caminhos, e essas reordenam-se junto com as séries,
+portanto comparava uma coisa consigo mesma. Reescrito para ler nome e cor aos
+pares, a mutação caiu.
 
 ### T4.4 — Dispersão e legenda · M
 
