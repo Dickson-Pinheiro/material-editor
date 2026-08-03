@@ -167,6 +167,31 @@ export function cellBoxAt(page: DisplayPage, x: number, y: number): SourceRef | 
   return best ? (best as { source: SourceRef }).source : null;
 }
 
+/**
+ * Where a click inside a frame puts the caret.
+ *
+ * The one decision, in one place, because it is composed of two steps that
+ * have to happen in this order: find the cell first, and only then look for
+ * text *within it*. Doing it the other way round was the bug that let a table
+ * be filled in its first cell and nowhere else.
+ *
+ * `null` when the click found neither a cell nor a word — the caller then
+ * decides whether that means the top of the frame or nothing at all.
+ */
+export function caretForClick(
+  list: DisplayList,
+  page: DisplayPage,
+  x: number,
+  y: number,
+  frameId: string,
+): Caret | null {
+  const cell = cellBoxAt(page, x, y);
+  if (cell && cell.frame === frameId) {
+    return caretAt(list, page, x, y, frameId, cell.cells ?? []) ?? caretInCell(cell);
+  }
+  return caretAt(list, page, x, y, frameId);
+}
+
 /** Where a caret goes when a cell is entered by clicking its empty middle. */
 export function caretInCell(source: SourceRef): Caret {
   return {
@@ -191,9 +216,18 @@ export function caretAt(
   x: number,
   y: number,
   frameId?: string,
+  cells?: CellStep[],
 ): Caret | null {
   let runs = collectRuns(page);
   if (frameId) runs = runs.filter((placed) => placed.source.frame === frameId);
+  // Inside a table the search stops at the cell's own walls. Without this, a
+  // click in an empty cell finds the nearest text anywhere in the frame — so
+  // the moment one cell had something in it, every click landed back in it,
+  // and the table could not be filled past its first cell.
+  if (cells) {
+    const wanted = trailKey(cells);
+    runs = runs.filter((placed) => trailKey(placed.source.cells) === wanted);
+  }
   if (runs.length === 0) return null;
 
   // Group runs into lines by baseline; a line is what the eye picks first.

@@ -1181,10 +1181,23 @@ um frame. Os dois emissores saltam um rectângulo sem tinta, portanto não custa
 uma gota nem um byte de PDF — conferido. O editor procura primeiro um glifo,
 depois a caixa da célula, e só então o topo do frame.
 
-**O que fica de lição:** eu tinha um teste que escrevia numa célula e outro que
-saltava de célula em célula, e ambos passavam — porque ambos começavam com o
-cursor já colocado por mim. Nenhum passava pelo clique, que é por onde toda a
-gente começa.
+**E um terceiro defeito, da mesma família, encontrado da mesma maneira: a
+tabela só se deixava preencher na primeira célula.** Assim que uma célula
+tinha texto, clicar noutra chamava `caretAt`, que procura o glifo mais próximo
+*em todo o frame* — e devolvia o cursor à célula que já tinha alguma coisa
+escrita. A ordem estava invertida: dentro de uma tabela, a célula sob o
+ponteiro é que manda, e a procura por texto pára nas paredes dela.
+
+A decisão passou a viver num sítio só, `caretForClick`, porque são dois passos
+que têm de acontecer nesta ordem e estavam espalhados por três sítios no
+`main.ts`.
+
+**O que fica de lição, dito três vezes pelo mesmo caminho:** eu tinha um teste
+que escrevia numa célula, outro que saltava de célula em célula, e um terceiro
+que entrava por `cellBoxAt`. Todos passavam. Nenhum entrava pela porta — o
+clique — que é por onde toda a gente entra. Os testes agora chamam a mesma
+função que a tela chama, e a mutação que repõe a ordem antiga faz cair um
+deles.
 
 **Detalhes anteriores.** Clicar numa célula põe o cursor nela e escreve-se como em
 qualquer parágrafo; Tab salta para a seguinte em ordem de leitura, Shift+Tab

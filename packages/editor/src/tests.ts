@@ -13,7 +13,16 @@
 import { Engine } from "./engine";
 import { Store, normalize, parseLen } from "./store";
 import { TextEditor, byteToIndex, indexToByte, utf8Length } from "./text";
-import { caretAt, caretGeometry, caretInCell, cellBoxAt, collectRuns, compareCarets, frameAt } from "./hit";
+import {
+  caretAt,
+  caretForClick,
+  caretGeometry,
+  caretInCell,
+  cellBoxAt,
+  collectRuns,
+  compareCarets,
+  frameAt,
+} from "./hit";
 import { placement, toFrame, trace } from "./contour";
 import { PAGE_GAP, Renderer, placePages, pointIn } from "./renderer";
 import { LayersPanel } from "./layers";
@@ -1498,6 +1507,62 @@ async function run(): Promise<void> {
     const written = (store.frame("quadro") as { blocks: Block[] }).blocks[0] as TableBlock;
     equal(textOf(written, 1), "Mudança", "na célula que foi clicada");
     equal(textOf(written, 0), "", "e em nenhuma outra");
+  });
+
+  check("cada célula recebe o que é escrito nela, clicando de uma para outra", () => {
+    // The defect this closes, and the reason it survived two rounds of tests:
+    // both earlier ones entered through `cellBoxAt`, which is the mechanism.
+    // Nobody uses the mechanism. A person clicks — and a click asked for the
+    // nearest glyph *in the frame*, so the moment one cell had a word in it,
+    // every click landed back in that cell and the table could not be filled.
+    const table = newTable(2, 2, false);
+    const doc: DocumentSpec = {
+      page: { size: "A4", margins: 40 },
+      style: { fontFamily: "corpo", fontSize: 11 },
+      pages: [{ frames: [{ id: "quadro", type: "text", rect: [40, 40, 300, 200], blocks: [table] }] }],
+    };
+    const store = new Store(engine, normalize(doc));
+    const editor = new TextEditor(store);
+
+    /** The middle of a cell, in page coordinates, as the engine placed it. */
+    const middleOf = (index: number) => {
+      const flat: DisplayItem[] = [];
+      const walk = (items: DisplayItem[]) => {
+        for (const item of items) {
+          if (item.type === "group") walk(item.items);
+          else flat.push(item);
+        }
+      };
+      walk(store.list.pages[0]!.items);
+      const box = flat.find(
+        (item) =>
+          item.type === "rect" &&
+          !item.fill &&
+          !item.stroke &&
+          item.source?.cells?.[0]?.cell === index,
+      );
+      assert(box && box.type === "rect", `a caixa da célula ${index}`);
+      return { x: box.rect.x + box.rect.w / 2, y: box.rect.y + box.rect.h / 2 };
+    };
+
+    // Click each cell in turn and write in it — the whole journey, through
+    // the same function the canvas calls.
+    const words = ["Estado", "Mudança", "Sólido", "fusão"];
+    words.forEach((word, index) => {
+      const point = middleOf(index);
+      const caret = caretForClick(store.list, store.list.pages[0]!, point.x, point.y, "quadro");
+      assert(caret, `o clique na célula ${index} encontra onde escrever`);
+      equal(caret.cells[0]?.cell, index, `e é a célula ${index}, não outra`);
+      editor.enter("quadro", caret);
+      editor.insert(word);
+    });
+
+    const written = (store.frame("quadro") as { blocks: Block[] }).blocks[0] as TableBlock;
+    equal(
+      written.cells!.map((_, index) => textOf(written, index)).join(" | "),
+      "Estado | Mudança | Sólido | fusão",
+      "cada palavra na célula em que foi escrita",
+    );
   });
 
   // ── Report ────────────────────────────────────────────────────────────────

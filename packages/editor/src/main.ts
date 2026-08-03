@@ -21,7 +21,7 @@ import {
 } from "./store";
 import { Renderer, HANDLE_SIZE, documentExtent, handlePositions, placePages, pointIn } from "./renderer";
 import type { HandleName, Overlay, View } from "./renderer";
-import { caretAt, caretGeometry, caretInCell, cellBoxAt, frameAt, framesAt, rangeRects } from "./hit";
+import { caretForClick, caretGeometry, frameAt, framesAt, rangeRects } from "./hit";
 import { TextEditor } from "./text";
 import { Inspector } from "./inspector";
 import type { Alignment } from "./inspector";
@@ -345,10 +345,7 @@ async function boot(): Promise<void> {
     if (text.frameId) {
       const editingFrame = displayFrame(text.frameId);
       if (editingFrame && pointInFrame(editingFrame, located.x, located.y)) {
-        const cell = cellBoxAt(page, located.x, located.y);
-        const caret =
-          caretAt(store.list, page, located.x, located.y, text.frameId) ??
-          (cell && cell.frame === text.frameId ? caretInCell(cell) : null);
+        const caret = caretForClick(store.list, page, located.x, located.y, text.frameId);
         if (caret) {
           text.place(caret, event.shiftKey);
           text.rememberColumn(located.x);
@@ -469,7 +466,9 @@ async function boot(): Promise<void> {
       }
 
       case "text": {
-        const caret = page ? caretAt(store.list, page, located.x, located.y, text.frameId!) : null;
+        const caret = page
+          ? caretForClick(store.list, page, located.x, located.y, text.frameId!)
+          : null;
         if (caret) {
           text.place(caret, true);
           draw();
@@ -665,21 +664,14 @@ async function boot(): Promise<void> {
 
     if (hit.kind !== "text") return;
 
-    // A glyph first, because that is where the caret goes when there is text
-    // to aim at. Then the cell under the point: an empty cell has no glyph,
-    // and without this an empty table is a thing you can see and cannot
-    // enter. Only then the top of the frame.
-    const cell = cellBoxAt(page, located.x, located.y);
-    const caret =
-      caretAt(store.list, page, located.x, located.y, hit.id) ??
-      (cell ? caretInCell(cell) : null) ?? {
-        frame: hit.id,
-        story: null,
-        cells: [],
-        block: 0,
-        inline: 0,
-        offset: 0,
-      };
+    const caret = caretForClick(store.list, page, located.x, located.y, hit.id) ?? {
+      frame: hit.id,
+      story: null,
+      cells: [],
+      block: 0,
+      inline: 0,
+      offset: 0,
+    };
 
     selected.clear();
     selected.add(hit.id);
