@@ -708,6 +708,21 @@ impl TextLayouter<'_> {
             .unwrap_or(FALLBACK_METRICS)
     }
 
+    /// How far one line of type in `style` rises above its baseline, and how
+    /// far it drops below.
+    ///
+    /// The ink, not the line box. A label beside an axis is centred on its
+    /// mark by the shape of the letters; the space a line holds above and
+    /// below them belongs to a column of prose, and centring on it would sit
+    /// every number a little off its own tick.
+    pub(crate) fn ink(&self, style: &ResolvedStyle) -> (f64, f64) {
+        let metrics = self.metrics_for(style);
+        (
+            metrics.ascender * style.font_size,
+            -metrics.descender * style.font_size,
+        )
+    }
+
     /// The room a paragraph gives away before any text is placed.
     ///
     /// Pulled out so that measuring a paragraph and laying it out cannot

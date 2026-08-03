@@ -149,6 +149,22 @@ impl Scale {
         start + step * index as f64
     }
 
+    /// The same scale, laid on a different stretch of the page.
+    ///
+    /// An axis settles its domain and its marks before it can know its own
+    /// geometry — how wide the labels are is what decides how much room is
+    /// left to map into. So the scale is built once, asked what it will be
+    /// marked with, and only then told where it lives.
+    pub(crate) fn with_range(mut self, to: (f64, f64)) -> Scale {
+        match &mut self {
+            Scale::Linear { range, .. }
+            | Scale::Log { range, .. }
+            | Scale::Band { range, .. }
+            | Scale::Point { range, .. } => *range = to,
+        }
+        self
+    }
+
     /// Marks for an axis on this scale.
     pub(crate) fn ticks(&self, count: usize) -> Vec<f64> {
         match self {

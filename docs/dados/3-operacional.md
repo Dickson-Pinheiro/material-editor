@@ -760,6 +760,70 @@ reserva margem; o título do eixo cai fora dos rótulos, não por cima.
 
 **Depende de.** T1.3, T1.4, T4.1.
 
+**Estado: feita.** `layout/chart.rs` (novo) — `plot`, `Plotted`, `Labels`,
+`Label`, `Issue`; `TextLayouter::ink` e `Scale::with_range`, que são o que a
+moldura precisou e não existia. 14 testes no módulo, 5 no layout e 1 na
+paridade (366 na biblioteca, 11 na paridade).
+
+**A ordem das duas etapas é a tarefa inteira.** Primeiro os domínios e as
+marcas, que não sabem nada da página; só então medir os rótulos, tirar as
+goteiras da moldura e dar às escalas o rectângulo que sobrou. É isso que
+quebra o círculo — a goteira esquerda depende dos rótulos de `y`, que dependem
+das marcas, que dependem só do domínio. Qualquer coisa que fechasse o círculo
+teria de ser iterada até um ponto fixo, e um gráfico que se diagrama duas
+vezes é um gráfico que pode diagramar-se diferente em duas máquinas.
+
+Decisões que a implementação fixou:
+
+- **O número de marcas sai da moldura, nunca da área de desenho.** Um ponto de
+  eixo por cada 60, entre 2 e 10. Lê-lo da área de desenho seria exactamente
+  fechar o círculo; e o número é um desejo de qualquer forma, porque `ticks`
+  devolve o que calhar em números redondos perto dele.
+- **Uma precisão para o eixo todo.** `0 · 0,5 · 1 · 1,5 · 2` muda de ideias a
+  meio; `0,0 · 0,5 · 1,0 · 1,5 · 2,0` lê-se sem tropeçar. As casas decimais
+  saem do conjunto das marcas, não de cada número.
+- **Vírgula decimal**, que é como se escrevem os documentos que este motor
+  compõe. Um ponto está a uma localidade de distância, e uma localidade vale a
+  pena no dia em que um documento a peça — não antes.
+- **O rótulo centra-se na tinta, não na caixa de linha.** Foi por isto que
+  `ink` teve de existir: onde a primeira linha assenta dentro da sua caixa
+  depende da entrelinha, e um número alinha-se a uma marca, não a uma caixa.
+- **O rótulo de uma categoria fica a meio da banda**, não no seu início: o
+  rótulo de uma barra nomeia a barra.
+- **A marca escolhe entre banda e ponto.** Barra e área querem um intervalo
+  onde assentar; linha e dispersão querem uma posição por onde passar.
+- **O título do eixo vertical roda um quarto de volta.** É o primeiro conteúdo
+  que o motor desenha num espaço de coordenadas próprio, e por isso foi ao
+  corpus de paridade — ver abaixo.
+
+**Duas goteiras que o plano não previa.** A margem não é só à esquerda e em
+baixo. O rótulo mais alto de `y` está centrado no topo da área de desenho e
+sobe metade da sua altura acima dela; o último rótulo de um eixo `x` contínuo
+está centrado no extremo direito e passa metade da sua largura para lá. Sem
+reservar os dois, ambos saem cortados pela moldura.
+
+**Um eixo logarítmico cujos dados chegam a zero cai para linear** e diz
+`chartLogDomain`. Não desenhar nada deixaria o autor a adivinhar qual das duas
+coisas correu mal.
+
+**Seis mutações, cinco quedas — e a sexta é a que interessa.** Centrar o
+rótulo na caixa de linha em vez de na tinta passou por todos os testes: era
+precisamente a capacidade nova, e não estava coberta. O teste
+`a_number_sits_centred_on_its_own_mark_by_its_ink` fechou a falha, e a mesma
+mutação passou a cair.
+
+**A paridade apanhou o que mais ninguém apanhava.** Esquecer o termo
+`c · height` na conversão da matriz para o PDF — o que desloca tudo o que está
+rodado — não faz cair nenhum teste antigo, porque os testes de unidade da
+conversão têm todos `c = 0`. O teste novo compõe o `cm` com o `Tm` como o
+faria o leitor de PDF de quem lê, em vez de chamar a conversão do emissor:
+um teste que reimplementa o código que verifica não prova nada.
+
+**O que ficou de fora, e onde está.** A grelha e o rótulo que não cabe —
+menos marcas, formato mais curto, rodar — são a T4.5, e `axes.grid` continua
+por ler. Rótulos e títulos partilham um só estilo, o do frame: dar ao título
+um corpo próprio é afinação tipográfica, que é o nome da T4.5.
+
 ### T4.3 — Barra e linha · M
 
 **Objetivo.** As duas marcas que cobrem quase todo material didático.

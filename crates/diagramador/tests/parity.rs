@@ -507,6 +507,129 @@ fn layout_is_deterministic() {
     assert_eq!(first, second);
 }
 
+/// Every `a b c d e f cm` in the stream.
+fn transforms(stream: &str) -> Vec<[f64; 6]> {
+    let tokens: Vec<&str> = stream.split_whitespace().collect();
+    let mut out = Vec::new();
+
+    for (index, token) in tokens.iter().enumerate() {
+        if *token != "cm" || index < 6 {
+            continue;
+        }
+        let mut matrix = [0.0f64; 6];
+        let mut ok = true;
+        for (slot, raw) in matrix.iter_mut().zip(&tokens[index - 6..index]) {
+            match raw.parse::<f64>() {
+                Ok(value) => *slot = value,
+                Err(_) => ok = false,
+            }
+        }
+        if ok {
+            out.push(matrix);
+        }
+    }
+
+    out
+}
+
+/// A chart's turned axis title lands in the PDF where the display list put it.
+///
+/// The title of a vertical axis is the first thing the engine draws inside a
+/// coordinate space of its own: a group carrying a quarter turn. Everything
+/// else is written straight into page space, so this is the one place where
+/// the PDF and the browser could diverge while each looks plausible alone —
+/// the position is composed by two pieces of code that never meet.
+///
+/// The composition is done here the way a reader's viewer does it, and not by
+/// calling back into the emitter's own conversion: a test that reimplements
+/// the code it checks proves nothing.
+#[test]
+fn a_turned_axis_title_lands_where_the_display_list_put_it() {
+    let Some(engine) = engine() else {
+        eprintln!("fontes ausentes — teste ignorado");
+        return;
+    };
+
+    let document: Document = serde_json::from_str(
+        r##"{
+            "meta": { "title": "Eixo", "language": "pt-BR" },
+            "page": { "size": "A4", "margins": "20mm" },
+            "style": { "fontFamily": "corpo", "fontSize": 10 },
+            "pages": [{
+                "frames": [
+                    { "id": "g", "type": "chart", "rect": [60, 60, 300, 200],
+                      "data": [{ "mes": "jan", "v": 8 }],
+                      "encoding": { "x": { "field": "mes", "kind": "categorical" },
+                                    "y": { "field": "v" } },
+                      "axes": { "y": { "title": "Vendas" }, "x": { "title": "" } } }
+                ]
+            }]
+        }"##,
+    )
+    .expect("documento válido");
+
+    let list = engine.layout(&document);
+    let height = list.pages[0].height;
+
+    // The only group carrying a matrix on this page is the turned title.
+    let turned = list.pages[0]
+        .items
+        .iter()
+        .find_map(|item| match item {
+            DisplayItem::Group(group) => group.transform.map(|matrix| (group, matrix)),
+            _ => None,
+        })
+        .expect("o título rodado");
+    let run = turned
+        .0
+        .items
+        .iter()
+        .find_map(|item| match item {
+            DisplayItem::Glyphs(run) => Some(run),
+            _ => None,
+        })
+        .expect("o texto do título");
+    assert_eq!(run.text, "Vendas");
+
+    // Where the browser paints the run's origin: the group's matrix applied to
+    // the run's own coordinates, in page space with y growing down.
+    let [a, b, c, d, e, f] = turned.1;
+    let page = (a * run.x + c * run.y + e, b * run.x + d * run.y + f);
+
+    let pdf = engine
+        .render_display_list(&list, &document)
+        .expect("render succeeds");
+    let stream = content_streams(&pdf);
+
+    let matrix = *transforms(&stream)
+        .first()
+        .expect("uma matriz de grupo no fluxo");
+
+    // Where the PDF puts it: the emitted `cm` applied to the emitted `Tm`.
+    let landed = text_origins(&stream).into_iter().any(|(x, y)| {
+        let placed = (
+            matrix[0] * x + matrix[2] * y + matrix[4],
+            matrix[1] * x + matrix[3] * y + matrix[5],
+        );
+        (placed.0 - page.0).abs() < TOLERANCE
+            && (placed.1 - (height - page.1)).abs() < TOLERANCE
+    });
+    assert!(
+        landed,
+        "nenhuma origem de texto cai em {:?} depois da matriz {matrix:?}; origens: {:?}",
+        (page.0, height - page.1),
+        text_origins(&stream),
+    );
+
+    // A quarter turn and not a mirror of one. The sense has to survive the
+    // flip, and reversing it would land the origin on the very same point.
+    assert!(matrix[1].abs() > 0.5 && matrix[2].abs() > 0.5, "matriz {matrix:?}");
+    assert!(
+        matrix[1] * matrix[2] < 0.0,
+        "os termos fora da diagonal têm sinais opostos: {matrix:?}",
+    );
+}
+
 /// A document with no fonts still lays out, so the editor can show it.
 #[test]
 fn layout_degrades_without_fonts() {

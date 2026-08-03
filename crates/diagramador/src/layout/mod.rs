@@ -5,6 +5,7 @@
 //! a layout decision — this module is the sole authority.
 
 pub mod cascade;
+pub(crate) mod chart;
 pub(crate) mod grid;
 pub mod shape;
 pub(crate) mod scale;
@@ -332,21 +333,50 @@ impl<'a> LayoutEngine<'a> {
             FrameContent::Image(image) => {
                 items.extend(self.layout_image_frame(image, content_box, &source, diagnostics, page, &id));
             }
-            FrameContent::Chart(chart) => {
-                // Marks arrive in T4.2 onward. What is settled now is where a
-                // chart that cannot find its numbers ends up: an empty frame
-                // and a line saying why, never a document that will not open.
-                if chart.rows(&doc.resources.data).is_none() {
-                    diagnostics.push(
+            FrameContent::Chart(spec) => {
+                // A chart that cannot find its numbers gets an empty frame and
+                // a line saying why, never a document that will not open.
+                match spec.rows(&doc.resources.data) {
+                    None => diagnostics.push(
                         Diagnostic::warning(
                             "missingData",
                             format!(
                                 "o gráfico refere a série `{}`, que não está em resources.data",
-                                chart.dataset.as_deref().unwrap_or(""),
+                                spec.dataset.as_deref().unwrap_or(""),
                             ),
                         )
                         .on(page, id.clone()),
-                    );
+                    ),
+                    Some(rows) => {
+                        let style = cascade::resolve(parent_style, styles, None, spec.style.as_ref());
+                        let text = ChartText {
+                            text: &TextLayouter {
+                                registry: self.registry,
+                                images: self.images,
+                                styles,
+                                variables: Variables { page: page + 1, pages: self.page_count },
+                            },
+                            source: source.clone(),
+                        };
+
+                        // Marks arrive from T4.3 into `plotted.plot`; what is
+                        // settled here is where that rectangle is.
+                        let plotted = chart::plot(spec, rows, &style, &text, content_box);
+                        items.extend(plotted.items);
+
+                        for issue in plotted.issues {
+                            let chart::Issue::LogDomainCrossesZero { axis } = issue;
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    "chartLogDomain",
+                                    format!(
+                                        "o eixo `{axis}` foi pedido logarítmico mas os dados chegam a zero ou abaixo; ficou linear",
+                                    ),
+                                )
+                                .on(page, id.clone()),
+                            );
+                        }
+                    }
                 }
             }
             FrameContent::Shape(shape) => {
@@ -943,6 +973,91 @@ fn diagnose(laid: &table::Layout, source: &SourceRef) -> Vec<Diagnostic> {
     }
 
     out
+}
+
+/// The engine, wearing the face a chart's axes ask for.
+///
+/// An axis label goes through the same layouter, the same fonts and the same
+/// shaping as every other word in the document. That is what keeps the two
+/// emitters in parity across a chart: there is no second text path to keep in
+/// agreement, because there is no second text path.
+struct ChartText<'a, 'b> {
+    text: &'a TextLayouter<'b>,
+    /// The chart frame, so a click on a label selects the chart.
+    source: SourceRef,
+}
+
+impl ChartText<'_, '_> {
+    /// One label, as a paragraph of one line.
+    fn paragraph(text: &str) -> crate::spec::Paragraph {
+        crate::spec::Paragraph::from_text(text)
+    }
+
+    /// The style a label is set in.
+    ///
+    /// A label is a line of type, not a paragraph of prose: the indents, the
+    /// space before and after, and the alignment all belong to a column of
+    /// text and would move a number off its own tick. The chart positions
+    /// every label itself, from what it measured, so the line has to lay out
+    /// flush left and start where it is put.
+    fn line(style: &ResolvedStyle) -> ResolvedStyle {
+        ResolvedStyle {
+            text_align: crate::spec::TextAlign::Left,
+            indent_first: 0.0,
+            indent_left: 0.0,
+            indent_right: 0.0,
+            space_before: 0.0,
+            space_after: 0.0,
+            ..style.clone()
+        }
+    }
+}
+
+impl chart::Labels for ChartText<'_, '_> {
+    fn measure(&self, text: &str, style: &ResolvedStyle) -> chart::Label {
+        let style = Self::line(style);
+        let (ascent, descent) = self.text.ink(&style);
+        chart::Label {
+            // The unwrapped width: a label that wrapped would not be a label.
+            width: self.text.measure_paragraph(&Self::paragraph(text), &style).max,
+            ascent,
+            descent,
+        }
+    }
+
+    fn draw(&self, text: &str, style: &ResolvedStyle, x: f64, baseline: f64) -> Vec<DisplayItem> {
+        let style = Self::line(style);
+        let para = Self::paragraph(text);
+        let width = self.text.measure_paragraph(&para, &style).max.max(1.0);
+        let laid = self.text.layout_paragraph(
+            &para,
+            &style,
+            &wrap::WholeColumn { width },
+            None,
+            0,
+            &self.source,
+        );
+
+        let mut items = laid.items;
+        // Placed by its baseline rather than by its top: where the first line
+        // of a paragraph sits inside its line box depends on the leading, and
+        // a label is aligned to a tick, not to a line box.
+        let local = first_baseline(&items).unwrap_or(0.0);
+        translate_items(&mut items, x, baseline - local);
+        items
+    }
+}
+
+/// Baseline of the first line of type among these items.
+fn first_baseline(items: &[DisplayItem]) -> Option<f64> {
+    items
+        .iter()
+        .filter_map(|item| match item {
+            DisplayItem::Glyphs(run) => Some(run.y),
+            DisplayItem::Group(group) => first_baseline(&group.items),
+            _ => None,
+        })
+        .min_by(f64::total_cmp)
 }
 
 /// The engine, wearing the face a table asks for.
@@ -2500,6 +2615,183 @@ texto disponível aqui."
         let written = serde_json::to_string(&doc).expect("escreve");
         let again: Document = serde_json::from_str(&written).expect("volta a ler");
         assert_eq!(doc, again, "o documento gravado volta a ler-se igual:\n{written}");
+    }
+
+    // ── Chart geometry, through the real layouter ───────────────────────────
+    //
+    // The arithmetic is checked in `chart.rs` against a ruler. What these
+    // check is the other half of the promise: that the margin comes from the
+    // *measured* text of the real labels, shaped by the same layouter as
+    // every other word in the document.
+
+    /// One chart of one series, at 300 × 200, with the values given.
+    fn chart_json(values: &str, extra: &str) -> String {
+        format!(
+            r#"{{"style":{{"fontFamily":"body","fontSize":10}},
+                "pages":[{{"frames":[
+                {{"id":"g","type":"chart","rect":[0,0,300,200],
+                 "data":[{values}],
+                 "encoding":{{"x":{{"field":"mes","kind":"categorical"}},
+                              "y":{{"field":"v"}}}}{extra}}}
+            ]}}]}}"#,
+        )
+    }
+
+    /// Where the vertical axis line stands — the left edge of the plot.
+    ///
+    /// A tick on the horizontal axis is also a vertical line, so length is
+    /// what tells them apart: the axis spans the plot, a tick is a few points
+    /// long. Taking the tallest alone would find the tick on a chart that has
+    /// no vertical axis at all, which is exactly the case worth testing.
+    fn vertical_axis(list: &DisplayList) -> Option<f64> {
+        const AXIS_MIN: f64 = 50.0;
+        list.pages[0]
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                DisplayItem::Line(line) if line.x1 == line.x2 => {
+                    Some((line.x1, (line.y2 - line.y1).abs()))
+                }
+                _ => None,
+            })
+            .filter(|(_, length)| *length > AXIS_MIN)
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(x, _)| x)
+    }
+
+    #[test]
+    fn a_wider_number_pushes_the_plot_further_from_the_edge() {
+        let Some(curto) = layout_json(&chart_json(r#"{"mes":"jan","v":8}"#, "")) else {
+            return;
+        };
+        let longo = layout_json(&chart_json(r#"{"mes":"jan","v":8000000}"#, "")).expect("motor");
+
+        let (curto, longo) = (
+            vertical_axis(&curto).expect("eixo y"),
+            vertical_axis(&longo).expect("eixo y"),
+        );
+        assert!(
+            longo > curto,
+            "`8000000` reserva mais margem que `8`: {longo} vs {curto}",
+        );
+    }
+
+    #[test]
+    fn the_margin_is_measured_and_not_counted_in_characters() {
+        // Both axes carry five letters. An estimate by character count gives
+        // them the same margin; a measurement does not, because five `M`s are
+        // far wider than five `I`s. This is the test the rule in the task is
+        // actually about, and the only one an estimate cannot pass.
+        let chart = |categories: &str| {
+            format!(
+                r#"{{"style":{{"fontFamily":"body","fontSize":10}},
+                    "pages":[{{"frames":[
+                    {{"id":"g","type":"chart","rect":[0,0,300,200],
+                     "data":[{{"y":"{categories}","v":1}}],
+                     "encoding":{{"x":{{"field":"v"}},
+                                  "y":{{"field":"y","kind":"categorical"}}}},
+                     "axes":{{"y":{{"title":""}}}}}}
+                ]}}]}}"#,
+            )
+        };
+
+        let Some(estreito) = layout_json(&chart("IIIII")) else {
+            return;
+        };
+        let largo = layout_json(&chart("MMMMM")).expect("motor");
+
+        let (estreito, largo) = (
+            vertical_axis(&estreito).expect("eixo y"),
+            vertical_axis(&largo).expect("eixo y"),
+        );
+        assert!(
+            largo > estreito,
+            "`MMMMM` reserva mais margem que `IIIII`, com as mesmas cinco letras: \
+             {largo} vs {estreito}",
+        );
+    }
+
+    #[test]
+    fn the_labels_of_an_axis_are_the_documents_own_type() {
+        let Some(list) = layout_json(&chart_json(
+            r#"{"mes":"jan","v":1},{"mes":"fev","v":2}"#,
+            "",
+        )) else {
+            return;
+        };
+
+        let written: Vec<String> = all_runs(&list).into_iter().map(|run| run.text).collect();
+        assert!(written.contains(&"jan".to_string()), "veio {written:?}");
+        assert!(written.contains(&"fev".to_string()), "veio {written:?}");
+        assert!(
+            written.iter().any(|text| text == "mes"),
+            "e o título do eixo, que por omissão é o nome do campo: {written:?}",
+        );
+        // Shaped, not just placed: a run with no glyphs would be a label the
+        // PDF draws as nothing at all.
+        for run in all_runs(&list) {
+            assert!(!run.glyphs.is_empty(), "`{}` saiu sem glifos", run.text);
+        }
+    }
+
+    #[test]
+    fn an_axis_nobody_will_see_takes_no_room_from_the_plot() {
+        let Some(com) = layout_json(&chart_json(r#"{"mes":"jan","v":8}"#, "")) else {
+            return;
+        };
+        let sem = layout_json(&chart_json(
+            r#"{"mes":"jan","v":8}"#,
+            r#","axes":{"y":{"visible":false}}"#,
+        ))
+        .expect("motor");
+
+        assert!(vertical_axis(&com).is_some(), "com eixo y, há linha vertical");
+        assert_eq!(
+            vertical_axis(&sem),
+            None,
+            "sem ele não há linha nenhuma, nem margem reservada",
+        );
+        let escrito: Vec<String> = all_runs(&sem).into_iter().map(|run| run.text).collect();
+        assert!(
+            escrito.contains(&"jan".to_string()),
+            "e o outro eixo continua rotulado: {escrito:?}",
+        );
+    }
+
+    #[test]
+    fn the_title_of_the_vertical_axis_is_turned_a_quarter_and_kept_outside() {
+        let Some(list) = layout_json(&chart_json(
+            r#"{"mes":"jan","v":8}"#,
+            r#","axes":{"y":{"title":"Vendas em reais"}}"#,
+        )) else {
+            return;
+        };
+
+        let turned = list.pages[0]
+            .items
+            .iter()
+            .find_map(|item| match item {
+                DisplayItem::Group(group) => group.transform.map(|matrix| (group, matrix)),
+                _ => None,
+            })
+            .expect("o título rodado");
+
+        assert_eq!(
+            [turned.1[0], turned.1[1], turned.1[2], turned.1[3]],
+            [0.0, -1.0, 1.0, 0.0],
+            "um quarto de volta, a ler de baixo para cima",
+        );
+        let inside: Vec<String> =
+            all_runs(&DisplayList { pages: vec![DisplayPage { items: turned.0.items.clone(), ..list.pages[0].clone() }], ..list.clone() })
+                .into_iter()
+                .map(|run| run.text)
+                .collect();
+        assert_eq!(inside, vec!["Vendas em reais".to_string()]);
+
+        // Outside the numbers, not over them.
+        let axis = vertical_axis(&list).expect("eixo y");
+        assert!(turned.1[4] < axis, "o título está à esquerda do eixo: {} vs {axis}", turned.1[4]);
+        assert!(turned.1[4] >= 0.0, "e dentro da moldura: {}", turned.1[4]);
     }
 
     // ── Table diagnostics ───────────────────────────────────────────────────
