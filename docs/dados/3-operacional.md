@@ -975,6 +975,57 @@ marcas, depois formato mais curto, e só então rodar.
 
 **Depende de.** T4.3.
 
+**Estado: feita, e maior do que o P que lhe estava atribuído.** `layout/chart.rs`
+— `grid`, `fit`, `shorten`, `Turn`, `Side`. 14 testes novos no módulo
+(405 na biblioteca).
+
+**A grelha é um lavado da tinta do documento, não uma cor própria.** Assim
+segue o que o texto veste e fica por trás dele em qualquer papel; um cinzento
+fixo estaria certo no branco e errado em tudo o resto. Desenha-se antes das
+marcas — uma linha de grelha por cima de uma barra é uma linha desenhada sobre
+os dados — e honra-se em qualquer eixo que a declare, categórico incluído:
+adivinhar contra uma declaração é como um documento deixa de dizer o que diz.
+
+**As três saídas, e por que estão nesta ordem.** Menos marcas primeiro, porque
+uma marca num contínuo é uma amostra dele e tirar algumas não perde nada. Uma
+lista de nomes não é um contínuo — amostrá-la deixaria barras que ninguém
+identifica — por isso um eixo categórico salta esta saída inteira e vai
+directo à última. Depois a forma curta, porque `1200` e `1,2 mil` dizem o
+mesmo. Virar é o fim da fila, e só porque a alternativa é pior.
+
+**Uma quarta coisa que o plano não previa: o eixo vertical também tem rótulos
+que não cabem.** Não por colidirem — estão empilhados — mas por largura. O
+corpus mostrou `1000000000` a gastar um quinto de um gráfico pequeno para
+dizer o que `1 bi` diz. O ajuste passou a correr nos dois eixos, com o
+critério que cada um pede: de lado a lado, quem aperta é a largura; de cima a
+baixo, é a altura, mais um tecto na largura contra a moldura. E virar só se
+oferece ao eixo de baixo: virado, um número do lado não fica mais estreito e
+fica muito mais lento de ler.
+
+**O `PT_PER_TICK` desceu de 60 para 40**, que era a nota deixada na T4.4. Com
+60, uma dispersão de 190pt recebia três marcas e o `nice` alargava 35–110 para
+0–150.
+
+**Nove mutações, seis quedas à primeira.** As três sobreviventes disseram
+coisas diferentes:
+
+- *Nunca tirar marcas* passou porque o teste comparava uma moldura estreita
+  com uma larga — e essas recebem contagens diferentes só por serem de
+  tamanhos diferentes, portanto passava com a saída arrancada. Refeito contra
+  o `fit` directamente, com um eixo só.
+- *Ignorar a contagem que o autor pediu* passou porque não era mudança
+  nenhuma: o `marks_of` já honra a contagem pedida, o que tornava a guarda no
+  `fit` uma segunda cópia da mesma regra. Removida — um só sítio decide.
+- *Desligar a forma curta* passou porque só havia teste da função isolada, e
+  não de o `fit` a usar. O caso que faltava é o único em que ela decide mesmo
+  alguma coisa: o autor fixou a contagem, a primeira saída está fora de jogo,
+  e a forma curta é o que está entre o eixo e o texto virado.
+
+**Um limite que a primeira tentativa errou.** O tecto de largura do eixo
+vertical começou num quarto da moldura, e um quarto de 235pt são 59 pontos —
+dez dígitos cabem lá com folga, portanto o caso exacto para que a regra existe
+escapava-lhe. Um quinto é a linha que o apanha.
+
 ### T4.6 — Área · M
 
 **Objetivo.** A marca de área, como polígono fechado sob a linha.

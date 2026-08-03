@@ -49,11 +49,47 @@ const GAP_EM: f64 = 0.35;
 /// Read against the *frame*, never the plot: the plot's size is what the
 /// labels decide, and deciding the labels from it would close the circle this
 /// module exists to keep open. The count is a wish in any case — `ticks`
-/// returns whatever lands on round numbers near it.
-const PT_PER_TICK: f64 = 60.0;
+/// returns whatever lands on round numbers near it, and the fitting below
+/// takes marks away again when the labels will not sit side by side.
+///
+/// Was 60 until a scatter 190pt tall came out with three marks, which made
+/// `nice` widen a domain of 35–110 to 0–150 and spend a third of the height
+/// on nothing. Forty is what Vega-Lite asks of a vertical axis, and it is the
+/// number that stopped that happening.
+const PT_PER_TICK: f64 = 40.0;
 
 /// Thickness of an axis line, matching a rule block's default.
 const AXIS_WIDTH: f64 = 0.75;
+
+/// How much of the document's ink a gridline keeps.
+///
+/// A wash rather than a colour of its own: the grid then follows whatever the
+/// text is set in and stays behind it on any paper, where a fixed grey would
+/// be right on white and wrong everywhere else. It has to be read past, not
+/// read.
+const GRID_ALPHA: f32 = 0.14;
+
+/// Clearance between two neighbouring labels on an axis, in ems.
+///
+/// Below this they are not overlapping yet, but they read as one word.
+const CLEARANCE_EM: f64 = 0.6;
+
+/// Most of the frame a vertical axis's labels may take across it.
+///
+/// A vertical label never collides with its neighbour — they are stacked, not
+/// set side by side — so crowding is not what goes wrong on that axis. Width
+/// is: `1000000000` down the side of a small chart spends a fifth of the
+/// picture saying what `1 bi` says. Past this share the numbers are larger
+/// than the drawing, and that is a label not fitting just as much as an
+/// overlap is.
+///
+/// A fifth and not a quarter, which was the first guess: a quarter of a 235pt
+/// frame is 59 points, and ten digits fit inside that with room to spare — so
+/// the very case this exists for slipped through.
+const SIDE_SHARE: f64 = 1.0 / 5.0;
+
+/// An eighth of a turn: what a label that will not fit flat is given.
+const TURN_COS: f64 = std::f64::consts::FRAC_1_SQRT_2;
 
 /// Share of a band given up to separate one bar from the next.
 const BAND_PADDING_INNER: f64 = 0.1;
@@ -525,12 +561,22 @@ pub(crate) fn plot(
     let field = legend.as_ref().map_or(frame, |box_| box_.leaves(frame));
 
     // ── What the labels cost ────────────────────────────────────────────────
-    let x_labels: Vec<Label> =
-        x.ticks.iter().map(|(_, text)| labels.measure(text, style)).collect();
+    //
+    // The vertical axis first, because nothing about it depends on the
+    // horizontal one — and because how much room the horizontal labels have
+    // to fit in is exactly what is left after it.
+    let mut y = y;
+    fit(
+        &mut y,
+        &chart.axes.y,
+        field.h,
+        Side::Across(field.w * SIDE_SHARE),
+        style,
+        labels,
+    );
+
     let y_labels: Vec<Label> =
         y.ticks.iter().map(|(_, text)| labels.measure(text, style)).collect();
-
-    let x_title = x.title.as_ref().map(|text| labels.measure(text, style));
     let y_title = y.title.as_ref().map(|text| labels.measure(text, style));
 
     let mut gutter = Gutter::default();
@@ -546,13 +592,44 @@ pub(crate) fn plot(
             .top
             .max(y_labels.last().map_or(0.0, |label| label.height() / 2.0));
     }
+    if let Some(title) = &y_title {
+        // Rotated a quarter turn, so what it costs across the page is its
+        // height and not its width.
+        gutter.left += gap + title.height();
+    }
+
+    // Make the horizontal labels fit what the vertical axis left over. The
+    // room is read before the horizontal labels are measured, which is what
+    // keeps this from becoming a loop: the reserve on the right is at most
+    // half a label, and it is covered by the clearance the fit insists on.
+    let mut x = x;
+    let turned = fit(
+        &mut x,
+        &chart.axes.x,
+        (field.w - gutter.left).max(0.0),
+        Side::Along,
+        style,
+        labels,
+    );
+
+    let x_labels: Vec<Label> =
+        x.ticks.iter().map(|(_, text)| labels.measure(text, style)).collect();
+    let x_title = x.title.as_ref().map(|text| labels.measure(text, style));
+
     if !x_labels.is_empty() {
-        let tallest = x_labels.iter().map(Label::height).fold(0.0, f64::max);
-        gutter.bottom += tick_length + gap + tallest;
-        if x.domain.reaches_the_edge() {
+        gutter.bottom += tick_length + gap + turned.depth(&x_labels);
+        if turned == Turn::Flat && x.domain.reaches_the_edge() {
             gutter.right = gutter
                 .right
                 .max(x_labels.last().map_or(0.0, |label| label.width / 2.0));
+        }
+        if turned == Turn::Eighth {
+            // A turned label hangs down and to the left of its own mark, so
+            // the first one reaches back past the start of the plot. Widening
+            // the left gutter here can only narrow the plot, never change the
+            // decision that was already taken against a wider one.
+            let first = x_labels.first().map_or(0.0, |label| label.width);
+            gutter.left = gutter.left.max(first * TURN_COS);
         }
     }
 
@@ -560,11 +637,6 @@ pub(crate) fn plot(
     // took is already in the gutter, and the title adds to it.
     if let Some(title) = &x_title {
         gutter.bottom += gap + title.height();
-    }
-    if let Some(title) = &y_title {
-        // Rotated a quarter turn, so what it costs across the page is its
-        // height and not its width.
-        gutter.left += gap + title.height();
     }
 
     let plot = Rect::new(
@@ -587,12 +659,17 @@ pub(crate) fn plot(
 
     let mut items = Vec::new();
     if plot.w > 0.0 && plot.h > 0.0 {
-        // Marks first, axes over them: an axis line under a bar is a line the
-        // bar rubs out, and the rule a reader measures against has to be the
-        // one they can see.
+        // The grid first, under everything: it is there to be read past, and
+        // a gridline over a bar is a line drawn on the data.
+        grid(&mut items, &x, &x_scale, &chart.axes.x, plot, style, true);
+        grid(&mut items, &y, &y_scale, &chart.axes.y, plot, style, false);
+
+        // Then the marks, and the axes over them: an axis line under a bar is
+        // a line the bar rubs out, and the rule a reader measures against has
+        // to be the one they can see.
         items.extend(marks(chart, &drawn, &x_scale, &y_scale, plot, style, &mut issues));
 
-        emit_x(&mut items, &x, &x_scale, &x_labels, x_title, plot, style, labels, tick_length, gap);
+        emit_x(&mut items, &x, &x_scale, &x_labels, x_title, plot, style, labels, tick_length, gap, turned);
         emit_y(&mut items, &y, &y_scale, &y_labels, y_title, plot, style, labels, tick_length, gap);
 
         if let Some(box_) = &legend {
@@ -1173,6 +1250,189 @@ fn lines(chart: &ChartFrame, series: &[Series<'_>], x: &Scale, y: &Scale) -> Vec
     items
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Making the labels fit
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Whether the labels of an axis are written flat or turned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Turn {
+    Flat,
+    /// An eighth of a turn, reading up to the right, with the label's far end
+    /// at its own mark.
+    Eighth,
+}
+
+impl Turn {
+    /// How far the labels reach below the axis.
+    fn depth(self, measured: &[Label]) -> f64 {
+        match self {
+            Turn::Flat => measured.iter().map(Label::height).fold(0.0, f64::max),
+            // Turned, a label's own length is most of what it costs downward.
+            Turn::Eighth => {
+                let longest = measured.iter().map(|label| label.width).fold(0.0, f64::max);
+                let tallest = measured.iter().map(Label::height).fold(0.0, f64::max);
+                longest * TURN_COS + tallest * TURN_COS
+            }
+        }
+    }
+}
+
+/// Make an axis's labels fit the room it has, by the three escapes in order.
+///
+/// **Fewer marks first**, because a mark on a continuum is a sample of it and
+/// dropping some loses nothing. A list of names is not a continuum: sampling
+/// it would leave bars nobody can identify, so a categorical axis skips this
+/// escape entirely. Nor is it taken when the author asked for a count — that
+/// was an instruction, not a default.
+///
+/// **Then a shorter way of writing the number**, because `1200` and `1,2 mil`
+/// say the same thing and one of them fits.
+///
+/// **Turning them is last**, and only because the alternative is worse.
+/// Turned type is read slowly, and an axis is meant to be read at a glance.
+/// It is also offered to the horizontal axis alone: turning the numbers down
+/// the side of a chart makes them no narrower and much harder to read.
+fn fit(
+    draft: &mut Draft,
+    axis: &AxisSpec,
+    room: f64,
+    side: Side,
+    style: &ResolvedStyle,
+    labels: &dyn Labels,
+) -> Turn {
+    if draft.ticks.is_empty() || room <= 0.0 {
+        return Turn::Flat;
+    }
+
+    let clearance = style.font_size * CLEARANCE_EM;
+    let fits = |ticks: &[(Tick, String)]| {
+        let measured: Vec<Label> =
+            ticks.iter().map(|(_, text)| labels.measure(text, style)).collect();
+
+        // A vertical axis's labels are stacked, so what crowds them is their
+        // height — and what spoils the chart is their width, which is checked
+        // against the room the drawing would otherwise have.
+        if let Side::Across(budget) = side
+            && measured.iter().any(|label| label.width > budget)
+        {
+            return false;
+        }
+
+        // Measured against a scale laid on the room itself: where the marks
+        // fall relative to one another is all this needs, and that is settled
+        // by the domain long before the plot is.
+        let probe = draft.domain.scale((0.0, room));
+        let placed: Vec<(f64, f64)> = ticks
+            .iter()
+            .zip(&measured)
+            .filter_map(|((tick, _), label)| {
+                let extent = match side {
+                    Side::Along => label.width,
+                    Side::Across(_) => label.height(),
+                };
+                Some((offset(tick, &probe)?, extent))
+            })
+            .collect();
+        placed.windows(2).all(|pair| {
+            (pair[1].0 - pair[0].0).abs() >= (pair[0].1 + pair[1].1) / 2.0 + clearance
+        })
+    };
+
+    if fits(&draft.ticks) {
+        return Turn::Flat;
+    }
+
+    // ── One: fewer marks ────────────────────────────────────────────────────
+    //
+    // A count the author asked for needs no guard here. `marks_of` honours it
+    // whatever is wished of it, so every attempt below comes back the same
+    // length and none is taken. One place decides what an explicit count
+    // means; a second copy of that rule here would be one more to keep in step.
+    if matches!(draft.domain, Domain::Continuous { .. }) {
+        for want in (2..draft.ticks.len()).rev() {
+            let fewer = marks_of(&draft.domain, axis, want);
+            if fewer.len() < draft.ticks.len() && fits(&fewer) {
+                draft.ticks = fewer;
+                return Turn::Flat;
+            }
+        }
+    }
+
+    // ── Two: a shorter format ───────────────────────────────────────────────
+    if let Some(shorter) = shorten(&draft.ticks)
+        && fits(&shorter)
+    {
+        draft.ticks = shorter;
+        return Turn::Flat;
+    }
+
+    // ── Three: turn them ────────────────────────────────────────────────────
+    //
+    // Only across the foot of a chart. Down its side a turned number is no
+    // narrower than a flat one and far slower to read, so a vertical axis
+    // that has run out of escapes writes its labels out and lets them be wide.
+    match side {
+        Side::Along => Turn::Eighth,
+        Side::Across(_) => Turn::Flat,
+    }
+}
+
+/// Which way the axis being fitted runs.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Side {
+    /// Across the foot: labels sit next to one another and crowd by width.
+    Along,
+    /// Down the side: labels stack and crowd by height, and may take no more
+    /// than this much of the frame across it.
+    Across(f64),
+}
+
+/// The same marks, written with a scale word instead of the zeros.
+///
+/// `None` when the marks are names, or when no scale word shortens them. The
+/// divisor is chosen so every mark stays a whole number — `200 mil` reads,
+/// `0,2 mi` does not — and zero is written plain, because "0 mil" is not
+/// something anybody writes.
+fn shorten(ticks: &[(Tick, String)]) -> Option<Vec<(Tick, String)>> {
+    let values: Vec<f64> = ticks
+        .iter()
+        .map(|(tick, _)| match tick {
+            Tick::At(value) => Some(*value),
+            Tick::In(_) => None,
+        })
+        .collect::<Option<Vec<f64>>>()?;
+
+    let mut chosen: Option<(f64, &str)> = None;
+    for (divisor, word) in [(1e9, "bi"), (1e6, "mi"), (1e3, "mil")] {
+        if values
+            .iter()
+            .all(|value| *value == 0.0 || (value / divisor).abs() >= 1.0)
+        {
+            chosen = Some((divisor, word));
+            break;
+        }
+    }
+    let (divisor, word) = chosen?;
+
+    let scaled: Vec<f64> = values.iter().map(|value| value / divisor).collect();
+    let written = label_numbers(&scaled);
+    Some(
+        ticks
+            .iter()
+            .zip(values)
+            .zip(written)
+            .map(|(((tick, _), value), text)| {
+                let tick = match tick {
+                    Tick::At(at) => Tick::At(*at),
+                    Tick::In(name) => Tick::In(name.clone()),
+                };
+                (tick, if value == 0.0 { "0".to_string() } else { format!("{text} {word}") })
+            })
+            .collect(),
+    )
+}
+
 /// Where a mark sits along its axis, whichever kind of axis it is.
 ///
 /// A band's mark belongs in the middle of the band and not at its edge: the
@@ -1199,6 +1459,7 @@ fn emit_x(
     labels: &dyn Labels,
     tick_length: f64,
     gap: f64,
+    turn: Turn,
 ) {
     if !axis.visible {
         return;
@@ -1207,22 +1468,41 @@ fn emit_x(
     let baseline_y = plot.bottom();
     items.push(rule(plot.x, baseline_y, plot.right(), baseline_y, style));
 
-    let mut tallest: f64 = 0.0;
+    let top = baseline_y + tick_length + gap;
     for ((tick, text), label) in axis.ticks.iter().zip(measured) {
         let Some(at) = offset(tick, scale) else { continue };
-        tallest = tallest.max(label.height());
-
         items.push(rule(at, baseline_y, at, baseline_y + tick_length, style));
-        items.extend(labels.draw(
-            text,
-            style,
-            at - label.width / 2.0,
-            baseline_y + tick_length + gap + label.ascent,
-        ));
+
+        match turn {
+            Turn::Flat => items.extend(labels.draw(
+                text,
+                style,
+                at - label.width / 2.0,
+                top + label.ascent,
+            )),
+            Turn::Eighth => {
+                // An eighth of a turn, reading up to the right, with the far
+                // end of the label at its own mark. Drawn from the origin of
+                // a group whose matrix carries it there: a point `(u, v)`
+                // lands at `(cu + cv + e, -cu + cv + f)` for `c` the cosine
+                // of the turn, so the run's far end — `(width, 0)` — sits at
+                // `(c·width + e, -c·width + f)`, and that is what is pinned
+                // to the mark.
+                let c = TURN_COS;
+                let e = at - c * label.width;
+                let f = top + c * label.width + label.ascent * c;
+                items.push(DisplayItem::Group(DisplayGroup {
+                    transform: Some([c, -c, c, c, e, f]),
+                    items: labels.draw(text, style, 0.0, 0.0),
+                    ..DisplayGroup::new()
+                }));
+            }
+        }
     }
 
     if let (Some(title), Some(text)) = (title, axis.title.as_ref()) {
-        let below = if measured.is_empty() { 0.0 } else { tick_length + gap + tallest };
+        let below =
+            if measured.is_empty() { 0.0 } else { tick_length + gap + turn.depth(measured) };
         items.extend(labels.draw(
             text,
             style,
@@ -1286,6 +1566,47 @@ fn emit_y(
         items: labels.draw(text, style, 0.0, 0.0),
         ..DisplayGroup::new()
     }));
+}
+
+/// Rules across the plot, one at every mark of an axis that asked for them.
+///
+/// Honoured on whichever axis declares it, categorical included: a grid
+/// through the middle of a band is not what most charts want, but it is what
+/// the author asked for, and second-guessing a declaration is how a document
+/// stops meaning what it says.
+#[allow(clippy::too_many_arguments)]
+fn grid(
+    items: &mut Vec<DisplayItem>,
+    axis: &Draft,
+    scale: &Scale,
+    spec: &AxisSpec,
+    plot: Rect,
+    style: &ResolvedStyle,
+    vertical: bool,
+) {
+    if !spec.grid || !axis.visible {
+        return;
+    }
+
+    let mut colour = style.color;
+    colour.a *= GRID_ALPHA;
+
+    for (tick, _) in &axis.ticks {
+        let Some(at) = offset(tick, scale) else { continue };
+        let (x1, y1, x2, y2) = if vertical {
+            (at, plot.y, at, plot.bottom())
+        } else {
+            (plot.x, at, plot.right(), at)
+        };
+        items.push(DisplayItem::Line(LineItem {
+            x1,
+            y1,
+            x2,
+            y2,
+            stroke: Stroke { color: colour, width: AXIS_WIDTH, dash: None },
+            source: None,
+        }));
+    }
 }
 
 fn rule(x1: f64, y1: f64, x2: f64, y2: f64, style: &ResolvedStyle) -> DisplayItem {
@@ -2395,5 +2716,468 @@ mod tests {
         distinct.sort_by(f64::total_cmp);
         distinct.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
         assert!(distinct.len() > 1, "oito nomes longos não cabem numa linha: {baselines:?}");
+    }
+
+    // ── Grelha ──────────────────────────────────────────────────────────────
+
+    /// Lines that cross the whole plot, which is what a gridline is.
+    fn gridlines(out: &Plotted) -> Vec<LineItem> {
+        out.items
+            .iter()
+            .filter_map(|item| match item {
+                DisplayItem::Line(line) => {
+                    let across = (line.x1 - out.plot.x).abs() < 1e-9
+                        && (line.x2 - out.plot.right()).abs() < 1e-9;
+                    let down = (line.y1 - out.plot.y).abs() < 1e-9
+                        && (line.y2 - out.plot.bottom()).abs() < 1e-9;
+                    (across || down).then(|| line.clone())
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn no_grid_unless_it_was_asked_for() {
+        let out = plot(&chart(bare()), &rows(&[("jan", 5.0), ("fev", 9.0)]), &style(), &Ruler, FRAME);
+        // The axis lines themselves span the plot, so what is counted is a
+        // line that is neither of them.
+        let extra = gridlines(&out).len();
+        assert_eq!(extra, 2, "só os dois eixos: {extra}");
+    }
+
+    #[test]
+    fn a_grid_is_one_line_per_mark_and_a_wash_of_the_ink() {
+        let mut axes = bare();
+        axes.y.grid = true;
+        let out = plot(&chart(axes), &rows(&[("jan", 5.0), ("fev", 9.0)]), &style(), &Ruler, FRAME);
+
+        let faint: Vec<LineItem> = gridlines(&out)
+            .into_iter()
+            .filter(|line| line.stroke.color.a < style().color.a)
+            .collect();
+
+        // One per mark of the axis that asked, and the marks are whatever the
+        // fitting left — read off the chart rather than guessed at here.
+        let marks = runs(&out.items)
+            .into_iter()
+            .filter(|run| run.x < out.plot.x && run.text.parse::<f64>().is_ok())
+            .count();
+        assert!(marks > 1, "há marcas no eixo vertical: {marks}");
+        assert_eq!(faint.len(), marks, "uma linha de grelha por marca");
+
+        for line in &faint {
+            assert!(
+                (line.x1 - out.plot.x).abs() < 1e-9 && (line.x2 - out.plot.right()).abs() < 1e-9,
+                "a grelha do eixo vertical atravessa o desenho: {line:?}",
+            );
+            assert!(line.stroke.color.a < 0.3, "e é um lavado, não tinta: {}", line.stroke.color.a);
+        }
+    }
+
+    #[test]
+    fn the_grid_goes_under_the_marks_and_not_over_them() {
+        let mut axes = bare();
+        axes.y.grid = true;
+        let out = plot(&chart(axes), &rows(&[("jan", 5.0)]), &style(), &Ruler, FRAME);
+
+        let first_grid = out
+            .items
+            .iter()
+            .position(|item| {
+                matches!(item, DisplayItem::Line(l) if l.stroke.color.a < style().color.a)
+            })
+            .expect("uma linha de grelha");
+        let first_bar = out
+            .items
+            .iter()
+            .position(|item| matches!(item, DisplayItem::Rect(_)))
+            .expect("uma barra");
+        assert!(first_grid < first_bar, "a grelha lê-se por trás, não por cima");
+    }
+
+    // ── O rótulo que não cabe ───────────────────────────────────────────────
+
+    /// A continuous horizontal axis over `span`, in a frame `wide` points wide.
+    fn wide_axis(span: f64, wide: f64) -> Plotted {
+        let mut spec = chart(bare());
+        spec.mark = Mark::Line;
+        spec.encoding.x = Channel { field: "t".into(), ..Channel::default() };
+        let data: Vec<Row> = [0.0, span]
+            .iter()
+            .map(|t| {
+                Row::from([
+                    ("t".to_string(), Value::Number(*t)),
+                    ("v".to_string(), Value::Number(1.0)),
+                ])
+            })
+            .collect();
+        plot(&spec, &data, &style(), &Ruler, Rect::new(0.0, 0.0, wide, 200.0))
+    }
+
+    #[test]
+    fn a_crowded_numeric_axis_drops_marks_before_anything_else() {
+        // A mark on a continuum is a sample of it, so dropping some loses
+        // nothing. Asked of `fit` directly, and of one axis rather than two
+        // frames: the first version of this test compared a narrow chart
+        // against a wide one, and those get different tick counts from the
+        // frame alone — so it passed with the escape taken out altogether.
+        let ticks = |axis: &AxisSpec, room: f64| {
+            let data: Vec<Row> = [0.0, 1000.0]
+                .iter()
+                .map(|t| {
+                    Row::from([
+                        ("t".to_string(), Value::Number(*t)),
+                        ("v".to_string(), Value::Number(1.0)),
+                    ])
+                })
+                .collect();
+            let channel = Channel { field: "t".into(), ..Channel::default() };
+            let mut drafted =
+                draft(&channel, axis, &data, Mark::Line, 12, "x", &mut Vec::new());
+            let before = drafted.ticks.len();
+            let turn = fit(&mut drafted, axis, room, Side::Along, &style(), &Ruler);
+            (before, drafted.ticks.len(), turn)
+        };
+
+        let axis = AxisSpec { title: Some(String::new()), ..AxisSpec::default() };
+        let (before, after, turn) = ticks(&axis, 90.0);
+        assert!(before > 6, "há marcas a mais para o espaço dado: {before}");
+        assert_eq!(turn, Turn::Flat, "menos marcas resolve, sem virar nada");
+        assert!(after < before, "{after} contra {before}");
+        assert!(after >= 2, "mas nunca abaixo de duas");
+    }
+
+    #[test]
+    fn a_count_the_author_asked_for_is_an_instruction_and_not_a_default() {
+        // The first escape revises a default. An explicit count is not a
+        // default, so it survives even when it crowds — and what gives way
+        // instead is the last escape.
+        let data: Vec<Row> = [0.0, 1000.0]
+            .iter()
+            .map(|t| {
+                Row::from([
+                    ("t".to_string(), Value::Number(*t)),
+                    ("v".to_string(), Value::Number(1.0)),
+                ])
+            })
+            .collect();
+        let channel = Channel { field: "t".into(), ..Channel::default() };
+        let axis =
+            AxisSpec { title: Some(String::new()), ticks: Some(12), ..AxisSpec::default() };
+
+        let mut drafted = draft(&channel, &axis, &data, Mark::Line, 12, "x", &mut Vec::new());
+        let before = drafted.ticks.len();
+        let turn = fit(&mut drafted, &axis, 60.0, Side::Along, &style(), &Ruler);
+        assert_eq!(drafted.ticks.len(), before, "as marcas pedidas ficam todas");
+        assert_eq!(turn, Turn::Eighth, "e o que cede é a orientação");
+    }
+
+    #[test]
+    fn a_shorter_number_is_tried_before_the_labels_are_turned() {
+        // Where fewer marks is not on the table — the author fixed the count
+        // — a shorter way of writing the same number is what stands between
+        // the axis and turned type. Written out, the three marks need 107
+        // points to sit side by side; written short they need 77, and the
+        // axis below has 90.
+        let data: Vec<Row> = [0.0, 1e9]
+            .iter()
+            .map(|t| {
+                Row::from([
+                    ("t".to_string(), Value::Number(*t)),
+                    ("v".to_string(), Value::Number(1.0)),
+                ])
+            })
+            .collect();
+        let channel = Channel { field: "t".into(), ..Channel::default() };
+        let axis =
+            AxisSpec { title: Some(String::new()), ticks: Some(2), ..AxisSpec::default() };
+
+        let mut drafted = draft(&channel, &axis, &data, Mark::Line, 2, "x", &mut Vec::new());
+        assert_eq!(
+            drafted.ticks.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>(),
+            vec!["0", "500000000", "1000000000"],
+            "escritos por extenso, não cabem",
+        );
+
+        let turn = fit(&mut drafted, &axis, 90.0, Side::Along, &style(), &Ruler);
+        assert_eq!(turn, Turn::Flat, "a forma curta resolve, sem virar nada");
+        assert_eq!(
+            drafted.ticks.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>(),
+            vec!["0", "500 mi", "1000 mi"],
+        );
+    }
+
+    #[test]
+    fn the_labels_that_survive_never_touch_each_other() {
+        for wide in [120.0, 200.0, 340.0, 500.0] {
+            let out = wide_axis(1_000_000.0, wide);
+            let mut placed: Vec<(f64, f64)> = runs(&out.items)
+                .into_iter()
+                .filter(|run| run.y > out.plot.bottom())
+                .map(|run| (run.x, run.width))
+                .collect();
+            placed.sort_by(|a, b| a.0.total_cmp(&b.0));
+            for pair in placed.windows(2) {
+                assert!(
+                    pair[0].0 + pair[0].1 <= pair[1].0 + 1e-9,
+                    "rótulos sobrepostos numa moldura de {wide}: {placed:?}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_number_too_long_is_written_shorter_before_it_is_turned() {
+        // `1200000` will not fit five times across a narrow axis; `1,2 mi`
+        // says exactly the same and does.
+        assert_eq!(
+            shorten(&[
+                (Tick::At(0.0), "0".into()),
+                (Tick::At(500_000.0), "500000".into()),
+                (Tick::At(1_000_000.0), "1000000".into()),
+            ])
+            .expect("encurta")
+            .into_iter()
+            .map(|(_, text)| text)
+            .collect::<Vec<_>>(),
+            vec!["0".to_string(), "500 mil".to_string(), "1000 mil".to_string()],
+        );
+
+        // The divisor keeps every mark a whole number: `0,2 mi` reads worse
+        // than `200 mil`, so `mil` is the one chosen.
+        assert!(
+            shorten(&[(Tick::At(0.0), "0".into()), (Tick::At(200.0), "200".into())]).is_none(),
+            "nada a encurtar abaixo do milhar",
+        );
+        assert!(
+            shorten(&[(Tick::In("jan".into()), "jan".into())]).is_none(),
+            "um nome não tem forma curta",
+        );
+    }
+
+    #[test]
+    fn names_are_turned_rather_than_thinned_out() {
+        // A list of names is not a continuum: dropping every other one leaves
+        // bars nobody can identify. So the escape a categorical axis takes is
+        // the last one, and it takes it rather than losing a name.
+        let names = [
+            "Fotossíntese", "Respiração", "Transpiração", "Germinação",
+            "Polinização", "Frutificação", "Senescência", "Dormência",
+        ];
+        let data: Vec<Row> = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                Row::from([
+                    ("mes".to_string(), Value::Text((*name).to_string())),
+                    ("v".to_string(), Value::Number(index as f64 + 1.0)),
+                ])
+            })
+            .collect();
+
+        let out = plot(&chart(bare()), &data, &style(), &Ruler, Rect::new(0.0, 0.0, 260.0, 200.0));
+
+        let written: Vec<String> = runs(&out.items)
+            .into_iter()
+            .map(|run| run.text)
+            .filter(|text| names.contains(&text.as_str()))
+            .collect();
+        assert_eq!(written.len(), 8, "nenhum nome se perde: {written:?}");
+
+        // Turned, which means each one lives inside a group with a matrix.
+        let turned = out
+            .items
+            .iter()
+            .filter(|item| matches!(item, DisplayItem::Group(g) if g.transform.is_some()))
+            .count();
+        assert_eq!(turned, 8, "e todos virados");
+    }
+
+    #[test]
+    fn a_turned_label_ends_at_its_own_mark() {
+        let names = ["Fotossíntese", "Respiração", "Transpiração", "Germinação"];
+        let data: Vec<Row> = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                Row::from([
+                    ("mes".to_string(), Value::Text((*name).to_string())),
+                    ("v".to_string(), Value::Number(index as f64 + 1.0)),
+                ])
+            })
+            .collect();
+        let out = plot(&chart(bare()), &data, &style(), &Ruler, Rect::new(0.0, 0.0, 150.0, 200.0));
+
+        for item in &out.items {
+            let DisplayItem::Group(group) = item else { continue };
+            let Some([a, b, c, d, e, f]) = group.transform else { continue };
+            let run = runs(&group.items).into_iter().next().expect("texto");
+            if !names.contains(&run.text.as_str()) {
+                continue;
+            }
+
+            // The far end of the run, carried through the matrix, is what sits
+            // at the mark. Where the mark is comes from the scale, so this
+            // checks the two against each other rather than against a number.
+            let far = (a * run.width + c * 0.0 + e, b * run.width + d * 0.0 + f);
+            let at = out.x.map_category(&run.text).expect("categoria")
+                + out.x.bandwidth() / 2.0;
+            assert!(
+                (far.0 - at).abs() < 1e-6,
+                "`{}` acaba em {} e a marca está em {at}",
+                run.text,
+                far.0,
+            );
+            assert!(far.1 > out.plot.bottom(), "e abaixo do eixo");
+        }
+    }
+
+    #[test]
+    fn turned_labels_stay_inside_the_frame_they_were_measured_for() {
+        let names = ["Fotossíntese", "Respiração", "Transpiração", "Germinação"];
+        let data: Vec<Row> = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                Row::from([
+                    ("mes".to_string(), Value::Text((*name).to_string())),
+                    ("v".to_string(), Value::Number(index as f64 + 1.0)),
+                ])
+            })
+            .collect();
+        let frame = Rect::new(0.0, 0.0, 150.0, 200.0);
+        let out = plot(&chart(bare()), &data, &style(), &Ruler, frame);
+
+        for item in &out.items {
+            let DisplayItem::Group(group) = item else { continue };
+            let Some([a, b, c, d, e, f]) = group.transform else { continue };
+            let run = runs(&group.items).into_iter().next().expect("texto");
+            if !names.contains(&run.text.as_str()) {
+                continue;
+            }
+            // Both ends of the turned run, in page coordinates.
+            for u in [0.0, run.width] {
+                let (x, y) = (a * u + c * 0.0 + e, b * u + d * 0.0 + f);
+                assert!(
+                    x >= frame.x - 1e-6 && x <= frame.right() + 1e-6,
+                    "`{}` sai pela lateral: {x} fora de {frame:?}",
+                    run.text,
+                );
+                assert!(
+                    y <= frame.bottom() + 1e-6,
+                    "`{}` cai abaixo do pé: {y} > {}",
+                    run.text,
+                    frame.bottom(),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_vertical_axis_of_huge_numbers_is_shortened_rather_than_left_wide() {
+        // Down the side, labels never collide — they are stacked. What goes
+        // wrong there is width: written out, `1000000000` spent a fifth of a
+        // small chart saying what `1 bi` says, and the drawing paid for it.
+        let mut spec = chart(bare());
+        spec.mark = Mark::Line;
+        spec.encoding.x = Channel { field: "t".into(), ..Channel::default() };
+        let data: Vec<Row> = [(0.0, 0.0), (100.0, 1e9)]
+            .iter()
+            .map(|(t, v)| {
+                Row::from([
+                    ("t".to_string(), Value::Number(*t)),
+                    ("v".to_string(), Value::Number(*v)),
+                ])
+            })
+            .collect();
+
+        let frame = Rect::new(0.0, 0.0, 235.0, 175.0);
+        let out = plot(&spec, &data, &style(), &Ruler, frame);
+
+        let side: Vec<String> = runs(&out.items)
+            .into_iter()
+            .filter(|run| run.x < out.plot.x)
+            .map(|run| run.text)
+            .collect();
+        assert!(
+            side.iter().any(|text| text.ends_with("mi") || text.ends_with("bi")),
+            "os números do lado vêm em forma curta: {side:?}",
+        );
+        assert!(
+            side.iter().all(|text| text.len() <= 8),
+            "e nenhum fica por extenso: {side:?}",
+        );
+        assert!(
+            out.plot.x <= frame.w * SIDE_SHARE,
+            "a margem esquerda cabe no quarto que lhe é dado: {} de {}",
+            out.plot.x,
+            frame.w,
+        );
+    }
+
+    #[test]
+    fn a_vertical_axis_is_never_turned() {
+        // Turned, a name down the side is no narrower and much slower to
+        // read. When the escapes run out it is written out and left wide.
+        let names: Vec<String> = (0..6).map(|i| format!("categoria-longa-{i}")).collect();
+        let data: Vec<Row> = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                Row::from([
+                    ("v".to_string(), Value::Number(index as f64 + 1.0)),
+                    ("mes".to_string(), Value::Text(name.clone())),
+                ])
+            })
+            .collect();
+
+        let mut spec = chart(bare());
+        spec.encoding.x = Channel { field: "v".into(), ..Channel::default() };
+        spec.encoding.y = Channel {
+            field: "mes".into(),
+            kind: Some(FieldKind::Categorical),
+            ..Channel::default()
+        };
+
+        let out = plot(&spec, &data, &style(), &Ruler, Rect::new(0.0, 0.0, 200.0, 160.0));
+        let written: Vec<String> = runs(&out.items).into_iter().map(|r| r.text).collect();
+        for name in &names {
+            assert!(written.contains(name), "`{name}` continua escrito: {written:?}");
+        }
+        assert!(
+            !out.items
+                .iter()
+                .any(|item| matches!(item, DisplayItem::Group(g) if g.transform.is_some_and(
+                    |m| m[0] != 0.0
+                ))),
+            "e nenhum de esguelha",
+        );
+    }
+
+    #[test]
+    fn an_axis_that_fits_is_left_alone() {
+        // The escapes are for axes that need them. Four short names across a
+        // wide frame need none, and taking one anyway would turn type nobody
+        // has to read slowly.
+        let out = plot(
+            &chart(bare()),
+            &rows(&[("jan", 1.0), ("fev", 2.0), ("mar", 3.0), ("abr", 4.0)]),
+            &style(),
+            &Ruler,
+            FRAME,
+        );
+        assert!(
+            !out.items
+                .iter()
+                .any(|item| matches!(item, DisplayItem::Group(g) if g.transform.is_some_and(
+                    |m| m[0] != 0.0
+                ))),
+            "nada virado de esguelha",
+        );
+        let written: Vec<String> = runs(&out.items).into_iter().map(|r| r.text).collect();
+        for name in ["jan", "fev", "mar", "abr"] {
+            assert!(written.contains(&name.to_string()), "`{name}` continua lá: {written:?}");
+        }
     }
 }
