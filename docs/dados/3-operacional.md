@@ -1118,10 +1118,32 @@ autor escreveu na página um.
 
 ### T5.2 — Inspetor da tabela · M
 
-**Estado: feita.** `table.ts` (novo) e a secção «Tabela» no inspetor.
+**Estado: feita — e refeita depois, porque o modelo estava errado.**
+`table.ts` (novo) e a secção «Tabela» no inspetor.
 
-**O cursor estar numa célula é o que selecciona a tabela.** Não há outra coisa
-que isso possa significar, e põe os controles onde a mão já está.
+**A primeira versão só mostrava a tabela quando o cursor estava dentro de uma
+célula.** Isso é coerente com o motor, onde uma tabela é um bloco dentro de um
+frame de texto — e é o modelo errado para quem usa. Quem clica numa tabela
+espera uma tabela; o que aparecia era uma caixa de texto, com controles de
+colunas de prosa e alinhamento vertical que nada dizem a uma grelha de células,
+e nenhum sinal de que havia mais alguma coisa ali.
+
+**Um frame cujo conteúdo inteiro é uma tabela *é* uma tabela**, e o editor
+passa a dizê-lo em todo o lado: o painel de camadas chama-lhe «Tabela 3×3» com
+o ícone certo, seleccioná-lo abre a secção da tabela, e os controles de prosa
+desaparecem. As duas entradas coexistem — o cursor numa célula é a precisa, e
+os seus controles agem sobre *aquela* célula; seleccionar a moldura é a
+ordinária, e usa a primeira.
+
+**Faltavam também a cor e a altura da célula**, que estavam na lista do que se
+pediu e não na minha. A cor segue a forma que o preenchimento do frame já usa:
+a palavra «Nenhuma» até haver uma, porque um selector a mostrar preto para uma
+célula sem cor estaria a dizer uma coisa falsa.
+
+**E os afixos.** `num` desenhava sempre uma caixa de 14px, certa para as letras
+únicas da geometria — `X`, `Y`, `L`, `A` — e estreita demais para uma palavra,
+que corria por cima do próprio valor. Passou a aceitar a mesma opção larga que
+os outros controles já tinham.
 
 **Uma tabela é normalizada à entrada**, com cada célula a receber um `x` e um
 `y` explícitos. A abreviatura do esquema — "a próxima casa livre" — é boa para

@@ -23,6 +23,7 @@ import {
   insertColumn,
   insertRow,
   place,
+  tableOfFrame,
   removeColumn,
   removeRow,
   trackAmount,
@@ -104,9 +105,11 @@ export class Inspector {
       this.renderTextSelection();
     }
 
-    // The caret being in a cell is what selects a table. There is nothing else
-    // it could mean, and it puts the controls where the hand already is.
-    this.renderTable();
+    // Two ways in, because there are two ways a person reaches for a table.
+    // The caret in a cell is the precise one — those controls act on *that*
+    // cell. Selecting the frame is the ordinary one, and a frame whose whole
+    // content is a table is a table: showing a text box there was the bug.
+    this.renderTable(state);
 
     if (state.selected.length === 1) {
       const id = state.selected[0]!;
@@ -439,7 +442,12 @@ export class Inspector {
           }),
     );
 
-    if (frame.type === "text") this.renderTextFrame(frame, list, change);
+    // A frame that is a table gets the table panel instead of the prose one:
+    // columns, vertical alignment and overflow are about a column of text,
+    // and none of them means anything to a grid of cells.
+    if (frame.type === "text" && !tableOfFrame(frame)) {
+      this.renderTextFrame(frame, list, change);
+    }
     if (frame.type === "image") this.renderImageFrame(frame, change);
     if (frame.type === "shape") this.renderShapeFrame(frame, change);
     if (frame.type === "chart") this.renderChartFrame(frame, change);
@@ -1190,12 +1198,19 @@ export class Inspector {
    * Everything here writes through `docChange`, so one control is one undo
    * step — the same contract every other control in this panel keeps.
    */
-  private renderTable(): void {
+  private renderTable(state: InspectorState): void {
     const here = this.text.cellUnderCaret();
-    if (!here) return;
+    const selected =
+      state.selected.length === 1 ? tableOfFrame(this.store.frame(state.selected[0]!)) : null;
 
-    const { table, cell } = here;
+    const table = here?.table ?? selected;
+    if (!table) return;
+
     const resolved = place(table);
+    // Without a caret there is still a cell the controls have to mean
+    // something about, and the first one is the only defensible choice: it is
+    // where a table starts and where the eye goes.
+    const cell = here?.cell ?? resolved.cells[0]?.cell ?? 0;
     const spot = resolved.cells.find((entry) => entry.cell === cell);
     if (!spot) return;
 
@@ -1267,16 +1282,16 @@ export class Inspector {
                     t.columns ??= [];
                     t.columns[columnIndex] = trackOf(kind, value);
                   }),
-                { min: 0, field: "table.trackAmount" },
+                { min: 0, wide: true, field: "table.trackAmount" },
               ),
         ]),
 
         grid(2, [
           num(
-            "Rec.",
+            "Recuo",
             parseLen(fourSides(table.inset ?? 0)[0]),
             (value) => change((t) => void (t.inset = value)),
-            { min: 0, title: "Espaço dentro de cada célula", field: "table.inset" },
+            { min: 0, wide: true, title: "Espaço dentro de cada célula", field: "table.inset" },
           ),
           num(
             "Vão",
@@ -1286,7 +1301,7 @@ export class Inspector {
                 t.columnGap = value;
                 t.rowGap = value;
               }),
-            { min: 0, title: "Espaço entre células", field: "table.gap" },
+            { min: 0, wide: true, title: "Espaço entre células", field: "table.gap" },
           ),
         ]),
 
@@ -1312,23 +1327,87 @@ export class Inspector {
           "table.stripe",
         ),
 
-        pick(
-          [
-            { value: "top", label: "topo" },
-            { value: "middle", label: "meio" },
-            { value: "bottom", label: "base" },
-            { value: "baseline", label: "linha de base" },
-          ],
-          table.cells?.[cell]?.verticalAlign ?? "top",
-          (value) =>
-            change((t) => {
-              const target = t.cells?.[cell];
-              if (target) target.verticalAlign = value as CellAlign;
-            }),
-          "Célula",
-          "table.cellAlign",
-        ),
+        grid(2, [
+          pick(
+            [
+              { value: "top", label: "topo" },
+              { value: "middle", label: "meio" },
+              { value: "bottom", label: "base" },
+              { value: "baseline", label: "base do texto" },
+            ],
+            table.cells?.[cell]?.verticalAlign ?? "top",
+            (value) =>
+              change((t) => {
+                const target = t.cells?.[cell];
+                if (target) target.verticalAlign = value as CellAlign;
+              }),
+            "Célula",
+            "table.cellAlign",
+          ),
+          num(
+            "Altura",
+            parseLen(table.rows?.[rowIndex] ?? 0),
+            (value) =>
+              change((t) => {
+                t.rows ??= [];
+                while (t.rows.length <= rowIndex) t.rows.push("auto");
+                // Zero means "whatever the content needs", which is what a row
+                // is before anyone pins it — and the only way back to that.
+                t.rows[rowIndex] = value > 0 ? value : "auto";
+              }),
+            {
+              min: 0,
+              wide: true,
+              title: "Altura da linha; 0 deixa o conteúdo decidir",
+              field: "table.rowHeight",
+            },
+          ),
+        ]),
+
+        here ? null : note("Clique duas vezes numa célula para escrever nela", "duplo clique"),
       ]),
+    );
+
+    // The cell's own colour, in the shape the frame's fill already uses: a
+    // swatch when there is one, and the word "Nenhum" when there is not. A
+    // colour picker showing black for a cell that has no fill would be
+    // telling the author something untrue.
+    const painted = table.cells?.[cell]?.fill;
+    this.root.append(
+      painted
+        ? section(
+            "Cor da célula",
+            [
+              colorRow(
+                painted,
+                (value) =>
+                  change((t) => {
+                    const target = t.cells?.[cell];
+                    if (target) target.fill = value;
+                  }),
+                undefined,
+                "table.cellFill",
+              ),
+            ],
+            {
+              name: "trash",
+              title: "Remover a cor da célula",
+              onClick: () =>
+                change((t) => {
+                  const target = t.cells?.[cell];
+                  if (target) target.fill = null;
+                }),
+            },
+          )
+        : section("Cor da célula", [note("Nenhuma")], {
+            name: "pageAdd",
+            title: "Colorir a célula",
+            onClick: () =>
+              change((t) => {
+                const target = t.cells?.[cell];
+                if (target) target.fill = "#eef4fb";
+              }),
+          }),
     );
   }
 

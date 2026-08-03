@@ -13,6 +13,7 @@
  */
 
 import { icon } from "./icons";
+import { place, tableOfFrame } from "./table";
 import type { Store } from "./store";
 import type { DisplayList, Frame, Page } from "./types";
 
@@ -258,18 +259,7 @@ export class LayersPanel {
     const kind = document.createElement("span");
     kind.className = "layer-icon";
     kind.append(
-      icon(
-        frame.type === "text"
-          ? "text"
-          : frame.type === "image"
-            ? "image"
-            : frame.type === "group"
-              ? "group"
-              : frame.type === "chart"
-                ? "chart"
-                : (frame.shape ?? "shape"),
-        14,
-      ),
+      icon(iconFor(frame), 14),
     );
 
     const label = this.renaming === id
@@ -500,8 +490,22 @@ function forEachGroup(frames: Frame[], visit: (id: string) => void): void {
   }
 }
 
+/** The icon that says what a frame is at a glance. */
+function iconFor(frame: Frame): string {
+  if (frame.type === "text") return tableOfFrame(frame) ? "table" : "text";
+  if (frame.type === "image") return "image";
+  if (frame.type === "group") return "group";
+  if (frame.type === "chart") return "chart";
+  return frame.shape ?? "shape";
+}
+
 function defaultName(frame: Frame): string {
   if (frame.type === "text") {
+    const table = tableOfFrame(frame);
+    if (table) {
+      const grid = place(table);
+      return `Tabela ${grid.rows}×${grid.columns}`;
+    }
     const first = frame.blocks?.[0];
     if (first?.type === "paragraph") {
       const text = first.content

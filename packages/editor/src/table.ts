@@ -16,7 +16,7 @@
  * in `tests.ts` check this copy against the same cases the engine's do.
  */
 
-import type { Cell, GridLine, Paragraph, TableBlock, TrackSize } from "./types";
+import type { Cell, Frame, GridLine, Paragraph, TableBlock, TrackSize } from "./types";
 
 /** Where a cell sits once the grid is resolved. */
 export interface Placed {
@@ -127,6 +127,22 @@ export function normalizeTable(table: TableBlock): void {
   // leave it to be found later by whoever clicks near it, it is dropped here,
   // where the reason is at hand: it asked for a place the table does not have.
   table.cells = table.cells.filter((cell) => cell.x != null && cell.y != null);
+}
+
+/**
+ * The table a frame is, when it is one.
+ *
+ * A table lives in a text frame because it has to flow with the text around
+ * it — that is the engine's model and it is the right one. But a frame whose
+ * whole content is one table is not a box of prose that happens to contain a
+ * table: it *is* the table, and the editor has to say so, or the author
+ * selects it and is shown a text box.
+ */
+export function tableOfFrame(frame: Frame | null | undefined): TableBlock | null {
+  if (!frame || frame.type !== "text") return null;
+  const blocks = frame.blocks ?? [];
+  if (blocks.length !== 1) return null;
+  return blocks[0]!.type === "table" ? blocks[0]! : null;
 }
 
 /** The cell covering `(x, y)`, span included. */

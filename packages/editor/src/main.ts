@@ -1521,6 +1521,29 @@ async function boot(): Promise<void> {
     draw();
   }, 530);
 
+  // A way in for the headless harnesses, and only for them.
+  //
+  // Driving the canvas means knowing where a page coordinate lands on screen,
+  // and that depends on the zoom and the pan, which live in this closure. Vite
+  // strips this from `npm run build`, so it exists on the dev server the test
+  // runner starts and nowhere else.
+  if (import.meta.env.DEV) {
+    (window as unknown as { __editor: unknown }).__editor = {
+      store,
+      text,
+      /** Where a point on a page falls, in client coordinates. */
+      pointOf(pageIndex: number, x: number, y: number) {
+        const placement = placePages(store.list).find((p) => p.page.index === pageIndex);
+        if (!placement) return null;
+        const box = canvas.getBoundingClientRect();
+        return {
+          clientX: box.left + (placement.x + x) * view.zoom + view.panX,
+          clientY: box.top + (placement.y + y) * view.zoom + view.panY,
+        };
+      },
+    };
+  }
+
   zoomToPage(0);
   refresh();
 }

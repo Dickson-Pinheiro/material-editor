@@ -133,6 +133,14 @@ export function num(
     title?: string;
     /** Draw the affix as an icon of this name instead of as text. */
     icon?: boolean;
+    /**
+     * Give the affix the room a word needs.
+     *
+     * The default box is 14px, which is right for the single letters the
+     * geometry fields use — `X`, `Y`, `L`, `A`. A word set in it runs into
+     * its own value.
+     */
+    wide?: boolean;
     /** The document path this writes to, for tests and tooling. */
     field?: string;
   } = {},
@@ -150,7 +158,13 @@ export function num(
     if (Number.isFinite(parsed)) onChange(clampValue(parsed));
   });
 
-  const box = control(affix, input, false, options.icon === true, options.field);
+  const box = control(
+    affix,
+    input,
+    options.wide === true,
+    options.icon === true,
+    options.field,
+  );
   if (options.title) box.title = options.title;
 
   const label = box.querySelector<HTMLElement>(".affix");
