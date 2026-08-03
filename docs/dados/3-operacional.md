@@ -920,6 +920,54 @@ pares, a mutação caiu.
 
 **Depende de.** T4.3.
 
+**Estado: feita.** `layout/chart.rs` — `points`, `LegendBox`, `legend_of`,
+`leaves`, `key`, `break_rows`. 9 testes novos no módulo (391 na biblioteca).
+
+**A legenda mede-se antes dos eixos e desenha-se depois deles.** É a mesma
+ordem em duas etapas que o resto do módulo segue, e pelo mesmo motivo: quanto
+custa sabe-se do texto sozinho, e só *onde fica* precisa da geometria. A
+alternativa — os eixos medirem-se contra a moldura inteira e só depois darem
+lugar à legenda — deitaria o último rótulo de cada eixo para fora da página.
+
+Decisões que a implementação fixou:
+
+- **Duas séries ou mais têm legenda sem ninguém pedir; uma série não tem
+  nenhuma.** Com uma cor só, o título do próprio gráfico já diz o que está
+  desenhado, e uma caixa com uma tarja repete-o e rouba espaço ao desenho.
+  Com duas ou mais não é enfeite: três das oito cores da paleta ficam abaixo
+  de 3:1 contra o branco, e quem não distingue dois matizes não tem mais nada
+  a que se agarrar.
+- **A tarja tem a forma da marca que nomeia** — um bloco para barra, um traço
+  para linha, uma bola para dispersão. Ninguém tem de aprender que um quadrado
+  quer dizer linha.
+- **O texto da legenda veste a tinta do documento, nunca a cor da série.** Uma
+  cor clara que se lê como marca é ilegível como letra; a identidade vem da
+  tarja ao lado das palavras.
+- **A legenda alinha-se pela área de desenho, não pela moldura de onde foi
+  medida.** Uma legenda ao lado de um gráfico acompanha o desenho, e não a
+  mobília do eixo que fica por baixo e à esquerda dele.
+- **Uma dispersão não é arrastada até ao zero.** Só a barra e a área medem a
+  partir de uma linha de base; leituras entre 80 e 90 que chegassem ao zero
+  gastariam nove décimos da altura em vazio.
+- **Nada liga os pontos de uma dispersão.** A afirmação que ela faz é que as
+  leituras são independentes, e uma linha entre elas alegaria uma ordem que os
+  dados não têm.
+
+**Seis mutações, cinco quedas.** A sexta — contar as linhas da legenda de uma
+maneira e quebrá-las de outra — passou por tudo, porque o teste só olhava para
+a horizontal: os nomes continuavam dentro da moldura, só que a última linha
+caía por baixo do pé dela ou por cima do desenho. Duas asserções verticais
+depois, a mutação cai. É o mesmo defeito que a T4.2 teve com a tinta do
+rótulo: o que se mede e o que se desenha têm de ser a mesma conta, e o teste
+tem de olhar para o eixo onde elas divergem.
+
+**Uma observação do corpus visual, para a T4.5.** Uma dispersão de 190pt de
+altura recebe três marcas de eixo, e três marcas fazem o `nice` alargar o
+domínio de 35–110 para 0–150 — um terço da altura em branco. Não está errado
+(o `nice` nunca esconde dados) mas é grosseiro, e a causa é o `PT_PER_TICK` de
+60. O Vega-Lite usa cerca de 40 num eixo vertical. Fica anotado para a
+afinação, que é onde pertence.
+
 ### T4.5 — Grelha e afinação tipográfica · P
 
 **Regras.** Grelha atrás das marcas, em tom fraco. Rótulo que não cabe: menos

@@ -23,11 +23,12 @@
 
 use crate::color::Color;
 use crate::display::{
-    DisplayGroup, DisplayItem, FillRule, LineItem, PathCommand, PathItem, RectItem, Stroke,
+    DisplayGroup, DisplayItem, EllipseItem, FillRule, LineItem, PathCommand, PathItem, RectItem,
+    Stroke,
 };
 use crate::spec::ResolvedStyle;
 use crate::spec::chart::{
-    Axis as AxisSpec, Channel, ChartFrame, FieldKind, Mark, Row, ScaleKind, Value,
+    Axis as AxisSpec, Channel, ChartFrame, FieldKind, LegendPosition, Mark, Row, ScaleKind, Value,
 };
 use crate::units::Rect;
 
@@ -78,6 +79,15 @@ const MAX_BAR_SHARE: f64 = 1.0 / 6.0;
 
 /// Thickness of a line mark.
 const LINE_WIDTH: f64 = 1.5;
+
+/// Diameter of a scatter mark, in ems of the chart's own type.
+///
+/// Big enough to read as a mark of its own rather than a speck of dirt, and
+/// tied to the type so a chart set small gets marks to match.
+const POINT_EM: f64 = 0.6;
+
+/// Side of a legend's swatch, in ems.
+const SWATCH_EM: f64 = 0.7;
 
 /// The categorical palette, in the order the slots are handed out.
 ///
@@ -503,6 +513,17 @@ pub(crate) fn plot(
     let tick_length = style.font_size * TICK_EM;
     let gap = style.font_size * GAP_EM;
 
+    let drawn = series(chart, rows, &mut issues);
+
+    // ── What the legend costs ───────────────────────────────────────────────
+    //
+    // Taken out first, before the axes measure anything, because the axes
+    // have to fit what is left rather than the other way round: an axis that
+    // sized itself to the whole frame and then found a legend beside it would
+    // run its last label off the edge.
+    let legend = legend_of(chart, &drawn, style, labels, frame);
+    let field = legend.as_ref().map_or(frame, |box_| box_.leaves(frame));
+
     // ── What the labels cost ────────────────────────────────────────────────
     let x_labels: Vec<Label> =
         x.ticks.iter().map(|(_, text)| labels.measure(text, style)).collect();
@@ -547,10 +568,10 @@ pub(crate) fn plot(
     }
 
     let plot = Rect::new(
-        frame.x + gutter.left,
-        frame.y + gutter.top,
-        (frame.w - gutter.left - gutter.right).max(0.0),
-        (frame.h - gutter.top - gutter.bottom).max(0.0),
+        field.x + gutter.left,
+        field.y + gutter.top,
+        (field.w - gutter.left - gutter.right).max(0.0),
+        (field.h - gutter.top - gutter.bottom).max(0.0),
     );
 
     let x_scale = x.domain.scale((plot.x, plot.right()));
@@ -569,10 +590,17 @@ pub(crate) fn plot(
         // Marks first, axes over them: an axis line under a bar is a line the
         // bar rubs out, and the rule a reader measures against has to be the
         // one they can see.
-        items.extend(marks(chart, rows, &x_scale, &y_scale, plot, &mut issues));
+        items.extend(marks(chart, &drawn, &x_scale, &y_scale, plot, style, &mut issues));
 
         emit_x(&mut items, &x, &x_scale, &x_labels, x_title, plot, style, labels, tick_length, gap);
         emit_y(&mut items, &y, &y_scale, &y_labels, y_title, plot, style, labels, tick_length, gap);
+
+        if let Some(box_) = &legend {
+            // Placed against the plot and not the frame it was measured out
+            // of: a legend beside a chart lines up with the drawing, not with
+            // the axis furniture below and to the left of it.
+            items.extend(box_.emit(chart.mark, plot, frame, style, labels, gap));
+        }
     }
 
     Plotted { plot, x: x_scale, y: y_scale, items, issues }
@@ -585,8 +613,8 @@ pub(crate) fn plot(
 /// One series: the rows that share a colour.
 struct Series<'a> {
     /// What the `color` channel called it. `None` when the chart has one
-    /// series and nothing to name it after.
-    #[allow(dead_code)] // The legend of T4.4 is what reads it.
+    /// series and nothing to name it after — and one series has no legend, so
+    /// there is nothing that would have wanted the name.
     name: Option<String>,
     rows: Vec<&'a Row>,
     colour: Color,
@@ -671,20 +699,315 @@ fn position(scale: &Scale, value: Option<&Value>) -> Option<f64> {
 
 fn marks(
     chart: &ChartFrame,
-    rows: &[Row],
+    series: &[Series<'_>],
     x: &Scale,
     y: &Scale,
     plot: Rect,
+    style: &ResolvedStyle,
     issues: &mut Vec<Issue>,
 ) -> Vec<DisplayItem> {
-    let series = series(chart, rows, issues);
-
     match chart.mark {
-        Mark::Bar => bars(chart, &series, x, y, plot, issues),
-        Mark::Line => lines(chart, &series, x, y),
-        // Dispersão is T4.4 and área is T4.6. Drawing nothing is the honest
-        // state of a mark that has a vocabulary and no geometry yet.
-        Mark::Point | Mark::Area => Vec::new(),
+        Mark::Bar => bars(chart, series, x, y, plot, issues),
+        Mark::Line => lines(chart, series, x, y),
+        Mark::Point => points(chart, series, x, y, style.font_size * POINT_EM),
+        // Área is T4.6. Drawing nothing is the honest state of a mark that
+        // has a vocabulary and no geometry yet.
+        Mark::Area => Vec::new(),
+    }
+}
+
+/// One mark per observation, at the crossing of its two values.
+///
+/// No line joins them and none should: the whole claim a scatter makes is
+/// that the readings are independent, and a line through them would assert an
+/// order the data does not have.
+fn points(
+    chart: &ChartFrame,
+    series: &[Series<'_>],
+    x: &Scale,
+    y: &Scale,
+    diameter: f64,
+) -> Vec<DisplayItem> {
+    let mut items = Vec::new();
+
+    for one in series {
+        for row in &one.rows {
+            let Some(at_x) = position(x, row.get(&chart.encoding.x.field)) else {
+                continue;
+            };
+            let Some(at_y) = position(y, row.get(&chart.encoding.y.field)) else {
+                continue;
+            };
+            items.push(DisplayItem::Ellipse(EllipseItem {
+                rect: Rect::new(
+                    at_x - diameter / 2.0,
+                    at_y - diameter / 2.0,
+                    diameter,
+                    diameter,
+                ),
+                fill: Some(one.colour),
+                stroke: None,
+                source: None,
+            }));
+        }
+    }
+
+    items
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legend
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The legend, once it knows what it has to say and how much room that takes.
+///
+/// Measured before the axes and placed after them, for the same reason the
+/// axes are measured before the plot exists: what a thing costs can be known
+/// from its text alone, and only where it sits needs the geometry.
+struct LegendBox {
+    position: LegendPosition,
+    entries: Vec<(String, Color, Label)>,
+    title: Option<(String, Label)>,
+    /// Across the frame — width for a side legend, height for a row.
+    thickness: f64,
+    /// Baseline-to-baseline within the legend.
+    line: f64,
+    /// How many rows the entries were broken into. One, for a side legend.
+    rows: usize,
+    swatch: f64,
+}
+
+/// Work out whether there is a legend, and what it costs.
+///
+/// A legend appears when there are two series or more, unless the author says
+/// otherwise. One series needs none — there is a single colour, and the
+/// chart's own title already names what is drawn; a box with one swatch
+/// restates it and takes room from the drawing.
+///
+/// For two or more it is not decoration. Three of the eight palette slots sit
+/// below 3:1 against white, so a reader who cannot tell two hues apart has
+/// nothing else to go on. Identity never rests on colour alone.
+fn legend_of(
+    chart: &ChartFrame,
+    series: &[Series<'_>],
+    style: &ResolvedStyle,
+    labels: &dyn Labels,
+    frame: Rect,
+) -> Option<LegendBox> {
+    let spec = chart.legend.clone().unwrap_or_default();
+    if !spec.visible || series.len() < 2 {
+        return None;
+    }
+
+    let entries: Vec<(String, Color, Label)> = series
+        .iter()
+        .map(|one| {
+            let name = one.name.clone().unwrap_or_default();
+            let measured = labels.measure(&name, style);
+            (name, one.colour, measured)
+        })
+        .collect();
+    if entries.is_empty() {
+        return None;
+    }
+
+    let title = spec
+        .title
+        .as_ref()
+        .filter(|text| !text.is_empty())
+        .map(|text| (text.clone(), labels.measure(text, style)));
+
+    let gap = style.font_size * GAP_EM;
+    let swatch = style.font_size * SWATCH_EM;
+    let line = style.leading();
+    let width_of = |label: &Label| swatch + gap + label.width;
+
+    let (thickness, rows) = match spec.position {
+        LegendPosition::Right | LegendPosition::Left => {
+            let widest = entries
+                .iter()
+                .map(|(_, _, label)| width_of(label))
+                .chain(title.iter().map(|(_, label)| label.width))
+                .fold(0.0, f64::max);
+            (widest + gap, 1)
+        }
+        LegendPosition::Top | LegendPosition::Bottom => {
+            // Broken into rows against the *frame*, never the plot: the plot
+            // is what this measurement decides, and reading it here would
+            // close the circle the module keeps open.
+            let mut rows = 1usize;
+            let mut used = 0.0f64;
+            for (_, _, label) in &entries {
+                let want = width_of(label);
+                if used > 0.0 && used + gap * 2.0 + want > frame.w {
+                    rows += 1;
+                    used = want;
+                } else {
+                    used += if used > 0.0 { gap * 2.0 + want } else { want };
+                }
+            }
+            let lines = rows + usize::from(title.is_some());
+            (lines as f64 * line + gap, rows)
+        }
+    };
+
+    Some(LegendBox { position: spec.position, entries, title, thickness, line, rows, swatch })
+}
+
+impl LegendBox {
+    /// What is left of the frame once the legend has taken its strip.
+    fn leaves(&self, frame: Rect) -> Rect {
+        let take = self.thickness.min(match self.position {
+            LegendPosition::Right | LegendPosition::Left => frame.w,
+            LegendPosition::Top | LegendPosition::Bottom => frame.h,
+        });
+        match self.position {
+            LegendPosition::Right => Rect::new(frame.x, frame.y, frame.w - take, frame.h),
+            LegendPosition::Left => Rect::new(frame.x + take, frame.y, frame.w - take, frame.h),
+            LegendPosition::Top => Rect::new(frame.x, frame.y + take, frame.w, frame.h - take),
+            LegendPosition::Bottom => Rect::new(frame.x, frame.y, frame.w, frame.h - take),
+        }
+    }
+
+    /// The swatch that stands for a mark of this kind.
+    ///
+    /// Shaped like the thing it names: a block for a bar, a stroke for a
+    /// line, a dot for a scatter. A reader should not have to learn that a
+    /// square means a line.
+    fn key(&self, mark: Mark, colour: Color, x: f64, middle: f64) -> DisplayItem {
+        match mark {
+            Mark::Line => DisplayItem::Line(LineItem {
+                x1: x,
+                y1: middle,
+                x2: x + self.swatch,
+                y2: middle,
+                stroke: Stroke { color: colour, width: LINE_WIDTH, dash: None },
+                source: None,
+            }),
+            Mark::Point => {
+                let size = self.swatch * 0.8;
+                DisplayItem::Ellipse(EllipseItem {
+                    rect: Rect::new(
+                        x + (self.swatch - size) / 2.0,
+                        middle - size / 2.0,
+                        size,
+                        size,
+                    ),
+                    fill: Some(colour),
+                    stroke: None,
+                    source: None,
+                })
+            }
+            Mark::Bar | Mark::Area => DisplayItem::Rect(RectItem {
+                rect: Rect::new(x, middle - self.swatch / 2.0, self.swatch, self.swatch),
+                radius: 0.0,
+                fill: Some(colour),
+                stroke: None,
+                source: None,
+            }),
+        }
+    }
+
+    fn emit(
+        &self,
+        mark: Mark,
+        plot: Rect,
+        frame: Rect,
+        style: &ResolvedStyle,
+        labels: &dyn Labels,
+        gap: f64,
+    ) -> Vec<DisplayItem> {
+        let mut items = Vec::new();
+        // The text of a legend wears the document's ink, never the colour of
+        // the series it names: a pale hue that reads as a mark is illegible
+        // as type. Identity comes from the swatch beside the words.
+        let entry_width = |label: &Label| self.swatch + gap + label.width;
+
+        match self.position {
+            LegendPosition::Right | LegendPosition::Left => {
+                let lines = self.entries.len() + usize::from(self.title.is_some());
+                let height = lines as f64 * self.line;
+                let mut top = plot.y + (plot.h - height) / 2.0;
+                let left = match self.position {
+                    LegendPosition::Right => frame.right() - self.thickness + gap,
+                    _ => frame.x,
+                };
+
+                if let Some((text, label)) = &self.title {
+                    items.extend(labels.draw(text, style, left, top + label.ascent));
+                    top += self.line;
+                }
+                for (name, colour, label) in &self.entries {
+                    let middle = top + self.line / 2.0;
+                    items.push(self.key(mark, *colour, left, middle));
+                    items.extend(labels.draw(
+                        name,
+                        style,
+                        left + self.swatch + gap,
+                        middle + (label.ascent - label.descent) / 2.0,
+                    ));
+                    top += self.line;
+                }
+            }
+            LegendPosition::Top | LegendPosition::Bottom => {
+                let lines = self.rows + usize::from(self.title.is_some());
+                let mut top = match self.position {
+                    LegendPosition::Top => frame.y,
+                    _ => frame.bottom() - lines as f64 * self.line,
+                };
+
+                if let Some((text, label)) = &self.title {
+                    items.extend(labels.draw(text, style, plot.x, top + label.ascent));
+                    top += self.line;
+                }
+
+                // Broken the same way it was measured, then each row centred
+                // on the plot: measuring one way and drawing another is how a
+                // legend ends up half off the page.
+                for row in self.break_rows(frame.w, gap) {
+                    let width: f64 = row
+                        .iter()
+                        .map(|index| entry_width(&self.entries[*index].2))
+                        .sum::<f64>()
+                        + gap * 2.0 * (row.len().saturating_sub(1)) as f64;
+                    let mut left = plot.x + (plot.w - width) / 2.0;
+                    let middle = top + self.line / 2.0;
+
+                    for index in row {
+                        let (name, colour, label) = &self.entries[index];
+                        items.push(self.key(mark, *colour, left, middle));
+                        items.extend(labels.draw(
+                            name,
+                            style,
+                            left + self.swatch + gap,
+                            middle + (label.ascent - label.descent) / 2.0,
+                        ));
+                        left += entry_width(label) + gap * 2.0;
+                    }
+                    top += self.line;
+                }
+            }
+        }
+
+        items
+    }
+
+    /// Which entries fall on which row, by the same arithmetic that counted
+    /// the rows in the first place.
+    fn break_rows(&self, width: f64, gap: f64) -> Vec<Vec<usize>> {
+        let mut out: Vec<Vec<usize>> = vec![Vec::new()];
+        let mut used = 0.0f64;
+        for (index, (_, _, label)) in self.entries.iter().enumerate() {
+            let want = self.swatch + gap + label.width;
+            if used > 0.0 && used + gap * 2.0 + want > width {
+                out.push(vec![index]);
+                used = want;
+            } else {
+                used += if used > 0.0 { gap * 2.0 + want } else { want };
+                out.last_mut().expect("uma linha há sempre").push(index);
+            }
+        }
+        out
     }
 }
 
@@ -1067,11 +1390,30 @@ mod tests {
         out
     }
 
-    fn bars_of(items: &[DisplayItem]) -> Vec<RectItem> {
-        items
+    /// True when a rectangle's middle falls inside the drawing area.
+    ///
+    /// What tells a bar from a legend's swatch. Both are filled rectangles of
+    /// a series colour, and counting them together was how the first version
+    /// of these helpers reported nine bars for a chart of six.
+    fn inside(plot: Rect, rect: Rect) -> bool {
+        plot.contains(rect.x + rect.w / 2.0, rect.y + rect.h / 2.0)
+    }
+
+    fn bars_of(out: &Plotted) -> Vec<RectItem> {
+        out.items
             .iter()
             .filter_map(|item| match item {
-                DisplayItem::Rect(rect) => Some(rect.clone()),
+                DisplayItem::Rect(rect) if inside(out.plot, rect.rect) => Some(rect.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn dots_of(out: &Plotted) -> Vec<EllipseItem> {
+        out.items
+            .iter()
+            .filter_map(|item| match item {
+                DisplayItem::Ellipse(dot) if inside(out.plot, dot.rect) => Some(dot.clone()),
                 _ => None,
             })
             .collect()
@@ -1342,7 +1684,7 @@ mod tests {
             &Ruler,
             FRAME,
         );
-        let bars = bars_of(&out.items);
+        let bars = bars_of(&out);
         assert_eq!(bars.len(), 2, "uma barra por observação");
 
         let foot = out.y.map(0.0).unwrap();
@@ -1372,7 +1714,7 @@ mod tests {
             &Ruler,
             FRAME,
         );
-        let bars = bars_of(&out.items);
+        let bars = bars_of(&out);
         let foot = out.y.map(0.0).unwrap();
 
         assert!(bars[0].rect.bottom() <= foot + 1e-9, "a positiva sobe do zero");
@@ -1387,7 +1729,7 @@ mod tests {
     #[test]
     fn a_lone_category_gets_a_bar_and_not_a_slab() {
         let out = plot(&chart(bare()), &rows(&[("jan", 5.0)]), &style(), &Ruler, FRAME);
-        let bars = bars_of(&out.items);
+        let bars = bars_of(&out);
         assert_eq!(bars.len(), 1);
         assert!(
             bars[0].rect.w <= out.plot.w * MAX_BAR_SHARE + 1e-9,
@@ -1410,7 +1752,7 @@ mod tests {
             months.iter().enumerate().map(|(i, m)| (*m, (i + 1) as f64 * 10.0)).collect();
         let out = plot(&chart(bare()), &rows(&data), &style(), &Ruler, FRAME);
 
-        let bars = bars_of(&out.items);
+        let bars = bars_of(&out);
         assert_eq!(bars.len(), 11);
         for bar in &bars {
             assert!(bar.rect.w > 0.0, "nenhuma barra desaparece: {bar:?}");
@@ -1451,7 +1793,7 @@ mod tests {
             FRAME,
         );
 
-        let bars = bars_of(&out.items);
+        let bars = bars_of(&out);
         assert_eq!(bars.len(), 6);
 
         // One colour per series, three distinct ones, and the same colour for
@@ -1484,7 +1826,7 @@ mod tests {
         // series there is no neighbour to be held off, and taking the gap
         // anyway would narrow every ordinary bar chart for nothing.
         let out = plot(&chart(bare()), &rows(&[("jan", 5.0), ("fev", 6.0)]), &style(), &Ruler, FRAME);
-        let bars = bars_of(&out.items);
+        let bars = bars_of(&out);
         let expected = out.x.bandwidth().min(out.plot.w * MAX_BAR_SHARE);
         assert!((bars[0].rect.w - expected).abs() < 1e-9, "{} vs {expected}", bars[0].rect.w);
     }
@@ -1519,7 +1861,7 @@ mod tests {
         );
 
         // And the bars follow it, rather than the scale being right on its own.
-        let bars = bars_of(&out.items);
+        let bars = bars_of(&out);
         assert_eq!(bars.len(), 3);
         assert!(bars[0].rect.y < bars[2].rect.y, "{:?}", bars);
         // Lying, so they grow rightward from the left edge of the plot.
@@ -1544,7 +1886,7 @@ mod tests {
 
         let out = plot(&spec, &data, &style(), &Ruler, FRAME);
         assert_eq!(out.issues, vec![Issue::BarsWithoutCategories]);
-        assert!(bars_of(&out.items).is_empty(), "e não se adivinha uma barra");
+        assert!(bars_of(&out).is_empty(), "e não se adivinha uma barra");
     }
 
     #[test]
@@ -1705,7 +2047,7 @@ mod tests {
             out.issues,
             vec![Issue::SeriesOutnumberPalette { series: 9, colours: 8 }],
         );
-        assert_eq!(bars_of(&out.items).len(), 9, "e desenha as nove à mesma");
+        assert_eq!(bars_of(&out).len(), 9, "e desenha as nove à mesma");
     }
 
     #[test]
@@ -1746,7 +2088,7 @@ mod tests {
 
         assert!(out.issues.is_empty(), "{:?}", out.issues);
         assert!(matches!(out.x, Scale::Band { .. }), "o eixo é de bandas");
-        assert_eq!(bars_of(&out.items).len(), 2);
+        assert_eq!(bars_of(&out).len(), 2);
     }
 
     #[test]
@@ -1760,5 +2102,298 @@ mod tests {
         ];
         assert_eq!(infer(&data, "ano"), FieldKind::Quantitative);
         assert_eq!(infer(&data, "inexistente"), FieldKind::Quantitative, "sem dados, sem palpite");
+    }
+
+    // ── Dispersão ───────────────────────────────────────────────────────────
+
+    /// A scatter of two numeric fields, coloured by `serie` when asked.
+    fn scatter(coloured: bool) -> ChartFrame {
+        ChartFrame {
+            mark: Mark::Point,
+            encoding: Encoding {
+                x: Channel { field: "t".into(), ..Channel::default() },
+                y: Channel { field: "v".into(), ..Channel::default() },
+                color: coloured.then(|| Channel {
+                    field: "serie".into(),
+                    kind: Some(FieldKind::Categorical),
+                    ..Channel::default()
+                }),
+            },
+            axes: bare(),
+            ..ChartFrame::default()
+        }
+    }
+
+    fn readings(triples: &[(f64, &str, f64)]) -> Vec<Row> {
+        triples
+            .iter()
+            .map(|(t, series, v)| {
+                Row::from([
+                    ("t".to_string(), Value::Number(*t)),
+                    ("serie".to_string(), Value::Text(series.to_string())),
+                    ("v".to_string(), Value::Number(*v)),
+                ])
+            })
+            .collect()
+    }
+
+    /// The `color` channel every multi-series test splits on.
+    fn by_series() -> Channel {
+        Channel {
+            field: "serie".into(),
+            kind: Some(FieldKind::Categorical),
+            ..Channel::default()
+        }
+    }
+
+    #[test]
+    fn a_scatter_puts_one_mark_where_its_two_values_cross() {
+        let data = readings(&[(10.0, "a", 1.0), (20.0, "a", 5.0), (30.0, "a", 3.0)]);
+        let out = plot(&scatter(false), &data, &style(), &Ruler, FRAME);
+
+        let dots = dots_of(&out);
+        assert_eq!(dots.len(), 3, "uma marca por observação");
+        for (dot, (t, v)) in dots.iter().zip([(10.0, 1.0), (20.0, 5.0), (30.0, 3.0)]) {
+            let centre = (dot.rect.x + dot.rect.w / 2.0, dot.rect.y + dot.rect.h / 2.0);
+            assert!((centre.0 - out.x.map(t).unwrap()).abs() < 1e-9, "{dot:?}");
+            assert!((centre.1 - out.y.map(v).unwrap()).abs() < 1e-9, "{dot:?}");
+            assert!((dot.rect.w - dot.rect.h).abs() < 1e-9, "redonda, não oval");
+        }
+        assert!(
+            paths_of(&out.items).is_empty(),
+            "e nada as liga: uma dispersão afirma que as leituras são independentes",
+        );
+    }
+
+    #[test]
+    fn a_scatter_axis_is_not_dragged_down_to_zero() {
+        // Only a bar and an area measure from a baseline. A scatter of
+        // readings between 80 and 90 that reached zero would spend nine
+        // tenths of its height on emptiness.
+        let data = readings(&[(1.0, "a", 80.0), (2.0, "a", 90.0)]);
+        let out = plot(&scatter(false), &data, &style(), &Ruler, FRAME);
+        match out.y {
+            Scale::Linear { domain, .. } => assert!(domain.0 > 0.0, "veio {domain:?}"),
+            _ => panic!("escala contínua"),
+        }
+    }
+
+    #[test]
+    fn a_hole_is_a_mark_not_drawn_and_never_a_mark_at_zero() {
+        let data = vec![
+            Row::from([("t".to_string(), Value::Number(1.0)), ("v".to_string(), Value::Number(5.0))]),
+            Row::from([("t".to_string(), Value::Number(2.0)), ("v".to_string(), Value::Null)]),
+        ];
+        let out = plot(&scatter(false), &data, &style(), &Ruler, FRAME);
+        assert_eq!(dots_of(&out).len(), 1);
+    }
+
+    // ── Legenda ─────────────────────────────────────────────────────────────
+
+    /// Text the chart wrote outside the drawing area — which is the legend.
+    fn outside_text(out: &Plotted) -> Vec<String> {
+        runs(&out.items)
+            .into_iter()
+            .filter(|run| !inside(out.plot, Rect::new(run.x, run.y, run.width.max(1.0), 1.0)))
+            .map(|run| run.text)
+            .collect()
+    }
+
+    fn named(out: &Plotted, names: &[&str]) -> Vec<String> {
+        outside_text(out).into_iter().filter(|t| names.contains(&t.as_str())).collect()
+    }
+
+    /// Two series of bars, with the legend the caller wants.
+    fn two_series(legend: Option<crate::spec::chart::Legend>) -> Plotted {
+        let mut spec = chart(bare());
+        spec.encoding.color = Some(by_series());
+        spec.legend = legend;
+        plot(
+            &spec,
+            &split(&[("jan", "norte", 10.0), ("jan", "sul", 20.0)]),
+            &style(),
+            &Ruler,
+            FRAME,
+        )
+    }
+
+    #[test]
+    fn one_series_gets_no_legend_at_all() {
+        // There is one colour, and the chart's own title already names what
+        // is drawn. A box with a single swatch restates it and takes room
+        // from the drawing.
+        let out = plot(&chart(bare()), &rows(&[("jan", 5.0), ("fev", 9.0)]), &style(), &Ruler, FRAME);
+        assert_eq!(out.plot.right(), FRAME.right(), "nada reservado à direita");
+        // The month names are outside the plot too — they are the axis. What
+        // must not exist is a swatch, which is the one thing only a legend
+        // draws.
+        assert!(
+            !out.items
+                .iter()
+                .any(|item| matches!(item, DisplayItem::Rect(r) if !inside(out.plot, r.rect))),
+            "nenhuma tarja de legenda",
+        );
+    }
+
+    #[test]
+    fn two_series_get_a_legend_without_being_asked() {
+        let out = two_series(None);
+        assert_eq!(named(&out, &["norte", "sul"]), vec!["norte".to_string(), "sul".to_string()]);
+
+        // And it costs room: the drawing gives way to it rather than being
+        // drawn over.
+        let sozinho = plot(&chart(bare()), &rows(&[("jan", 10.0)]), &style(), &Ruler, FRAME);
+        assert!(
+            out.plot.right() < sozinho.plot.right(),
+            "a área de desenho encolhe para a legenda caber: {} vs {}",
+            out.plot.right(),
+            sozinho.plot.right(),
+        );
+    }
+
+    #[test]
+    fn the_legend_turns_off_only_when_told_to() {
+        let out = two_series(Some(crate::spec::chart::Legend {
+            visible: false,
+            ..Default::default()
+        }));
+        assert!(named(&out, &["norte", "sul"]).is_empty(), "desligada, não aparece");
+        assert_eq!(out.plot.right(), FRAME.right(), "e não reserva nada");
+    }
+
+    #[test]
+    fn a_legend_beside_takes_width_and_a_legend_below_takes_height() {
+        let at = |position: LegendPosition| {
+            two_series(Some(crate::spec::chart::Legend { position, ..Default::default() }))
+        };
+
+        let direita = at(LegendPosition::Right);
+        let esquerda = at(LegendPosition::Left);
+        let baixo = at(LegendPosition::Bottom);
+        let cima = at(LegendPosition::Top);
+        let nenhuma = two_series(Some(crate::spec::chart::Legend {
+            visible: false,
+            ..Default::default()
+        }));
+
+        assert!(direita.plot.right() < nenhuma.plot.right(), "à direita tira largura");
+        assert_eq!(direita.plot.h, nenhuma.plot.h, "e não tira altura");
+
+        assert!(esquerda.plot.x > nenhuma.plot.x, "à esquerda tira do outro lado");
+        assert!((esquerda.plot.w - direita.plot.w).abs() < 1e-9, "e custa o mesmo");
+
+        assert!(baixo.plot.bottom() < nenhuma.plot.bottom(), "em baixo tira altura");
+        assert!((baixo.plot.w - nenhuma.plot.w).abs() < 1e-9, "e devolve a largura");
+
+        assert!(cima.plot.y > nenhuma.plot.y, "em cima tira do topo");
+        assert!((cima.plot.h - baixo.plot.h).abs() < 1e-9, "pelo mesmo preço");
+    }
+
+    #[test]
+    fn the_swatch_is_shaped_like_the_mark_it_names() {
+        // A block for a bar, a stroke for a line, a dot for a scatter. Nobody
+        // should have to learn that a square stands for a line.
+        let build = |mark: Mark| {
+            let mut spec = chart(bare());
+            spec.mark = mark;
+            spec.encoding.color = Some(by_series());
+            let data = split(&[("jan", "norte", 10.0), ("fev", "sul", 20.0)]);
+            plot(&spec, &data, &style(), &Ruler, FRAME)
+        };
+
+        let barras = build(Mark::Bar);
+        let tarjas = barras
+            .items
+            .iter()
+            .filter(|item| matches!(item, DisplayItem::Rect(r) if !inside(barras.plot, r.rect)))
+            .count();
+        assert_eq!(tarjas, 2, "duas tarjas quadradas para duas séries");
+
+        let linhas = build(Mark::Line);
+        let chaves = linhas
+            .items
+            .iter()
+            .filter(|item| matches!(item, DisplayItem::Line(l) if l.x1 > linhas.plot.right()))
+            .count();
+        assert_eq!(chaves, 2, "duas chaves em traço");
+
+        let pontos = build(Mark::Point);
+        let bolas = pontos
+            .items
+            .iter()
+            .filter(|item| matches!(item, DisplayItem::Ellipse(e) if !inside(pontos.plot, e.rect)))
+            .count();
+        assert_eq!(bolas, 2, "duas chaves redondas");
+    }
+
+    #[test]
+    fn a_row_legend_is_broken_the_way_it_was_measured() {
+        // Eight long names cannot sit on one row of a 400pt frame. What the
+        // reserve counted and what the drawing lays out have to be the same
+        // count, or the legend runs off the frame it was measured against.
+        let mut spec = chart(bare());
+        spec.encoding.color = Some(by_series());
+        spec.legend = Some(crate::spec::chart::Legend {
+            position: LegendPosition::Bottom,
+            ..Default::default()
+        });
+
+        let names = [
+            "regiao-norte", "regiao-sul", "regiao-leste", "regiao-oeste",
+            "regiao-centro", "regiao-litoral", "regiao-serra", "regiao-vale",
+        ];
+        let data: Vec<Row> = names
+            .iter()
+            .map(|name| {
+                Row::from([
+                    ("mes".to_string(), Value::Text("jan".to_string())),
+                    ("serie".to_string(), Value::Text((*name).to_string())),
+                    ("v".to_string(), Value::Number(1.0)),
+                ])
+            })
+            .collect();
+
+        let out = plot(&spec, &data, &style(), &Ruler, FRAME);
+        let written = named(&out, &names);
+        assert_eq!(written.len(), 8, "todas as séries são nomeadas: {written:?}");
+
+        for run in runs(&out.items).iter().filter(|r| names.contains(&r.text.as_str())) {
+            assert!(
+                run.x >= FRAME.x - 1e-9 && run.x + run.width <= FRAME.right() + 1e-9,
+                "`{}` sai da moldura: {} a {}",
+                run.text,
+                run.x,
+                run.x + run.width,
+            );
+            // The reserve and the drawing have to agree on how many rows
+            // there are. Counting one way and laying out another puts the
+            // last row past the foot of the frame or over the drawing, and
+            // both read as the legend simply being in the wrong place.
+            assert!(
+                run.y <= FRAME.bottom() + 1e-9,
+                "`{}` cai abaixo do pé da moldura: {} > {}",
+                run.text,
+                run.y,
+                FRAME.bottom(),
+            );
+            assert!(
+                run.y > out.plot.bottom(),
+                "`{}` cai sobre a área de desenho: {} <= {}",
+                run.text,
+                run.y,
+                out.plot.bottom(),
+            );
+        }
+
+        // More than one row, and the rows are distinct baselines.
+        let baselines: Vec<f64> = runs(&out.items)
+            .iter()
+            .filter(|r| names.contains(&r.text.as_str()))
+            .map(|r| r.y)
+            .collect();
+        let mut distinct = baselines.clone();
+        distinct.sort_by(f64::total_cmp);
+        distinct.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+        assert!(distinct.len() > 1, "oito nomes longos não cabem numa linha: {baselines:?}");
     }
 }
