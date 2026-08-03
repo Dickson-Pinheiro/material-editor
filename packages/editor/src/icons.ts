@@ -17,6 +17,16 @@ const PATHS: Record<string, string> = {
   landscape: "M2.5 4.5h11v7h-11z",
   ellipse: "M8 3.2c2.6 0 4.8 2.2 4.8 4.8S10.6 12.8 8 12.8 3.2 10.6 3.2 8 5.4 3.2 8 3.2z",
   line: "M3 13L13 3",
+  table: "M2.5 3.5h11v9h-11zM2.5 6.5h11M2.5 9.5h11M6.5 3.5v9M10 3.5v9",
+  chart: "M2.5 13.5v-11M2.5 13.5h11M5 11.5v-4M8 11.5v-7M11 11.5v-2.5",
+
+  // Tables — the arrow says which side the new track goes in on.
+  columnBefore: "M7.5 2.5h6v11h-6zM4 5v6M1.5 8h4M4 5l-2.5 3 2.5 3",
+  columnAfter: "M2.5 2.5h6v11h-6zM12 5v6M14.5 8h-4M12 5l2.5 3-2.5 3",
+  rowBefore: "M2.5 7.5v6h11v-6zM5 4h6M8 1.5v4M5 4l3-2.5 3 2.5",
+  rowAfter: "M2.5 2.5v6h11v-6zM5 12h6M8 14.5v-4M5 12l3 2.5 3-2.5",
+  columnRemove: "M6 2.5h4v11H6zM2.5 6l3 3M5.5 6l-3 3M10.5 6l3 3M13.5 6l-3 3",
+  rowRemove: "M2.5 6h11v4h-11zM6 2.5l3 3M9 2.5l-3 3M6 10.5l3 3M9 10.5l-3 3",
 
   // Pages
   page: "M4 2h5l3 3v9H4zM9 2v3h3",

@@ -265,7 +265,9 @@ export class LayersPanel {
             ? "image"
             : frame.type === "group"
               ? "group"
-              : (frame.shape ?? "shape"),
+              : frame.type === "chart"
+                ? "chart"
+                : (frame.shape ?? "shape"),
         14,
       ),
     );
@@ -515,5 +517,10 @@ function defaultName(frame: Frame): string {
   if (frame.type === "shape") return { rect: "Retângulo", ellipse: "Elipse", line: "Linha" }[
     frame.shape ?? "rect"
   ];
+  if (frame.type === "chart") {
+    return { bar: "Barras", line: "Linha", area: "Área", point: "Dispersão" }[
+      frame.mark ?? "bar"
+    ];
+  }
   return `Grupo (${frame.children?.length ?? 0})`;
 }

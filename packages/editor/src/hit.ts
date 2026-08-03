@@ -10,6 +10,7 @@
 import { utf8Length } from "./utf8";
 import type {
   Caret,
+  CellStep,
   DisplayFrame,
   DisplayList,
   DisplayPage,
@@ -96,7 +97,22 @@ export function framesAt(page: DisplayPage, x: number, y: number): DisplayFrame[
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ownerKey(source: SourceRef | Caret): string {
-  return "story" in source && source.story ? `story:${source.story}` : `frame:${source.frame}`;
+  const owner =
+    "story" in source && source.story ? `story:${source.story}` : `frame:${source.frame}`;
+  // Two carets in different cells of the same table are in different lists of
+  // blocks, and comparing their block indices would be comparing apples. The
+  // trail is part of what says *whose* block index this is.
+  return owner + trailKey(source.cells);
+}
+
+/** The cell trail as a string, so two of them compare in one step. */
+export function trailKey(cells: CellStep[] | null | undefined): string {
+  return (cells ?? []).map((step) => `/${step.block}:${step.cell}`).join("");
+}
+
+/** True when two carets sit in the same list of blocks. */
+export function sameTrail(a: Caret, b: Caret): boolean {
+  return trailKey(a.cells) === trailKey(b.cells);
 }
 
 function metricsOf(list: DisplayList, run: GlyphRun): { ascent: number; descent: number } {
@@ -192,6 +208,7 @@ export function caretInRun(placed: PlacedRun, x: number): Caret {
   return {
     frame: source.frame,
     story: source.story ?? null,
+    cells: source.cells ?? [],
     block: source.block ?? 0,
     inline: source.inline ?? 0,
     offset,
@@ -215,6 +232,7 @@ export function sameCaret(a: Caret | null, b: Caret | null): boolean {
 function withinRun(placed: PlacedRun, caret: Caret): boolean {
   const { run, source } = placed;
   if (ownerKey(source) !== ownerKey(caret)) return false;
+  if (trailKey(source.cells) !== trailKey(caret.cells)) return false;
   if ((source.block ?? 0) !== caret.block || (source.inline ?? 0) !== caret.inline) return false;
   const base = source.offset ?? 0;
   return caret.offset >= base && caret.offset <= base + utf8Length(run.text);
@@ -261,6 +279,7 @@ export function rangeRects(
     const runStart: Caret = {
       frame: source.frame,
       story: source.story ?? null,
+      cells: source.cells ?? [],
       block: source.block ?? 0,
       inline: source.inline ?? 0,
       offset: base,

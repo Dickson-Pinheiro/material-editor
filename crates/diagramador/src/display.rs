@@ -347,12 +347,39 @@ pub struct SourceRef {
     /// Name of the story the content lives in, when it came from one. The
     /// editor edits `resources.stories[story]` instead of the frame's blocks.
     pub story: Option<String>,
+    /// The table cells this content is nested inside, outermost first.
+    ///
+    /// Empty for everything that is not in a table, which is nearly
+    /// everything — hence left out of the JSON when it is, so no document's
+    /// display list grows a field it never uses.
+    ///
+    /// `block`, `inline` and `offset` are read relative to the innermost
+    /// cell's own blocks. Without this trail they read as indices into the
+    /// frame, and a click on a cell would edit whatever paragraph happened to
+    /// sit at that index.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cells: Vec<CellStep>,
     /// Index of the block in its owning list.
     pub block: Option<u32>,
     /// Index of the inline within that block's content.
     pub inline: Option<u32>,
     /// Byte offset into that inline's text where this run starts.
     pub offset: Option<u32>,
+}
+
+/// One step down into a table.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CellStep {
+    /// Index of the table block in the list that holds it.
+    pub block: u32,
+    /// Index of the cell in that table's `cells`.
+    ///
+    /// Of the table as the author wrote it, not as it was drawn: a table that
+    /// runs onto a second page is redrawn there as a new block with its rows
+    /// renumbered and its header copied in, and an index into *that* would
+    /// address a cell the document does not have.
+    pub cell: u32,
 }
 
 impl SourceRef {

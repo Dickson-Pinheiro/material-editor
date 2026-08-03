@@ -11,7 +11,16 @@ import { Engine } from "./engine";
 import { Store, normalize } from "./store";
 import { TextEditor } from "./text";
 import { Inspector } from "./inspector";
-import type { DocumentSpec, Frame, ImageFrame, ShapeFrame, TextFrame } from "./types";
+import { place } from "./table";
+import type {
+  ChartFrame,
+  DocumentSpec,
+  Frame,
+  ImageFrame,
+  ShapeFrame,
+  TableBlock,
+  TextFrame,
+} from "./types";
 
 const results: { name: string; error: string | null }[] = [];
 const thrown: string[] = [];
@@ -47,6 +56,31 @@ const DOC: DocumentSpec = {
         },
         { id: "outro", type: "text", rect: [40, 300, 300, 100] },
         { id: "forma", type: "shape", shape: "rect", rect: [360, 40, 120, 120] },
+        {
+          id: "quadro",
+          type: "text",
+          rect: [40, 420, 300, 120],
+          blocks: [
+            {
+              type: "table",
+              columns: ["auto", "auto"],
+              cells: [
+                { blocks: [{ type: "paragraph", content: [{ type: "text", text: "Estado" }] }] },
+                { blocks: [{ type: "paragraph", content: [{ type: "text", text: "Mudança" }] }] },
+              ],
+            },
+          ],
+        },
+        {
+          id: "grafico",
+          type: "chart",
+          rect: [360, 420, 240, 160],
+          data: [
+            { mes: "jan", v: 12 },
+            { mes: "fev", v: 19 },
+          ],
+          encoding: { x: { field: "mes", kind: "categorical" }, y: { field: "v" } },
+        },
         { id: "foto", type: "image", rect: [360, 200, 200, 150], src: "terra.jpg",
           wrap: { mode: { kind: "box" }, padding: 4 } },
       ],
@@ -161,6 +195,60 @@ const SELECTION_PROBES: Probe[] = [
   { field: "sel.fontSize", as: "number", set: 18, read: (s) => Number(runStyle(s)?.fontSize), expect: 18 },
   { field: "sel.color", as: "color", set: "#ee0055", read: (s) => runStyle(s)?.color, expect: "#ee0055" },
   { field: "sel.fontFamily", as: "select", value: "plex", read: (s) => runStyle(s)?.fontFamily, expect: "plex" },
+];
+
+/** The table in the `quadro` frame. */
+const tableOf = (store: Store): TableBlock =>
+  (store.frame("quadro") as TextFrame).blocks![0] as TableBlock;
+
+/** The chart frame, whichever way it is being read. */
+const chartOf = (store: Store): ChartFrame => store.frame("grafico") as ChartFrame;
+
+/** How many places the table's grid resolves to. */
+const gridOf = (store: Store) => place(tableOf(store));
+
+const TABLE_PROBES: Probe[] = [
+  // Order matters: each probe starts from what the last one left, and the
+  // caret stays in cell 0 throughout, so every insertion is measured against
+  // the column and row that cell is in.
+  { field: "table.columnAfter", as: "button", read: (s) => gridOf(s).columns, expect: 3 },
+  { field: "table.rowAfter", as: "button", read: (s) => gridOf(s).rows, expect: 2 },
+  { field: "table.columnBefore", as: "button", read: (s) => gridOf(s).columns, expect: 4 },
+  { field: "table.rowBefore", as: "button", read: (s) => gridOf(s).rows, expect: 3 },
+  { field: "table.columnRemove", as: "button", read: (s) => gridOf(s).columns, expect: 3 },
+  { field: "table.rowRemove", as: "button", read: (s) => gridOf(s).rows, expect: 2 },
+  { field: "table.trackKind", as: "select", value: "fraction", read: (s) => tableOf(s).columns?.[0], expect: "1fr" },
+  { field: "table.trackAmount", as: "number", set: 2, read: (s) => tableOf(s).columns?.[0], expect: "2fr" },
+  { field: "table.inset", as: "number", set: 7, read: (s) => tableOf(s).inset, expect: 7 },
+  { field: "table.gap", as: "number", set: 5, read: (s) => tableOf(s).columnGap, expect: 5 },
+  { field: "table.header", as: "check", read: (s) => tableOf(s).header?.rows, expect: 1 },
+  { field: "table.stripe", as: "check", read: (s) => tableOf(s).stripe?.every, expect: 2 },
+  { field: "table.cellAlign", as: "select", value: "middle", read: (s) => tableOf(s).cells?.[0]?.verticalAlign, expect: "middle" },
+];
+
+const CHART_PROBES: Probe[] = [
+  { field: "chart.mark", as: "button", value: "line", read: (s) => chartOf(s).mark, expect: "line" },
+  { field: "chart.x.field", as: "select", value: "v", read: (s) => chartOf(s).encoding?.x?.field, expect: "v" },
+  { field: "chart.x.kind", as: "select", value: "categorical", read: (s) => chartOf(s).encoding?.x?.kind, expect: "categorical" },
+  { field: "chart.y.field", as: "select", value: "mes", read: (s) => chartOf(s).encoding?.y?.field, expect: "mes" },
+  { field: "chart.y.kind", as: "select", value: "quantitative", read: (s) => chartOf(s).encoding?.y?.kind, expect: "quantitative" },
+  { field: "chart.color.field", as: "select", value: "mes", read: (s) => chartOf(s).encoding?.color?.field, expect: "mes" },
+  { field: "chart.color.kind", as: "select", value: "categorical", read: (s) => chartOf(s).encoding?.color?.kind, expect: "categorical" },
+  { field: "chart.axes.x.title", as: "text", set: "Mês", read: (s) => chartOf(s).axes?.x?.title, expect: "Mês" },
+  { field: "chart.axes.x.visible", as: "check", read: (s) => chartOf(s).axes?.x?.visible, expect: true },
+  { field: "chart.axes.x.grid", as: "check", read: (s) => chartOf(s).axes?.x?.grid, expect: true },
+  { field: "chart.axes.y.title", as: "text", set: "Valor", read: (s) => chartOf(s).axes?.y?.title, expect: "Valor" },
+  { field: "chart.axes.y.visible", as: "check", read: (s) => chartOf(s).axes?.y?.visible, expect: true },
+  { field: "chart.axes.y.grid", as: "check", read: (s) => chartOf(s).axes?.y?.grid, expect: true },
+  { field: "chart.y.scale.kind", as: "select", value: "log", read: (s) => chartOf(s).encoding?.y?.scale?.kind, expect: "log" },
+  { field: "chart.y.scale.zero", as: "check", read: (s) => chartOf(s).encoding?.y?.scale?.zero, expect: true },
+  { field: "chart.legend.visible", as: "check", read: (s) => chartOf(s).legend?.visible, expect: true },
+  { field: "chart.legend.position", as: "select", value: "bottom", read: (s) => chartOf(s).legend?.position, expect: "bottom" },
+  { field: "data.0.mes", as: "text", set: "mar", read: (s) => chartOf(s).data?.[0]?.mes, expect: "mar" },
+  { field: "data.0.v", as: "text", set: "42", read: (s) => chartOf(s).data?.[0]?.v, expect: 42 },
+  { field: "data.addRow", as: "button", read: (s) => chartOf(s).data?.length, expect: 3 },
+  { field: "data.addField", as: "button", read: (s) => Object.keys(chartOf(s).data?.[0] ?? {}).length, expect: 3 },
+  { field: "data.2.remove", as: "button", read: (s) => chartOf(s).data?.length, expect: 2 },
 ];
 
 /** Style of the first run of the first paragraph — where marks land. */
@@ -282,12 +370,32 @@ async function run(): Promise<void> {
     editing = null;
   });
 
+  verify("tabela", TABLE_PROBES, () => {
+    selected = ["quadro"];
+    editing = "quadro";
+    // The caret in the first cell is what puts the table in the panel.
+    text.enter("quadro", {
+      frame: "quadro",
+      story: null,
+      cells: [{ block: 0, cell: 0 }],
+      block: 0,
+      inline: 0,
+      offset: 0,
+    });
+  });
+
+  verify("gráfico", CHART_PROBES, () => {
+    selected = ["grafico"];
+    editing = null;
+    text.exit();
+  });
+
   verify("seleção de texto", SELECTION_PROBES, () => {
     selected = ["texto"];
     editing = "texto";
     // Select "Ação" so the marks have something to apply to.
-    text.enter("texto", { frame: "texto", story: null, block: 0, inline: 0, offset: 0 });
-    text.place({ frame: "texto", story: null, block: 0, inline: 0, offset: 6 }, true);
+    text.enter("texto", { cells: [], frame: "texto", story: null, block: 0, inline: 0, offset: 0 });
+    text.place({ cells: [], frame: "texto", story: null, block: 0, inline: 0, offset: 6 }, true);
   });
 
   // Nothing may be left untested: every declared field must appear above.
@@ -309,8 +417,8 @@ async function run(): Promise<void> {
       selected = ids;
       editing = editingId;
       if (editingId) {
-        text.enter("texto", { frame: "texto", story: null, block: 0, inline: 0, offset: 0 });
-        text.place({ frame: "texto", story: null, block: 0, inline: 0, offset: 6 }, true);
+        text.enter("texto", { cells: [], frame: "texto", story: null, block: 0, inline: 0, offset: 0 });
+        text.place({ cells: [], frame: "texto", story: null, block: 0, inline: 0, offset: 6 }, true);
       }
       render();
       for (const element of root.querySelectorAll<HTMLElement>("[data-field]")) {

@@ -17,7 +17,7 @@ pub mod wrap;
 use std::collections::{BTreeMap, HashMap};
 
 use crate::display::{
-    ClipShape, Diagnostic, DisplayFont, DisplayFrame, DisplayGroup, DisplayItem, DisplayList,
+    CellStep, ClipShape, Diagnostic, DisplayFont, DisplayFrame, DisplayGroup, DisplayItem, DisplayList,
     DisplayPage, EllipseItem, ImageItem, LineItem, RectItem, SourceRef, Stroke,
 };
 use crate::fonts::FontRegistry;
@@ -827,7 +827,10 @@ impl<'a> LayoutEngine<'a> {
                 Block::Table(table_block) => {
                     let cells = CellFlow { engine: self, text: layouter };
                     let mut here = source.clone();
-                    here.block = Some(index as u32);
+                    // The index where the author wrote it. A continuation is
+                    // re-flowed into a fresh list whose indices start again,
+                    // and the editor has to be told which table it came from.
+                    here.block = Some(table_block.origin.unwrap_or(index as u32));
 
                     // At the top of an empty column there is nowhere better to
                     // send a row that does not fit, so it goes out anyway.
@@ -850,7 +853,8 @@ impl<'a> LayoutEngine<'a> {
                     items.extend(laid.items);
                     y += laid.height;
 
-                    if let Some(rest) = laid.leftover {
+                    if let Some(mut rest) = laid.leftover {
+                        rest.origin = here.block;
                         let mut over = vec![Block::Table(rest)];
                         over.extend_from_slice(&blocks[index + 1..]);
                         return FlowResult { items, used: y, leftover: over, stopped: None, walled_in, diagnostics };
@@ -2818,6 +2822,196 @@ texto disponível aqui."
 
     fn codes(list: &DisplayList) -> Vec<&str> {
         list.diagnostics.iter().map(|d| d.code.as_str()).collect()
+    }
+
+    // ── Where a cell's text says it came from ───────────────────────────────
+
+    /// The provenance of the run that painted `text`.
+    fn provenance(list: &DisplayList, text: &str) -> SourceRef {
+        all_runs(list)
+            .into_iter()
+            .find(|run| run.text == text)
+            .and_then(|run| run.source)
+            .unwrap_or_else(|| panic!("nada pintou `{text}`"))
+    }
+
+    #[test]
+    fn text_in_a_cell_reports_the_cell_it_is_in() {
+        let Some(list) = layout_json(&table_page(
+            r#""columns":["auto","auto"],"#,
+            r#"{"blocks":["a"]},{"blocks":["b"]},{"blocks":["c"]},{"blocks":["d"]}"#,
+        )) else {
+            return;
+        };
+
+        for (text, index) in [("a", 0), ("b", 1), ("c", 2), ("d", 3)] {
+            let source = provenance(&list, text);
+            assert_eq!(
+                source.cells,
+                vec![CellStep { block: 0, cell: index }],
+                "`{text}` está na célula {index}",
+            );
+            assert_eq!(
+                source.block,
+                Some(0),
+                "e é o primeiro bloco *dessa célula*, não do frame",
+            );
+        }
+    }
+
+    #[test]
+    fn text_outside_a_table_carries_no_trail_at_all() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"id":"t","type":"text","rect":[0,0,200,200],"blocks":["solto"]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+        assert!(provenance(&list, "solto").cells.is_empty());
+
+        // And an empty trail stays out of the JSON, so no document that never
+        // saw a table pays for the field.
+        let written = serde_json::to_string(&list).expect("escreve");
+        assert!(!written.contains("\"cells\""), "{written}");
+    }
+
+    #[test]
+    fn a_header_repeated_on_a_later_page_still_points_at_the_original() {
+        // A continuation is a new block whose rows are renumbered and whose
+        // header is copied in. An index into *that* would address a cell the
+        // document does not have, so what every copy reports is the origin.
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"id":"a","type":"text","rect":[0,0,200,44],"threadNext":"b","blocks":[
+                    {"type":"table","columns":["auto"],
+                     "header":{"rows":1},
+                     "cells":[{"blocks":["Cabeçalho"]},{"blocks":["um"]},
+                              {"blocks":["dois"]},{"blocks":["três"]}]}
+                ]},
+                {"id":"b","type":"text","rect":[0,220,200,200]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+
+        let cabecalhos: Vec<GlyphRun> =
+            all_runs(&list).into_iter().filter(|run| run.text == "Cabeçalho").collect();
+        assert!(cabecalhos.len() >= 2, "o cabeçalho repete-se: {}", cabecalhos.len());
+
+        for run in &cabecalhos {
+            let source = run.source.clone().expect("proveniência");
+            assert_eq!(
+                source.cells,
+                vec![CellStep { block: 0, cell: 0 }],
+                "toda cópia aponta para a célula 0 do bloco 0, em `{}`",
+                source.frame,
+            );
+        }
+        assert!(
+            cabecalhos.iter().any(|run| run.source.as_ref().unwrap().frame == "b"),
+            "e uma delas foi desenhada no segundo frame",
+        );
+    }
+
+    #[test]
+    fn a_row_carried_onto_the_next_page_keeps_the_index_it_was_written_with() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"id":"a","type":"text","rect":[0,0,200,30],"threadNext":"b","blocks":[
+                    {"type":"table","columns":["auto"],
+                     "cells":[{"blocks":["um"]},{"blocks":["dois"]},
+                              {"blocks":["três"]},{"blocks":["quatro"]}]}
+                ]},
+                {"id":"b","type":"text","rect":[0,220,200,200]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+
+        // The table has to have broken, or this proves nothing: what is being
+        // checked is that the rows on the far side of the break still name
+        // the cells they were written as, and not the places they landed in
+        // the continuation's own renumbered list.
+        let late: Vec<&str> = ["um", "dois", "três", "quatro"]
+            .into_iter()
+            .filter(|text| provenance(&list, text).frame == "b")
+            .collect();
+        assert!(!late.is_empty(), "a tabela partiu");
+        assert!(late.len() < 4, "e não passou inteira para o segundo frame");
+
+        for (text, index) in [("um", 0), ("dois", 1), ("três", 2), ("quatro", 3)] {
+            assert_eq!(
+                provenance(&list, text).cells,
+                vec![CellStep { block: 0, cell: index }],
+                "`{text}` continua a ser a célula {index}, esteja em que página estiver",
+            );
+        }
+    }
+
+    #[test]
+    fn a_table_that_breaks_twice_still_names_the_cells_it_was_written_with() {
+        // The case the origin exists for. On the first break the copies are
+        // made from the table as written, so their new indices are right
+        // often enough to hide a bug. On the second, the copies are made from
+        // copies, and an index into those addresses nothing at all.
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"id":"a","type":"text","rect":[0,0,200,30],"threadNext":"b","blocks":[
+                    {"type":"table","columns":["auto"],
+                     "cells":[{"blocks":["um"]},{"blocks":["dois"]},{"blocks":["tres"]},
+                              {"blocks":["quatro"]},{"blocks":["cinco"]},{"blocks":["seis"]}]}
+                ]},
+                {"id":"b","type":"text","rect":[0,60,200,30],"threadNext":"c"},
+                {"id":"c","type":"text","rect":[0,120,200,200]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+
+        let words = ["um", "dois", "tres", "quatro", "cinco", "seis"];
+        let frames: Vec<String> =
+            words.iter().map(|text| provenance(&list, text).frame).collect();
+        assert!(frames.contains(&"b".to_string()), "partiu uma vez: {frames:?}");
+        assert!(frames.contains(&"c".to_string()), "e outra: {frames:?}");
+
+        for (index, text) in words.iter().enumerate() {
+            assert_eq!(
+                provenance(&list, text).cells,
+                vec![CellStep { block: 0, cell: index as u32 }],
+                "`{text}` é a célula {index} onde quer que tenha ido parar",
+            );
+        }
+    }
+
+    #[test]
+    fn a_table_page_break_does_not_shift_the_block_the_trail_names() {
+        // The leftover is re-flowed into a fresh list whose indices start
+        // again, and a paragraph above the table on the first page is not
+        // there to push it along on the second.
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[
+                {"id":"a","type":"text","rect":[0,0,200,60],"threadNext":"b","blocks":[
+                    "um parágrafo antes",
+                    {"type":"table","columns":["auto"],
+                     "cells":[{"blocks":["um"]},{"blocks":["dois"]},
+                              {"blocks":["três"]},{"blocks":["quatro"]}]}
+                ]},
+                {"id":"b","type":"text","rect":[0,220,200,200]}
+            ]}]}"#,
+        ) else {
+            return;
+        };
+
+        for text in ["um", "dois", "três", "quatro"] {
+            let source = provenance(&list, text);
+            assert_eq!(
+                source.cells.first().map(|step| step.block),
+                Some(1),
+                "a tabela é o bloco 1 onde foi escrita, e continua a sê-lo em `{}`",
+                source.frame,
+            );
+        }
     }
 
     #[test]

@@ -18,7 +18,28 @@ import { placement, toFrame, trace } from "./contour";
 import { PAGE_GAP, Renderer, placePages, pointIn } from "./renderer";
 import { LayersPanel } from "./layers";
 import type { LayersState } from "./layers";
-import type { Block, Caret, DisplayItem, DisplayList, DocumentSpec, DisplayPage, Paragraph } from "./types";
+import {
+  cellAt,
+  insertColumn,
+  insertRow,
+  newTable,
+  nextCell,
+  place,
+  removeColumn,
+  trackAmount,
+  trackKind,
+  trackOf,
+} from "./table";
+import type {
+  Block,
+  Caret,
+  DisplayItem,
+  DisplayList,
+  DocumentSpec,
+  DisplayPage,
+  Paragraph,
+  TableBlock,
+} from "./types";
 
 const results: { name: string; error: string | null }[] = [];
 
@@ -162,6 +183,7 @@ async function run(): Promise<void> {
       const expected: Caret = {
         frame: "caixa",
         story: null,
+        cells: [],
         block: target.source.block ?? 0,
         inline: target.source.inline ?? 0,
         offset: base + glyph.cluster,
@@ -195,7 +217,7 @@ async function run(): Promise<void> {
     const local = new Store(engine, normalize(SIMPLE));
     const editor = new TextEditor(local);
     // "Ação" ocupa 6 bytes (A=1, ç=2, ã=2, o=1); o caret vai logo depois.
-    editor.enter("caixa", { frame: "caixa", story: null, block: 0, inline: 0, offset: 6 });
+    editor.enter("caixa", { cells: [], frame: "caixa", story: null, block: 0, inline: 0, offset: 6 });
     editor.insert("X");
 
     const paragraph = local.doc.pages[0]!.frames[0] as { blocks: Paragraph[] };
@@ -207,7 +229,7 @@ async function run(): Promise<void> {
   check("backspace remove um caractere inteiro, não meio acento", () => {
     const local = new Store(engine, normalize(SIMPLE));
     const editor = new TextEditor(local);
-    editor.enter("caixa", { frame: "caixa", story: null, block: 0, inline: 0, offset: 6 });
+    editor.enter("caixa", { cells: [], frame: "caixa", story: null, block: 0, inline: 0, offset: 6 });
     editor.deleteBackward();
 
     const frame = local.doc.pages[0]!.frames[0] as { blocks: Paragraph[] };
@@ -219,7 +241,7 @@ async function run(): Promise<void> {
   check("Enter divide o parágrafo", () => {
     const local = new Store(engine, normalize(SIMPLE));
     const editor = new TextEditor(local);
-    editor.enter("caixa", { frame: "caixa", story: null, block: 0, inline: 0, offset: 6 });
+    editor.enter("caixa", { cells: [], frame: "caixa", story: null, block: 0, inline: 0, offset: 6 });
     editor.splitParagraph();
 
     const frame = local.doc.pages[0]!.frames[0] as { blocks: Paragraph[] };
@@ -232,7 +254,7 @@ async function run(): Promise<void> {
   check("quebra de página divide o parágrafo e insere o bloco", () => {
     const local = new Store(engine, normalize(SIMPLE));
     const editor = new TextEditor(local);
-    editor.enter("caixa", { frame: "caixa", story: null, block: 0, inline: 0, offset: 6 });
+    editor.enter("caixa", { cells: [], frame: "caixa", story: null, block: 0, inline: 0, offset: 6 });
     editor.insertPageBreak();
 
     const frame = local.doc.pages[0]!.frames[0] as { blocks: Block[] };
@@ -285,8 +307,8 @@ async function run(): Promise<void> {
   check("aplicar estilo divide o run e marca só a seleção", () => {
     const local = new Store(engine, normalize(SIMPLE));
     const editor = new TextEditor(local);
-    editor.enter("caixa", { frame: "caixa", story: null, block: 0, inline: 0, offset: 0 });
-    editor.place({ frame: "caixa", story: null, block: 0, inline: 0, offset: 6 }, true);
+    editor.enter("caixa", { cells: [], frame: "caixa", story: null, block: 0, inline: 0, offset: 0 });
+    editor.place({ cells: [], frame: "caixa", story: null, block: 0, inline: 0, offset: 6 }, true);
     editor.applyStyle({ fontWeight: "bold" });
 
     const frame = local.doc.pages[0]!.frames[0] as { blocks: Paragraph[] };
@@ -300,7 +322,7 @@ async function run(): Promise<void> {
   check("desfazer volta ao estado anterior", () => {
     const local = new Store(engine, normalize(SIMPLE));
     const editor = new TextEditor(local);
-    editor.enter("caixa", { frame: "caixa", story: null, block: 0, inline: 0, offset: 0 });
+    editor.enter("caixa", { cells: [], frame: "caixa", story: null, block: 0, inline: 0, offset: 0 });
     editor.insert("Z");
     assert(local.canUndo(), "deveria haver o que desfazer");
     local.undo();
@@ -606,8 +628,8 @@ async function run(): Promise<void> {
   check("copiar texto devolve só o trecho selecionado", () => {
     const local = new Store(engine, normalize(SIMPLE));
     const editor = new TextEditor(local);
-    editor.enter("caixa", { frame: "caixa", story: null, block: 0, inline: 0, offset: 0 });
-    editor.place({ frame: "caixa", story: null, block: 0, inline: 0, offset: 6 }, true);
+    editor.enter("caixa", { cells: [], frame: "caixa", story: null, block: 0, inline: 0, offset: 0 });
+    editor.place({ cells: [], frame: "caixa", story: null, block: 0, inline: 0, offset: 6 }, true);
     equal(editor.selectedText(), "Ação", "trecho copiado");
 
     // Recortar devolve o mesmo e remove do documento.
@@ -1183,6 +1205,240 @@ async function run(): Promise<void> {
 
     ui.root.querySelector<HTMLButtonElement>(".panel-title button")!.click();
     assert(rowIds(ui.root).includes("a"), "expandir tudo abre também os grupos");
+  });
+
+  // ── Tables ────────────────────────────────────────────────────────────────
+  //
+  // `place` is the engine's own rule written a second time, so these are the
+  // cases the engine's own tests use. If the two ever drift, they drift here.
+
+  const tableOf = (columns: number, rows: number): TableBlock => newTable(rows, columns, false);
+  const textOf = (table: TableBlock, index: number): string => {
+    const block = table.cells?.[index]?.blocks?.[0];
+    if (!block || block.type !== "paragraph") return "";
+    return block.content.map((run) => (run.type === "text" ? run.text : "")).join("");
+  };
+  const write = (table: TableBlock, index: number, text: string): void => {
+    const block = table.cells?.[index]?.blocks?.[0];
+    if (block?.type === "paragraph") block.content = [{ type: "text", text }];
+  };
+
+  check("uma tabela nova enche todas as suas casas", () => {
+    const table = tableOf(3, 2);
+    const grid = place(table);
+    equal(grid.columns, 3, "colunas");
+    equal(grid.rows, 2, "linhas");
+    equal(grid.cells.length, 6, "células");
+  });
+
+  check("colocação sem posição segue a ordem em que foi escrita", () => {
+    const table: TableBlock = {
+      type: "table",
+      columns: ["auto", "auto"],
+      cells: [{ blocks: [] }, { blocks: [] }, { blocks: [] }],
+    };
+    const grid = place(table);
+    equal(`${grid.cells[0]!.x},${grid.cells[0]!.y}`, "0,0", "a primeira");
+    equal(`${grid.cells[1]!.x},${grid.cells[1]!.y}`, "1,0", "a segunda");
+    equal(`${grid.cells[2]!.x},${grid.cells[2]!.y}`, "0,1", "e a terceira desce");
+  });
+
+  check("uma célula fixada é respeitada e as outras contornam-na", () => {
+    const table: TableBlock = {
+      type: "table",
+      columns: ["auto", "auto"],
+      cells: [{ x: 1, y: 0, blocks: [] }, { blocks: [] }, { blocks: [] }],
+    };
+    const grid = place(table);
+    equal(`${grid.cells[0]!.x},${grid.cells[0]!.y}`, "1,0", "a fixada fica onde pediu");
+    const livres = grid.cells.slice(1).map((c) => `${c.x},${c.y}`).sort().join(" ");
+    equal(livres, "0,0 0,1", "as livres tomam o que sobra");
+  });
+
+  check("inserir coluna empurra as seguintes e não perde texto", () => {
+    const table = tableOf(2, 2);
+    write(table, 0, "a");
+    write(table, 1, "b");
+    insertColumn(table, 1);
+
+    const grid = place(table);
+    equal(grid.columns, 3, "há três colunas");
+    equal(grid.cells.length, 6, "e seis células");
+    const at = (x: number, y: number) => textOf(table, cellAt(table, x, y)!);
+    equal(at(0, 0), "a", "`a` ficou onde estava");
+    equal(at(2, 0), "b", "`b` foi empurrada");
+    equal(at(1, 0), "", "e a nova está vazia");
+  });
+
+  check("excluir coluna leva o que estava nela e mais nada", () => {
+    const table = tableOf(3, 1);
+    write(table, 0, "a");
+    write(table, 1, "b");
+    write(table, 2, "c");
+    removeColumn(table, 1);
+
+    equal(place(table).columns, 2, "sobram duas colunas");
+    equal(textOf(table, cellAt(table, 0, 0)!), "a", "`a` fica");
+    equal(textOf(table, cellAt(table, 1, 0)!), "c", "`c` chega-se");
+  });
+
+  check("inserir linha dentro de uma célula que atravessa faz-na crescer", () => {
+    const table: TableBlock = {
+      type: "table",
+      columns: ["auto", "auto"],
+      cells: [
+        { x: 0, y: 0, rowspan: 2, blocks: [] },
+        { x: 1, y: 0, blocks: [] },
+        { x: 1, y: 1, blocks: [] },
+      ],
+    };
+    insertRow(table, 1);
+    equal(table.cells![0]!.rowspan, 3, "a que atravessa cresce em vez de se partir");
+    equal(place(table).rows, 3, "e a tabela tem três linhas");
+  });
+
+  check("a última coluna não se deixa excluir", () => {
+    const table = tableOf(1, 2);
+    removeColumn(table, 0);
+    equal(place(table).columns, 1, "uma tabela sem colunas não é uma tabela");
+  });
+
+  check("a régua sob o cabeçalho desce com ele", () => {
+    const table = newTable(3, 2, true);
+    const before = table.lines!.find((line) => line.at === 1);
+    assert(before, "há régua no limite 1");
+    insertRow(table, 0);
+    assert(
+      table.lines!.some((line) => line.at === 2),
+      `a régua acompanha a linha nova: ${JSON.stringify(table.lines)}`,
+    );
+  });
+
+  check("Tab percorre as células em ordem de leitura e pára no fim", () => {
+    const table = tableOf(2, 2);
+    equal(nextCell(table, 0, 1), 1, "da primeira para a segunda");
+    equal(nextCell(table, 1, 1), 2, "e daí para a linha de baixo");
+    equal(nextCell(table, 3, 1), null, "no fim não dá a volta");
+    equal(nextCell(table, 0, -1), null, "nem no princípio");
+  });
+
+  check("largura de coluna vai e volta pelo seletor", () => {
+    equal(trackKind("auto"), "auto", "auto");
+    equal(trackKind(120), "fixed", "fixa");
+    equal(trackKind("2fr"), "fraction", "fracção");
+    equal(trackKind("25%"), "percent", "percentagem");
+    equal(trackAmount("2fr"), 2, "o número da fracção");
+    equal(String(trackOf("fraction", 3)), "3fr", "e de volta");
+    equal(String(trackOf("percent", 40)), "40%", "percentagem de volta");
+  });
+
+  // ── A table in a document ─────────────────────────────────────────────────
+
+  check("o texto de uma célula é editável pelo cursor que o motor devolve", () => {
+    const doc: DocumentSpec = {
+      page: { size: "A4", margins: 40 },
+      style: { fontFamily: "corpo", fontSize: 11 },
+      pages: [
+        {
+          frames: [
+            {
+              id: "quadro",
+              type: "text",
+              rect: [40, 40, 300, 200],
+              blocks: [
+                {
+                  type: "table",
+                  columns: ["auto", "auto"],
+                  cells: [
+                    { blocks: [{ type: "paragraph", content: [{ type: "text", text: "Estado" }] }] },
+                    { blocks: [{ type: "paragraph", content: [{ type: "text", text: "Mudança" }] }] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const store = new Store(engine, normalize(doc));
+    const run = collectRuns(store.list.pages[0]!).find((placed) => placed.run.text === "Mudança");
+    assert(run, "a segunda célula foi pintada");
+    equal(JSON.stringify(run.source.cells), '[{"block":0,"cell":1}]', "e diz de que célula veio");
+
+    // The whole point: what the source says leads to the cell's own blocks,
+    // not to the frame's.
+    const blocks = store.blocksOf(run.source);
+    assert(blocks && blocks.length === 1, "o cursor chega aos blocos da célula");
+    const paragraph = blocks[0] as Paragraph;
+    equal(paragraph.content.map((i) => (i.type === "text" ? i.text : "")).join(""), "Mudança",
+      "e é o parágrafo certo");
+
+    const text = new TextEditor(store);
+    text.enter("quadro", {
+      frame: "quadro",
+      story: null,
+      cells: run.source.cells ?? [],
+      block: 0,
+      inline: 0,
+      offset: utf8Length("Mudança"),
+    });
+    text.insert(" de estado");
+    equal(
+      (store.doc.pages[0]!.frames[0] as { blocks: Block[] }).blocks[0]!.type,
+      "table",
+      "continua a ser uma tabela",
+    );
+    const table = (store.doc.pages[0]!.frames[0] as { blocks: Block[] }).blocks[0] as TableBlock;
+    equal(textOf(table, 1), "Mudança de estado", "e o que se escreveu foi para a célula certa");
+    equal(textOf(table, 0), "Estado", "sem tocar na vizinha");
+
+    // And Tab from the last cell says there is nowhere else to go.
+    text.place({ ...text.caret!, cells: [{ block: 0, cell: 1 }] });
+    equal(text.moveCell(1), false, "no fim da tabela, Tab sai");
+  });
+
+  check("escrever e saltar de célula em célula enche a tabela em ordem", () => {
+    const table = newTable(2, 2, false);
+    const doc: DocumentSpec = {
+      page: { size: "A4", margins: 40 },
+      style: { fontFamily: "corpo", fontSize: 11 },
+      pages: [{ frames: [{ id: "quadro", type: "text", rect: [40, 40, 300, 200], blocks: [table] }] }],
+    };
+    const store = new Store(engine, normalize(doc));
+    const editor = new TextEditor(store);
+
+    editor.enter("quadro", {
+      frame: "quadro",
+      story: null,
+      cells: [{ block: 0, cell: 0 }],
+      block: 0,
+      inline: 0,
+      offset: 0,
+    });
+
+    const words = ["Estado", "Mudança", "Sólido", "fusão"];
+    words.forEach((word, index) => {
+      editor.insert(word);
+      if (index < words.length - 1) {
+        assert(editor.moveCell(1), `Tab depois de "${word}"`);
+      }
+    });
+
+    const written = (store.frame("quadro") as { blocks: Block[] }).blocks[0] as TableBlock;
+    equal(
+      written.cells!.map((_, index) => textOf(written, index)).join(" | "),
+      "Estado | Mudança | Sólido | fusão",
+      "cada palavra na sua célula, em ordem de leitura",
+    );
+
+    // Shift+Tab walks back the way it came — and, like Tab, lands with the
+    // cell's text selected, so the next thing typed replaces it. That is what
+    // filling a table is: putting values in slots, not editing prose.
+    assert(editor.moveCell(-1), "e volta");
+    assert(editor.hasSelection(), "com a célula seleccionada");
+    editor.insert("Gasoso");
+    equal(textOf(written, 2), "Gasoso", "e o que se escreve substitui o que lá estava");
   });
 
   // ── Report ────────────────────────────────────────────────────────────────

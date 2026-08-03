@@ -84,11 +84,87 @@ export interface Paragraph {
 
 export type Block =
   | Paragraph
+  | TableBlock
   | { type: "rule"; thickness?: Len; color?: string; width?: number; style?: Style }
   | { type: "spacer"; height: Len }
   | { type: "frameBreak" }
   | { type: "columnBreak" }
   | { type: "pageBreak" };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Table
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * What a column or row asks for.
+ *
+ * `"auto"` takes what the content needs; a number or a length like `"20mm"` is
+ * fixed; `"1fr"` takes a share of what is left; `"25%"` a share of the whole.
+ */
+export type TrackSize = number | string;
+
+export type CellAlign = "top" | "middle" | "bottom" | "baseline";
+export type GridAxis = "horizontal" | "vertical";
+
+/** A rule drawn along a grid line, independent of any cell. */
+export interface GridLine {
+  axis?: GridAxis;
+  /** Which boundary: 0 is before the first track, `n` after the last. */
+  at?: number;
+  from?: number;
+  to?: number;
+  width?: Len;
+  color?: string;
+}
+
+/** Alternating row fills, so striping is not written into every row. */
+export interface Stripe {
+  every?: number;
+  offset?: number;
+  fill?: string;
+}
+
+/** Rows repeated when the table continues on another page. */
+export interface RepeatRows {
+  rows?: number;
+  repeat?: boolean;
+  /** Shown in place of `rows` on the pages the table is *continuing*. */
+  continued?: Cell[] | null;
+}
+
+export interface Cell {
+  /** Explicit column. Absent means the next free slot, filling row by row. */
+  x?: number | null;
+  y?: number | null;
+  colspan?: number;
+  rowspan?: number;
+  /** A cell holds blocks, not a string — two paragraphs and a rule in one
+   *  cell is ordinary in teaching material. */
+  blocks?: Block[];
+  verticalAlign?: CellAlign;
+  fill?: string | null;
+  inset?: Len | Len[];
+  use?: string;
+  style?: Style;
+}
+
+export interface TableBlock {
+  type: "table";
+  /** One entry per column. Empty means inferred from the widest row. */
+  columns?: TrackSize[];
+  rows?: TrackSize[];
+  cells?: Cell[];
+  header?: RepeatRows | null;
+  footer?: RepeatRows | null;
+  inset?: Len | Len[];
+  columnGap?: Len;
+  rowGap?: Len;
+  lines?: GridLine[];
+  stripe?: Stripe | null;
+  fill?: string | null;
+  use?: string;
+  style?: Style;
+}
 
 export interface Border {
   width?: Len;
@@ -167,7 +243,87 @@ export interface GroupFrame extends FrameBase {
   children: Frame[];
 }
 
-export type Frame = TextFrame | ImageFrame | ShapeFrame | GroupFrame;
+// ─────────────────────────────────────────────────────────────────────────────
+// Chart
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One cell of data. `null` is a hole, kept rather than rejected. */
+export type DataValue = number | string | null;
+/** One observation: field name to value. */
+export type DataRow = Record<string, DataValue>;
+
+export type Mark = "bar" | "line" | "area" | "point";
+/** What a field means, which is what decides its scale. Absent means "read it
+ *  off the data", which is only asked where the answer is not in doubt. */
+export type FieldKind = "quantitative" | "categorical";
+export type ScaleKind = "linear" | "log" | "band" | "point";
+export type LegendPosition = "right" | "bottom" | "top" | "left";
+
+/** The author overriding what the field's kind would have chosen. */
+export interface ScaleSpec {
+  kind?: ScaleKind;
+  domain?: [number, number];
+  categories?: string[];
+  /** Whether the scale must reach zero. Absent means the mark decides, and a
+   *  bar decides yes — on the axis that carries the quantity. */
+  zero?: boolean;
+  nice?: boolean;
+  base?: number;
+  paddingInner?: number;
+  paddingOuter?: number;
+}
+
+export interface Channel {
+  field?: string;
+  kind?: FieldKind;
+  scale?: ScaleSpec;
+  /** Shown beside the axis. Absent means the field's own name. */
+  title?: string;
+}
+
+export interface Encoding {
+  x?: Channel;
+  y?: Channel;
+  /** Splits the data into series, one colour each. */
+  color?: Channel | null;
+}
+
+export interface Axis {
+  visible?: boolean;
+  title?: string;
+  /** Roughly how many marks to aim for. */
+  ticks?: number;
+  grid?: boolean;
+}
+
+export interface Axes {
+  x?: Axis;
+  y?: Axis;
+}
+
+export interface Legend {
+  visible?: boolean;
+  position?: LegendPosition;
+  title?: string;
+}
+
+export interface ChartFrame extends FrameBase {
+  type: "chart";
+  /** Inline observations. Ignored when `dataset` is set. */
+  data?: DataRow[];
+  /** Pull the rows from `resources.data` instead — the same pair `blocks` and
+   *  `story` already are on a text frame. */
+  dataset?: string;
+  mark?: Mark;
+  encoding?: Encoding;
+  axes?: Axes;
+  legend?: Legend | null;
+  /** Colours for the series, in order. Absent means the built-in palette. */
+  palette?: string[];
+  style?: Style;
+}
+
+export type Frame = TextFrame | ImageFrame | ShapeFrame | GroupFrame | ChartFrame;
 
 export interface Page {
   id?: string;
@@ -192,6 +348,9 @@ export interface Resources {
   masters?: Record<string, Master>;
   stories?: Record<string, Block[]>;
   colors?: Record<string, string>;
+  /** Named tables of observations, so two charts of the same numbers are not
+   *  two copies of the numbers. */
+  data?: Record<string, DataRow[]>;
 }
 
 export interface Meta {
@@ -233,10 +392,28 @@ export interface SourceRef {
   frame: string;
   /** Set when the content lives in `resources.stories`. */
   story?: string | null;
+  /**
+   * The table cells this content is nested inside, outermost first.
+   *
+   * Absent for everything that is not in a table. `block`, `inline` and
+   * `offset` are read relative to the innermost cell's own blocks — without
+   * this trail they would read as indices into the frame, and a click on a
+   * cell would edit whatever paragraph happened to sit at that index.
+   */
+  cells?: CellStep[];
   block?: number | null;
   inline?: number | null;
   /** Byte offset into that inline's text where the run starts. */
   offset?: number | null;
+}
+
+/** One step down into a table. */
+export interface CellStep {
+  /** Index of the table block in the list that holds it. */
+  block: number;
+  /** Index of the cell in that table's `cells`, as the author wrote it — not
+   *  as it was drawn, since a continuation renumbers its rows. */
+  cell: number;
 }
 
 export interface Glyph {
@@ -351,7 +528,7 @@ export interface DisplayFrame {
   name?: string | null;
   rect: Rect;
   rotation: number;
-  kind: "text" | "image" | "shape" | "group";
+  kind: "text" | "image" | "shape" | "group" | "chart";
   locked: boolean;
   /** Content that did not fit and had nowhere to flow. */
   overset: boolean;
@@ -406,6 +583,9 @@ export interface Caret {
   /** Frame the caret was placed through — used to scope the search. */
   frame: string;
   story: string | null;
+  /** The table cells the text is inside, outermost first. Empty for text that
+   *  is not in a table, which is most of it. */
+  cells: CellStep[];
   block: number;
   inline: number;
   /** Byte offset into that inline's text. */

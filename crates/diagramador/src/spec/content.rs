@@ -146,6 +146,13 @@ pub struct TableBlock {
     #[serde(rename = "use")]
     pub use_style: Option<String>,
     pub style: Option<Style>,
+
+    /// Where this table sits in the block list the author wrote, when this is
+    /// the continuation of one. Same mechanism as `Cell::origin`, one level
+    /// up: the leftover is re-flowed into a fresh list whose indices start
+    /// again, and the editor has to be told which table it came from.
+    #[serde(skip)]
+    pub origin: Option<u32>,
 }
 
 /// Rows that repeat when the table breaks across pages.
@@ -192,6 +199,18 @@ pub struct Cell {
     #[serde(rename = "use")]
     pub use_style: Option<String>,
     pub style: Option<Style>,
+
+    /// Where this cell sits in the table the author wrote, when this is a
+    /// copy of it.
+    ///
+    /// Set when a table runs onto another page: the continuation is a new
+    /// block whose rows are renumbered and whose header is copied in, so an
+    /// index into it addresses a cell the document does not have. Exactly
+    /// what `Paragraph::origin` does for a paragraph split across frames, and
+    /// for the same reason — what the editor writes back to is the original,
+    /// wherever the copy was drawn.
+    #[serde(skip)]
+    pub origin: Option<u32>,
 }
 
 impl Default for RepeatRows {
@@ -216,6 +235,7 @@ impl Default for Cell {
             inset: None,
             use_style: None,
             style: None,
+            origin: None,
         }
     }
 }

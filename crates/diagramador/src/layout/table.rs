@@ -11,7 +11,7 @@
 
 use super::grid::{self, Track};
 use super::text::Intrinsic;
-use crate::display::{DisplayItem, LineItem, RectItem, SourceRef, Stroke};
+use crate::display::{CellStep, DisplayItem, LineItem, RectItem, SourceRef, Stroke};
 use crate::color::Color;
 use crate::spec::content::{
     Block, Cell, CellAlign, GridAxis, GridLine, RepeatRows, Stripe, TableBlock, TrackSize,
@@ -618,7 +618,20 @@ pub(crate) fn emit(
             width,
             height,
         );
-        items.extend(cells.render(&cell.blocks, style, inner, source));
+        // One step down into the table, so what the cell's blocks report is
+        // read against the cell and not against the frame. `origin` is what a
+        // continuation carries: the index the cell has where the author wrote
+        // it, which is the only one the document can be edited through.
+        let mut here = source.clone();
+        here.cells.push(CellStep {
+            block: source.block.unwrap_or(0),
+            cell: cell.origin.unwrap_or(placed.cell as u32),
+        });
+        here.block = None;
+        here.inline = None;
+        here.offset = None;
+
+        items.extend(cells.render(&cell.blocks, style, inner, &here));
     }
 
     // ── The continuation footer, under what was drawn ───────────────────────
@@ -635,6 +648,15 @@ pub(crate) fn emit(
     }
 
     Layout { items, height, sizes, grid: grid_layout, issues, leftover }
+}
+
+/// The index a cell has in the table as the author wrote it.
+///
+/// Itself, unless it is already a copy — a table that breaks twice hands the
+/// second continuation cells that were themselves copies, and the origin has
+/// to survive the whole chain rather than reset at each page.
+fn cell_origin(table: &TableBlock, index: usize) -> u32 {
+    table.cells[index].origin.unwrap_or(index as u32)
 }
 
 /// The rows a continuation opens with, when there is a header to repeat.
@@ -675,6 +697,10 @@ fn repeated(
         .map(|placed| Cell {
             x: Some(placed.x),
             y: Some(placed.y - from as u32),
+            // Which cell of the table as written this is a copy of, so the
+            // header a reader meets on page four still edits the one the
+            // author typed on page one.
+            origin: Some(cell_origin(table, placed.cell)),
             ..table.cells[placed.cell].clone()
         })
         .collect()
@@ -836,6 +862,7 @@ fn remainder(
             // to arrange them differently from the page they came off.
             x: Some(placed.x),
             y: Some(placed.y - cut32 + shift),
+            origin: Some(cell_origin(table, placed.cell)),
             ..table.cells[placed.cell].clone()
         },
     ));

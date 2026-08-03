@@ -8,10 +8,12 @@
  */
 
 import { Engine } from "./engine";
+import { newTable } from "./table";
 import {
   Store,
   newFrameId,
   parseLen,
+  newChartFrame,
   newImageFrame,
   newShapeFrame,
   newTextFrame,
@@ -663,6 +665,7 @@ async function boot(): Promise<void> {
     const caret = caretAt(store.list, page, located.x, located.y, hit.id) ?? {
       frame: hit.id,
       story: null,
+      cells: [],
       block: 0,
       inline: 0,
       offset: 0,
@@ -956,6 +959,17 @@ async function boot(): Promise<void> {
     }
 
     switch (event.key) {
+      case "Tab":
+        // Inside a table, Tab is how you fill it: cell to cell in reading
+        // order, with the cell's text selected so the next thing typed
+        // replaces it. Outside one it does nothing, rather than inserting a
+        // tab nobody asked for into a paragraph.
+        if (text.cellUnderCaret()) {
+          event.preventDefault();
+          text.moveCell(event.shiftKey ? -1 : 1);
+          refresh();
+        }
+        break;
       case "Escape":
         event.preventDefault();
         text.exit();
@@ -1030,7 +1044,68 @@ async function boot(): Promise<void> {
     refresh();
   }
 
-  function addFrame(kind: "text" | "shape" | "image", src?: string): void {
+  /**
+   * Put a table where the caret is, or in a frame of its own.
+   *
+   * Three by three with a heading, and no dialogue asking how many: the
+   * inspector adds and removes rows and columns one click each, which is
+   * fewer decisions up front and the same number in total.
+   */
+  function addTable(): void {
+    const table = newTable(3, 3, true);
+    const caret = text.caret;
+
+    if (caret && text.frameId) {
+      const frame = store.frame(text.frameId);
+      if (frame?.type === "text") {
+        store.commit(() => {
+          const blocks = store.blocksOf({
+            page: 0,
+            frame: caret.frame,
+            story: caret.story,
+            cells: caret.cells,
+          });
+          blocks?.splice(caret.block + 1, 0, table);
+        });
+        // Straight into the first cell, so the next keystroke goes in it.
+        const index = caret.block + 1;
+        text.place({
+          ...caret,
+          cells: [...caret.cells, { block: index, cell: 0 }],
+          block: 0,
+          inline: 0,
+          offset: 0,
+        });
+        refresh();
+        return;
+      }
+    }
+
+    const pageIndex = clamp(activePage, 0, Math.max(0, store.doc.pages.length - 1));
+    const page = pageOf(pageIndex);
+    const frame = newTextFrame(page ? page.marginBox.x + 20 : 40, page ? page.marginBox.y + 20 : 40);
+    frame.rect = [frame.rect[0], frame.rect[1], 320, 140];
+    frame.blocks = [table];
+    frame.overflow = "grow";
+
+    store.commit((doc) => {
+      doc.pages[pageIndex]?.frames.push(frame);
+    });
+    selected.clear();
+    selected.add(frame.id!);
+    text.enter(frame.id!, {
+      frame: frame.id!,
+      story: null,
+      cells: [{ block: 0, cell: 0 }],
+      block: 0,
+      inline: 0,
+      offset: 0,
+    });
+    keyboard.focus({ preventScroll: true });
+    refresh();
+  }
+
+  function addFrame(kind: "text" | "shape" | "image" | "chart", src?: string): void {
     const pageIndex = clamp(activePage, 0, Math.max(0, store.doc.pages.length - 1));
     const page = pageOf(pageIndex);
     const x = page ? page.marginBox.x + 20 : 40;
@@ -1041,7 +1116,9 @@ async function boot(): Promise<void> {
         ? newTextFrame(x, y)
         : kind === "shape"
           ? newShapeFrame(x, y)
-          : newImageFrame(x, y, src ?? "");
+          : kind === "chart"
+            ? newChartFrame(x, y)
+            : newImageFrame(x, y, src ?? "");
 
     store.commit((doc) => {
       doc.pages[pageIndex]?.frames.push(frame);
@@ -1385,6 +1462,8 @@ async function boot(): Promise<void> {
   toolsRoot.append(
     iconButton("text", "Caixa de texto — T", () => addFrame("text")),
     iconButton("shape", "Retângulo — R", () => addFrame("shape")),
+    iconButton("table", "Tabela", () => addTable()),
+    iconButton("chart", "Gráfico", () => addFrame("chart")),
     iconButton("image", "Imagem — I", () => void importImage()),
     iconButton("pageAdd", "Nova página", () => addPage(false)),
     iconButton("duplicate", "Duplicar página", () => addPage(true)),

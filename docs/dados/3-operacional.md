@@ -1088,21 +1088,84 @@ escolhidas por algoritmo, grelha e legenda.
 
 ## Fase 5 — editor
 
+**Estado: feita.** 67 testes em `tests`, 92 em `apply-test`, 4 em
+`inspector-test` e 4 em `clipboard-test` — 167 no editor, todos verdes.
+
+**A fase abriu com uma mudança no motor que o plano não previa.** O texto de
+uma célula levava o `SourceRef` da *tabela*, e o `flow_blocks` sobrescrevia-lhe
+o campo `block` com o índice dentro da célula. O editor lia isso como "bloco N
+do frame" — e o bloco N do frame é outro parágrafo qualquer. Clicar numa
+célula punha o cursor no sítio errado, e escrever teria estragado o documento.
+
+`SourceRef` ganhou um rasto de células: `cells: Vec<CellStep>`, cada passo com
+o bloco da tabela e o índice da célula. Aditivo, e omitido do JSON quando está
+vazio, que é quase sempre. `block`, `inline` e `offset` passam a ler-se contra
+a célula mais interior.
+
+**E isso destapou um segundo problema.** Uma tabela que continua noutra página
+é um bloco *novo*, com as linhas renumeradas e o cabeçalho copiado para
+dentro. Um índice para esse bloco endereça uma célula que o documento não tem.
+A solução é a que o motor já usava para parágrafos partidos entre frames:
+`Cell::origin` e `TableBlock::origin`, ambos `#[serde(skip)]`, dizem de onde a
+cópia veio. O cabeçalho que um leitor encontra na página quatro edita o que o
+autor escreveu na página um.
+
 ### T5.1 — Tipos em `types.ts` · P
 
+**Estado: feita.** `TableBlock`, `Cell`, `TrackSize`, `GridLine`, `Stripe`,
+`RepeatRows`, `ChartFrame`, `Encoding`, `Channel`, `ScaleSpec`, `Axes`,
+`Legend`, `DataRow`, `CellStep`, e `Caret.cells`.
+
 ### T5.2 — Inspetor da tabela · M
-Acrescentar e remover linha e coluna, largura de pista por seletor
-(fixa/auto/fracção), inset, e o cabeçalho que repete.
+
+**Estado: feita.** `table.ts` (novo) e a secção «Tabela» no inspetor.
+
+**O cursor estar numa célula é o que selecciona a tabela.** Não há outra coisa
+que isso possa significar, e põe os controles onde a mão já está.
+
+**Uma tabela é normalizada à entrada**, com cada célula a receber um `x` e um
+`y` explícitos. A abreviatura do esquema — "a próxima casa livre" — é boa para
+quem escreve e impossível de editar: «inserir uma coluna antes desta» não quer
+dizer nada até toda a célula ter lugar. É o mesmo que o `store.ts` já faz ao
+expandir uma cadeia de texto num parágrafo.
+
+**O preço, que se paga de olhos abertos:** a regra de colocação do motor está
+escrita uma segunda vez, em `table.ts`. A alternativa era o motor devolver uma
+grelha resolvida, o que poria na display list uma geometria que ninguém pinta.
+A regra é pequena e está fixa, e os testes do editor usam os mesmos casos que
+os do motor — se as duas cópias divergirem, divergem ali.
 
 ### T5.3 — Edição de célula no canvas · G
-Entrar numa célula e escrever, com Tab a saltar para a seguinte. É a tarefa
-que torna a tabela utilizável de facto, e a maior da fase.
+
+**Estado: feita.** Clicar numa célula põe o cursor nela e escreve-se como em
+qualquer parágrafo; Tab salta para a seguinte em ordem de leitura, Shift+Tab
+volta, e ambos chegam com o texto da célula seleccionado — o que se escreve a
+seguir substitui-o, como em qualquer processador de texto. No fim da tabela
+Tab sai, em vez de dar a volta: dar a volta perde o lugar de quem lê sem
+avisar.
 
 ### T5.4 — Inspetor do gráfico · M
-Marca, campos de codificação, escala, título dos eixos.
+
+**Estado: feita.** Marca, campo e tipo de cada canal, títulos e grelha dos
+eixos, tipo de escala, o zero, e a legenda com a sua posição.
+
+**O painel é a codificação, e nada mais.** Um gráfico autora-se dizendo o que
+governa o quê, nunca desenhando — por isso não há aqui controle nenhum que
+possa contradizer o motor sobre onde uma marca cai ou que rótulo cabe.
 
 ### T5.5 — Editor de dados · M
-Uma grelha para escrever a série. Sem isto, gráfico só se autora em JSON.
+
+**Estado: feita.** Uma grelha de observações no painel: acrescentar e remover
+linhas e campos, renomear um campo em todas as observações de uma vez (e nos
+canais que o referem). Uma caixa vazia é um buraco e não um zero — que é a
+distinção pela qual o esquema guarda nulos.
+
+**Uma ferramenta que a fase acrescentou:** `run-tests.mjs` corre as quatro
+páginas de teste em Chromium sem browser aberto à mão, e `shot.mjs` tira uma
+fotografia do editor depois de o conduzir um pouco. Precisam de um navegador a
+sério — o motor é wasm, a escrita passa por um textarea escondido e os painéis
+são DOM; fingir qualquer disso seria testar o fingimento. O que desaparece é
+só o clicar.
 
 ---
 

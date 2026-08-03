@@ -863,3 +863,54 @@ body {
 .section.collapsed .section-head button:not(.section-toggle) {
   display: none;
 }
+
+/* ── Data grid ───────────────────────────────────────────────────────────────
+   The observations behind a chart, as a grid you can type into. Narrow on
+   purpose: it lives in a side panel, and a wide one would push the chart off
+   the canvas to make room for numbers that are three characters long. */
+
+.data-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.data-grid th,
+.data-grid td {
+  padding: 0;
+  border: 1px solid var(--line);
+}
+
+.data-grid input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  padding: 3px 5px;
+  min-width: 0;
+}
+
+.data-grid th input {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.data-grid input:focus {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.data-grid th:last-child,
+.data-grid td:last-child {
+  width: 26px;
+  border: 0;
+  text-align: center;
+}
+
+.check-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}

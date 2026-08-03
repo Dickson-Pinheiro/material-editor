@@ -19,9 +19,11 @@ import type {
   Paragraph,
   SourceRef,
   Style,
+  TableBlock,
   TextRun,
 } from "./types";
 import { compareCarets, verticalNeighbour } from "./hit";
+import { nextCell } from "./table";
 import {
   byteToIndex,
   indexToByte,
@@ -566,10 +568,58 @@ export class TextEditor {
       page: 0,
       frame: caret.frame,
       story: caret.story,
+      cells: caret.cells,
       block: caret.block,
       inline: caret.inline,
       offset: caret.offset,
     };
+  }
+
+  // ── Tables ────────────────────────────────────────────────────────────────
+
+  /** The table the caret is inside, and which cell of it. */
+  cellUnderCaret(): { table: TableBlock; cell: number; depth: number } | null {
+    if (!this.caret || this.caret.cells.length === 0) return null;
+    const depth = this.caret.cells.length - 1;
+    const table = this.store.tableAt(this.asSource(this.caret), depth);
+    if (!table) return null;
+    return { table, cell: this.caret.cells[depth]!.cell, depth };
+  }
+
+  /**
+   * Move to the next cell in reading order, or the previous one.
+   *
+   * `false` at either end of the table, so the caller can decide what leaving
+   * means. Wrapping round to the top would lose the reader's place without
+   * saying so, and stopping dead would trap the caret in the last cell.
+   */
+  moveCell(direction: 1 | -1): boolean {
+    const here = this.cellUnderCaret();
+    if (!here || !this.caret) return false;
+
+    const next = nextCell(here.table, here.cell, direction);
+    if (next === null) return false;
+
+    const trail = [...this.caret.cells];
+    trail[here.depth] = { ...trail[here.depth]!, cell: next };
+
+    // The whole of the cell's text, so Tab lands ready to overwrite it — which
+    // is what typing into a table is: filling slots, not editing prose.
+    const blocks = here.table.cells?.[next]?.blocks ?? [];
+    const last = Math.max(0, blocks.length - 1);
+    const block = blocks[last];
+    const inline = block?.type === "paragraph" ? block.content.length - 1 : 0;
+    const run = block?.type === "paragraph" ? block.content[Math.max(0, inline)] : undefined;
+
+    this.anchor = { ...this.caret, cells: trail, block: 0, inline: 0, offset: 0 };
+    this.caret = {
+      ...this.caret,
+      cells: trail,
+      block: last,
+      inline: Math.max(0, inline),
+      offset: run?.type === "text" ? utf8Length(run.text) : 0,
+    };
+    return true;
   }
 
   private blocksAt(caret: Caret) {

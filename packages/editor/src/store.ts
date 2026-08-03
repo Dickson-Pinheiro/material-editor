@@ -7,6 +7,7 @@
  */
 
 import type { Engine } from "./engine";
+import { normalizeTable, sortCells } from "./table";
 import type {
   Block,
   DisplayList,
@@ -16,6 +17,7 @@ import type {
   Len,
   Paragraph,
   SourceRef,
+  TableBlock,
   TextFrame,
 } from "./types";
 
@@ -236,18 +238,43 @@ export class Store {
   }
 
   /**
-   * The block list a source reference points into — either a named story or
-   * the frame's own blocks.
+   * The block list a source reference points into.
+   *
+   * A named story, or the frame's own blocks — and then, for anything painted
+   * inside a table, down the cell trail to the cell's own list. Every index
+   * in the reference is read against whatever this returns, which is the
+   * whole reason the trail exists: without it, a caret in a cell would edit
+   * the frame's paragraph at the same index.
    */
   blocksOf(source: SourceRef): Block[] | null {
+    let blocks: Block[] | null;
     if (source.story) {
-      const stories = this.doc.resources?.stories;
-      return stories?.[source.story] ?? null;
+      blocks = this.doc.resources?.stories?.[source.story] ?? null;
+    } else {
+      const frame = this.frame(source.frame);
+      if (!frame || frame.type !== "text") return null;
+      frame.blocks ??= [];
+      blocks = frame.blocks;
     }
-    const frame = this.frame(source.frame);
-    if (!frame || frame.type !== "text") return null;
-    frame.blocks ??= [];
-    return frame.blocks;
+
+    for (const step of source.cells ?? []) {
+      const table = blocks?.[step.block];
+      if (!table || table.type !== "table") return null;
+      const cell = table.cells?.[step.cell];
+      if (!cell) return null;
+      cell.blocks ??= [];
+      blocks = cell.blocks;
+    }
+    return blocks;
+  }
+
+  /** The table a cell trail passes through, at `depth` steps down. */
+  tableAt(source: SourceRef, depth = 0): TableBlock | null {
+    const step = source.cells?.[depth];
+    if (!step) return null;
+    const outer: SourceRef = { ...source, cells: (source.cells ?? []).slice(0, depth) };
+    const block = this.blocksOf(outer)?.[step.block];
+    return block && block.type === "table" ? block : null;
   }
 
   // ── Hierarchy ─────────────────────────────────────────────────────────────
@@ -624,6 +651,18 @@ function normalizeBlocks(blocks: Block[]): void {
       block.content ??= [];
       normalizeInlines(block.content);
     }
+    if (block.type === "table") {
+      // Every cell given a place, so "insert a column before this one" has a
+      // meaning. The schema's next-free-slot shorthand is for authors; the
+      // editing code should only ever see the resolved form.
+      block.cells ??= [];
+      normalizeTable(block);
+      for (const cell of block.cells) {
+        cell.blocks ??= [];
+        normalizeBlocks(cell.blocks);
+      }
+      sortCells(block);
+    }
   }
 }
 
@@ -666,6 +705,31 @@ export function newShapeFrame(x: number, y: number): Frame {
     rect: [x, y, 160, 100],
     fill: "#dbe7f3",
     border: { width: 1, color: "#1f4e79" },
+  };
+}
+
+/**
+ * A chart with three observations already in it.
+ *
+ * Not an empty one: an empty chart is a blank rectangle with nothing to say
+ * what any control does, and the first thing anyone has to do with it is
+ * invent data before they can see whether they wanted a chart at all.
+ */
+export function newChartFrame(x: number, y: number): Frame {
+  return {
+    id: newFrameId("grafico"),
+    type: "chart",
+    rect: [x, y, 260, 180],
+    mark: "bar",
+    data: [
+      { categoria: "um", valor: 12 },
+      { categoria: "dois", valor: 19 },
+      { categoria: "três", valor: 8 },
+    ],
+    encoding: {
+      x: { field: "categoria", kind: "categorical" },
+      y: { field: "valor" },
+    },
   };
 }
 

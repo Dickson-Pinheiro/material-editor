@@ -19,6 +19,17 @@ import {
   textField,
 } from "./controls";
 import { placement, toFrame, trace } from "./contour";
+import {
+  insertColumn,
+  insertRow,
+  place,
+  removeColumn,
+  removeRow,
+  trackAmount,
+  trackKind,
+  trackOf,
+} from "./table";
+import { parseLen } from "./store";
 import type { Point } from "./contour";
 import type { Store } from "./store";
 import type { TextEditor } from "./text";
@@ -31,9 +42,18 @@ import type {
   ImageFrame,
   Len,
   Overflow,
+  CellAlign,
+  ChartFrame,
+  DataRow,
+  DataValue,
+  FieldKind,
+  LegendPosition,
+  Mark,
+  ScaleKind,
   ShapeFrame,
   ShapeKind,
   Style,
+  TableBlock,
   TextAlign,
   TextFrame,
   VerticalAlign,
@@ -83,6 +103,10 @@ export class Inspector {
     if (state.editing && this.text.hasSelection()) {
       this.renderTextSelection();
     }
+
+    // The caret being in a cell is what selects a table. There is nothing else
+    // it could mean, and it puts the controls where the hand already is.
+    this.renderTable();
 
     if (state.selected.length === 1) {
       const id = state.selected[0]!;
@@ -418,6 +442,7 @@ export class Inspector {
     if (frame.type === "text") this.renderTextFrame(frame, list, change);
     if (frame.type === "image") this.renderImageFrame(frame, change);
     if (frame.type === "shape") this.renderShapeFrame(frame, change);
+    if (frame.type === "chart") this.renderChartFrame(frame, change);
 
     if (displayed.overset) {
       this.root.append(
@@ -805,6 +830,508 @@ export class Inspector {
     );
   }
 
+  // ── Chart ─────────────────────────────────────────────────────────────────
+
+  /**
+   * A chart is authored by saying what drives what, never by drawing.
+   *
+   * So the panel is the encoding: which field goes on which axis, what the
+   * field means, and what the reader is told about it. Everything else — where
+   * the marks land, how wide the margin is, which labels fit — the engine
+   * decides, and there is no control here that could contradict it.
+   */
+  private renderChartFrame(
+    frame: ChartFrame,
+    change: (mutate: (frame: Frame) => void) => void,
+  ): void {
+    const edit = (mutate: (chart: ChartFrame) => void) =>
+      change((f) => mutate(f as ChartFrame));
+
+    const rows = this.chartRows(frame);
+    const fields = fieldNames(rows);
+    const options = [
+      { value: "", label: "—" },
+      ...fields.map((name) => ({ value: name, label: name })),
+    ];
+
+    const channel = (
+      which: "x" | "y" | "color",
+      label: string,
+    ): (HTMLElement | null)[] => {
+      const current = frame.encoding?.[which] ?? undefined;
+      return [
+        pick(
+          options,
+          current?.field ?? "",
+          (value) =>
+            edit((chart) => {
+              chart.encoding ??= {};
+              if (which === "color" && !value) {
+                chart.encoding.color = null;
+                return;
+              }
+              const target = (chart.encoding[which] ??= {});
+              target.field = value;
+            }),
+          label,
+          `chart.${which}.field`,
+        ),
+        pick(
+          [
+            { value: "", label: "pelos dados" },
+            { value: "quantitative", label: "quantidade" },
+            { value: "categorical", label: "categoria" },
+          ],
+          current?.kind ?? "",
+          (value) =>
+            edit((chart) => {
+              const target = ((chart.encoding ??= {})[which] ??= {});
+              if (value) target.kind = value as FieldKind;
+              else delete target.kind;
+            }),
+          null,
+          `chart.${which}.kind`,
+        ),
+      ];
+    };
+
+    this.root.append(
+      section("Gráfico", [
+        row(
+          (
+            [
+              ["chart", "bar", "Barras"],
+              ["line", "line", "Linha"],
+              ["shape", "area", "Área"],
+              ["ellipse", "point", "Dispersão"],
+            ] as [string, Mark, string][]
+          ).map(([icon, value, title]) =>
+            iconButton(icon, title, () => edit((chart) => void (chart.mark = value)), {
+              active: (frame.mark ?? "bar") === value,
+              field: "chart.mark",
+              value,
+            }),
+          ),
+          "segmented",
+        ),
+        note(
+          rows.length === 0
+            ? "sem dados — use o editor abaixo"
+            : `${rows.length} observações, ${fields.length} campos`,
+        ),
+      ]),
+    );
+
+    this.root.append(section("Eixo horizontal", channel("x", "Campo")));
+    this.root.append(section("Eixo vertical", channel("y", "Campo")));
+    this.root.append(section("Cor", channel("color", "Separar por")));
+
+    const axis = (which: "x" | "y", label: string) => {
+      const current = frame.axes?.[which] ?? {};
+      return [
+        textField(
+          label,
+          current.title ?? "",
+          (value) =>
+            edit((chart) => {
+              const target = ((chart.axes ??= {})[which] ??= {});
+              target.title = value;
+            }),
+          "Vazio deixa o eixo sem título; ausente usa o nome do campo",
+          false,
+          `chart.axes.${which}.title`,
+        ),
+        row([
+          checkbox(
+            "Visível",
+            current.visible !== false,
+            (value) =>
+              edit((chart) => {
+                const target = ((chart.axes ??= {})[which] ??= {});
+                target.visible = value;
+              }),
+            undefined,
+            `chart.axes.${which}.visible`,
+          ),
+          checkbox(
+            "Grelha",
+            current.grid === true,
+            (value) =>
+              edit((chart) => {
+                const target = ((chart.axes ??= {})[which] ??= {});
+                target.grid = value;
+              }),
+            undefined,
+            `chart.axes.${which}.grid`,
+          ),
+        ], "check-row"),
+      ];
+    };
+
+    this.root.append(section("Eixos", [...axis("x", "Título de x"), ...axis("y", "Título de y")]));
+
+    const scale = frame.encoding?.y?.scale ?? {};
+    this.root.append(
+      section("Escala vertical", [
+        pick(
+          [
+            { value: "", label: "pelo tipo do campo" },
+            { value: "linear", label: "linear" },
+            { value: "log", label: "logarítmica" },
+            { value: "band", label: "banda" },
+            { value: "point", label: "ponto" },
+          ],
+          scale.kind ?? "",
+          (value) =>
+            edit((chart) => {
+              const target = (((chart.encoding ??= {}).y ??= {}).scale ??= {});
+              if (value) target.kind = value as ScaleKind;
+              else delete target.kind;
+            }),
+          "Tipo",
+          "chart.y.scale.kind",
+        ),
+        checkbox(
+          "Alcançar o zero",
+          scale.zero !== false,
+          (value) =>
+            edit((chart) => {
+              const target = (((chart.encoding ??= {}).y ??= {}).scale ??= {});
+              target.zero = value;
+            }),
+          "Barras e áreas que não começam no zero mentem sobre as proporções",
+          "chart.y.scale.zero",
+        ),
+      ]),
+    );
+
+    const legend = frame.legend ?? {};
+    this.root.append(
+      section("Legenda", [
+        note("Aparece sozinha a partir de duas séries — a cor não basta para identificar."),
+        checkbox(
+          "Mostrar",
+          legend.visible !== false,
+          (value) =>
+            edit((chart) => {
+              chart.legend = { ...(chart.legend ?? {}), visible: value };
+            }),
+          undefined,
+          "chart.legend.visible",
+        ),
+        pick(
+          [
+            { value: "right", label: "à direita" },
+            { value: "bottom", label: "abaixo" },
+            { value: "top", label: "acima" },
+            { value: "left", label: "à esquerda" },
+          ],
+          legend.position ?? "right",
+          (value) =>
+            edit((chart) => {
+              chart.legend = { ...(chart.legend ?? {}), position: value as LegendPosition };
+            }),
+          "Onde",
+          "chart.legend.position",
+        ),
+      ]),
+    );
+
+    this.renderData(frame, edit, fields);
+  }
+
+  /** The rows a chart draws, wherever they live. */
+  private chartRows(frame: ChartFrame): DataRow[] {
+    if (frame.dataset) return this.store.doc.resources?.data?.[frame.dataset] ?? [];
+    return frame.data ?? [];
+  }
+
+  /**
+   * The data, as a grid you can type into.
+   *
+   * Without it a chart is only authorable in JSON, which is the one thing this
+   * editor exists not to require. It edits in place, cell by cell: a number
+   * that parses is stored as a number, an empty box is a hole, and anything
+   * else is text — which is the same three things the schema accepts.
+   */
+  private renderData(
+    frame: ChartFrame,
+    edit: (mutate: (chart: ChartFrame) => void) => void,
+    fields: string[],
+  ): void {
+    const rows = this.chartRows(frame);
+    const named = frame.dataset;
+
+    const write = (mutate: (rows: DataRow[]) => void) => {
+      if (named) {
+        this.handlers.docChange((doc) => {
+          const table = ((doc.resources ??= {}).data ??= {});
+          table[named] ??= [];
+          mutate(table[named]!);
+        });
+      } else {
+        edit((chart) => {
+          chart.data ??= [];
+          mutate(chart.data);
+        });
+      }
+    };
+
+    const table = document.createElement("table");
+    table.className = "data-grid";
+    if (named) table.dataset.dataset = named;
+
+    const head = document.createElement("tr");
+    for (const field of fields) {
+      const cell = document.createElement("th");
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = field;
+      input.title = "Renomear o campo em todas as observações";
+      input.addEventListener("change", () => {
+        const to = input.value.trim();
+        if (!to || to === field) return;
+        write((all) => {
+          for (const row of all) {
+            row[to] = row[field] ?? null;
+            delete row[field];
+          }
+        });
+        this.renameField(frame, edit, field, to);
+      });
+      cell.append(input);
+      head.append(cell);
+    }
+    const add = document.createElement("th");
+    add.append(
+      iconButton("columnAfter", "Novo campo", () =>
+        write((all) => {
+          const name = freshField(fields);
+          if (all.length === 0) all.push({});
+          for (const row of all) row[name] = null;
+        }),
+        { field: "data.addField" },
+      ),
+    );
+    head.append(add);
+    table.append(head);
+
+    rows.forEach((row, index) => {
+      const line = document.createElement("tr");
+      for (const field of fields) {
+        const cell = document.createElement("td");
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = row[field] == null ? "" : String(row[field]);
+        // On the box and not on the input: every other control in this panel
+        // marks its container, and the harness reaches through it.
+        cell.dataset.field = `data.${index}.${field}`;
+        input.addEventListener("change", () => {
+          write((all) => {
+            const target = all[index];
+            if (target) target[field] = readValue(input.value);
+          });
+        });
+        cell.append(input);
+        line.append(cell);
+      }
+      const remove = document.createElement("td");
+      remove.append(
+        iconButton("trash", "Excluir observação", () =>
+          write((all) => void all.splice(index, 1)),
+          { field: `data.${index}.remove` },
+        ),
+      );
+      line.append(remove);
+      table.append(line);
+    });
+
+    this.root.append(
+      section("Dados", [
+        table,
+        row([
+          iconButton("rowAfter", "Nova observação", () =>
+            write((all) => {
+              const blank: DataRow = {};
+              for (const field of fields.length > 0 ? fields : ["campo"]) blank[field] = null;
+              all.push(blank);
+            }),
+            { field: "data.addRow", label: "Observação" },
+          ),
+        ]),
+        named
+          ? note(`lendo de resources.data.${named} — outras molduras veem a mesma série`)
+          : note("dados desta moldura; nomeie a série no JSON para partilhá-la"),
+      ]),
+    );
+  }
+
+  /** Point the encoding at a field that has just been renamed. */
+  private renameField(
+    frame: ChartFrame,
+    edit: (mutate: (chart: ChartFrame) => void) => void,
+    from: string,
+    to: string,
+  ): void {
+    edit((chart) => {
+      for (const which of ["x", "y", "color"] as const) {
+        const channel = chart.encoding?.[which];
+        if (channel && channel.field === from) channel.field = to;
+      }
+    });
+    void frame;
+  }
+
+  // ── Table ─────────────────────────────────────────────────────────────────
+
+  /**
+   * The table the caret is in, if it is in one.
+   *
+   * Everything here writes through `docChange`, so one control is one undo
+   * step — the same contract every other control in this panel keeps.
+   */
+  private renderTable(): void {
+    const here = this.text.cellUnderCaret();
+    if (!here) return;
+
+    const { table, cell } = here;
+    const resolved = place(table);
+    const spot = resolved.cells.find((entry) => entry.cell === cell);
+    if (!spot) return;
+
+    const change = (mutate: (table: TableBlock) => void) =>
+      this.handlers.docChange(() => mutate(table));
+
+    const columnIndex = spot.x;
+    const rowIndex = spot.y;
+    const kind = trackKind(table.columns?.[columnIndex]);
+
+    this.root.append(
+      section("Tabela", [
+        note(`linha ${rowIndex + 1} de ${resolved.rows}, coluna ${columnIndex + 1} de ${resolved.columns}`),
+
+        row(
+          [
+            iconButton("columnBefore", "Coluna antes", () =>
+              change((t) => insertColumn(t, columnIndex)),
+              { field: "table.columnBefore" },
+            ),
+            iconButton("columnAfter", "Coluna depois", () =>
+              change((t) => insertColumn(t, columnIndex + 1)),
+              { field: "table.columnAfter" },
+            ),
+            iconButton("rowBefore", "Linha acima", () => change((t) => insertRow(t, rowIndex)), {
+              field: "table.rowBefore",
+            }),
+            iconButton("rowAfter", "Linha abaixo", () => change((t) => insertRow(t, rowIndex + 1)), {
+              field: "table.rowAfter",
+            }),
+            iconButton("columnRemove", "Excluir coluna", () =>
+              change((t) => removeColumn(t, columnIndex)),
+              { field: "table.columnRemove" },
+            ),
+            iconButton("rowRemove", "Excluir linha", () => change((t) => removeRow(t, rowIndex)), {
+              field: "table.rowRemove",
+            }),
+          ],
+          "segmented",
+        ),
+
+        // The width of the column the caret is in, not of the table: a table
+        // has no one width to set, and the column under the hand is the one
+        // being thought about.
+        grid(2, [
+          pick(
+            [
+              { value: "auto", label: "auto" },
+              { value: "fixed", label: "fixa" },
+              { value: "fraction", label: "fração" },
+              { value: "percent", label: "porcentagem" },
+            ],
+            kind,
+            (value) =>
+              change((t) => {
+                t.columns ??= [];
+                t.columns[columnIndex] = trackOf(value, trackAmount(t.columns[columnIndex]));
+              }),
+            "Coluna",
+            "table.trackKind",
+          ),
+          kind === "auto"
+            ? null
+            : num(
+                kind === "fixed" ? "pt" : kind === "fraction" ? "fr" : "%",
+                trackAmount(table.columns?.[columnIndex]),
+                (value) =>
+                  change((t) => {
+                    t.columns ??= [];
+                    t.columns[columnIndex] = trackOf(kind, value);
+                  }),
+                { min: 0, field: "table.trackAmount" },
+              ),
+        ]),
+
+        grid(2, [
+          num(
+            "Rec.",
+            parseLen(fourSides(table.inset ?? 0)[0]),
+            (value) => change((t) => void (t.inset = value)),
+            { min: 0, title: "Espaço dentro de cada célula", field: "table.inset" },
+          ),
+          num(
+            "Vão",
+            parseLen(table.columnGap),
+            (value) =>
+              change((t) => {
+                t.columnGap = value;
+                t.rowGap = value;
+              }),
+            { min: 0, title: "Espaço entre células", field: "table.gap" },
+          ),
+        ]),
+
+        checkbox(
+          "Primeira linha é cabeçalho",
+          (table.header?.rows ?? 0) > 0,
+          (value) =>
+            change((t) => {
+              t.header = value ? { rows: 1, repeat: true } : null;
+            }),
+          "Repete-se quando a tabela continua noutra página",
+          "table.header",
+        ),
+
+        checkbox(
+          "Linhas alternadas",
+          table.stripe != null,
+          (value) =>
+            change((t) => {
+              t.stripe = value ? { every: 2, offset: 1, fill: "#f2f4f7" } : null;
+            }),
+          "Um fundo em cada duas linhas",
+          "table.stripe",
+        ),
+
+        pick(
+          [
+            { value: "top", label: "topo" },
+            { value: "middle", label: "meio" },
+            { value: "bottom", label: "base" },
+            { value: "baseline", label: "linha de base" },
+          ],
+          table.cells?.[cell]?.verticalAlign ?? "top",
+          (value) =>
+            change((t) => {
+              const target = t.cells?.[cell];
+              if (target) target.verticalAlign = value as CellAlign;
+            }),
+          "Célula",
+          "table.cellAlign",
+        ),
+      ]),
+    );
+  }
+
   // ── Text selection ────────────────────────────────────────────────────────
 
   private renderTextSelection(): void {
@@ -861,6 +1388,36 @@ export class Inspector {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Every field the data mention, in the order they are first met. */
+function fieldNames(rows: DataRow[]): string[] {
+  const out: string[] = [];
+  for (const row of rows) {
+    for (const name of Object.keys(row)) if (!out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+/** A name no field has yet. */
+function freshField(taken: string[]): string {
+  for (let n = 1; ; n += 1) {
+    const name = `campo${n}`;
+    if (!taken.includes(name)) return name;
+  }
+}
+
+/**
+ * What was typed into a data box, as the schema would read it.
+ *
+ * Empty is a hole and not a zero — a month nobody measured did not measure
+ * zero, and that distinction is the whole reason the schema keeps nulls.
+ */
+function readValue(text: string): DataValue {
+  const trimmed = text.trim();
+  if (trimmed === "") return null;
+  const number = Number(trimmed.replace(",", "."));
+  return Number.isFinite(number) && /^-?[\d.,]+$/.test(trimmed) ? number : trimmed;
+}
 
 function findDisplayFrame(list: DisplayList, id: string): DisplayFrame | null {
   for (const page of list.pages) {
