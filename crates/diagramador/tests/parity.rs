@@ -61,7 +61,48 @@ fn document() -> Document {
                       "rect": ["110mm", "55mm", "80mm", "40mm"],
                       "fill": "#eef4fb", "border": { "width": 1, "color": "#1f4e79" }, "radius": 6 },
                     { "id": "faixa", "type": "shape", "shape": "rect",
-                      "rect": [100, 700, 200, 12], "fill": "#1f4e79" }
+                      "rect": [100, 700, 200, 12], "fill": "#1f4e79" },
+
+                    { "id": "quadro", "type": "text",
+                      "rect": ["110mm", "100mm", "80mm", "45mm"],
+                      "blocks": [{
+                        "type": "table",
+                        "columns": ["auto", "1fr"],
+                        "inset": 4,
+                        "header": { "rows": 1 },
+                        "stripe": { "every": 2, "offset": 1, "fill": "#f2f4f7" },
+                        "lines": [
+                          { "axis": "horizontal", "at": 1, "width": 1, "color": "#1f4e79" },
+                          { "axis": "vertical", "at": 1, "width": 0.5, "color": "#cbd5e1" }
+                        ],
+                        "cells": [
+                          { "blocks": ["Estado"], "fill": "#1f4e79",
+                            "style": { "color": "#ffffff", "fontWeight": "bold" } },
+                          { "blocks": ["Mudança"], "fill": "#1f4e79",
+                            "style": { "color": "#ffffff", "fontWeight": "bold" } },
+                          { "blocks": ["Sólido"] }, { "blocks": ["fusão"] },
+                          { "blocks": ["Líquido"] }, { "blocks": ["vaporização"] }
+                        ]
+                      }]
+                    },
+
+                    { "id": "grafico", "type": "chart",
+                      "rect": ["20mm", "180mm", "80mm", "50mm"],
+                      "mark": "bar",
+                      "data": [
+                        { "mes": "jan", "v": 12, "regiao": "norte" },
+                        { "mes": "fev", "v": 19, "regiao": "norte" },
+                        { "mes": "jan", "v": 8, "regiao": "sul" },
+                        { "mes": "fev", "v": 14, "regiao": "sul" }
+                      ],
+                      "encoding": {
+                        "x": { "field": "mes", "kind": "categorical" },
+                        "y": { "field": "v", "title": "Vendas" },
+                        "color": { "field": "regiao" }
+                      },
+                      "axes": { "y": { "grid": true }, "x": { "title": "" } },
+                      "legend": { "position": "bottom" }
+                    }
                 ]
             }]
         }"##,
@@ -286,7 +327,15 @@ fn rectangles_land_at_their_display_list_position() {
     let mut rects = Vec::new();
     walk(&list.pages[0].items, &mut rects);
 
-    let square: Vec<_> = rects.iter().filter(|rect| rect.radius == 0.0).collect();
+    // Only the ones that put ink on the page. A table also emits a box per
+    // cell — no fill, no stroke — saying where the cell is so the editor can
+    // place a caret in an empty one. Both emitters skip it, and parity is
+    // about what is painted.
+    let square: Vec<_> = rects
+        .iter()
+        .filter(|rect| rect.radius == 0.0)
+        .filter(|rect| rect.fill.is_some() || rect.stroke.is_some())
+        .collect();
     assert!(!square.is_empty(), "fixture should contain a square-cornered rect");
 
     for rect in square {
@@ -481,6 +530,38 @@ fn point_appears(stream: &str, expected: (f64, f64)) -> bool {
             _ => false,
         }
     })
+}
+
+/// The corpus really does contain a table and a chart.
+///
+/// Every other test here walks whatever the fixture produced, so a fixture
+/// that quietly stopped producing a table would leave them all passing and
+/// checking nothing about one. This is the guard on that: the parity contract
+/// is only worth what the corpus covers.
+#[test]
+fn the_corpus_carries_a_table_and_a_chart() {
+    let Some(engine) = engine() else {
+        eprintln!("fontes ausentes — teste ignorado");
+        return;
+    };
+    let list = engine.layout(&document());
+    let runs = glyph_runs(&list);
+
+    for word in ["Estado", "Mudança", "Sólido", "vaporização"] {
+        assert!(runs.iter().any(|run| run.text == word), "a tabela pintou `{word}`");
+    }
+    for word in ["jan", "fev", "Vendas", "norte"] {
+        assert!(runs.iter().any(|run| run.text == word), "o gráfico pintou `{word}`");
+    }
+
+    // Text inside a cell says which cell, which is what the editor writes back
+    // through — and what no other test in this file would notice the loss of.
+    let cell = runs
+        .iter()
+        .find(|run| run.text == "Sólido")
+        .and_then(|run| run.source.clone())
+        .expect("proveniência");
+    assert!(!cell.cells.is_empty(), "com o rasto de células: {cell:?}");
 }
 
 /// The same document renders identically twice — no map iteration order or

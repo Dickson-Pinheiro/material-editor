@@ -12,6 +12,7 @@ import type {
   Caret,
   CellStep,
   DisplayFrame,
+  DisplayItem,
   DisplayList,
   DisplayPage,
   GlyphRun,
@@ -126,6 +127,56 @@ function metricsOf(list: DisplayList, run: GlyphRun): { ascent: number; descent:
 function bandOf(list: DisplayList, run: GlyphRun): { top: number; bottom: number } {
   const { ascent, descent } = metricsOf(list, run);
   return { top: run.y - ascent, bottom: run.y + descent };
+}
+
+/**
+ * The cell whose box contains a point, innermost first.
+ *
+ * A table emits, per cell, a rectangle with no fill and no stroke saying
+ * where that cell is. It is the only way to reach an empty cell: a caret is
+ * placed by finding the glyph nearest the click, and an empty cell has no
+ * glyph. Without this an empty table is a thing you can see and cannot enter.
+ */
+export function cellBoxAt(page: DisplayPage, x: number, y: number): SourceRef | null {
+  let best: { source: SourceRef; area: number } | null = null;
+  const keep = (source: SourceRef, area: number) => {
+    // The smallest box wins, so a cell inside a nested table beats the cell
+    // of the table that holds it.
+    if (!best || area < best.area) best = { source, area };
+  };
+
+  const walk = (items: DisplayItem[]) => {
+    for (const item of items) {
+      if (item.type === "group") {
+        walk(item.items);
+        continue;
+      }
+      if (item.type !== "rect") continue;
+      if (item.fill || item.stroke) continue;
+      const source = item.source;
+      if (!source?.cells?.length) continue;
+
+      const { rect } = item;
+      if (x < rect.x || x > rect.x + rect.w || y < rect.y || y > rect.y + rect.h) continue;
+
+      keep(source, rect.w * rect.h);
+    }
+  };
+
+  walk(page.items);
+  return best ? (best as { source: SourceRef }).source : null;
+}
+
+/** Where a caret goes when a cell is entered by clicking its empty middle. */
+export function caretInCell(source: SourceRef): Caret {
+  return {
+    frame: source.frame,
+    story: source.story ?? null,
+    cells: source.cells ?? [],
+    block: 0,
+    inline: 0,
+    offset: 0,
+  };
 }
 
 /**

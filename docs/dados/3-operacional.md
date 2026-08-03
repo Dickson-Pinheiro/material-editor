@@ -1137,7 +1137,34 @@ os do motor — se as duas cópias divergirem, divergem ali.
 
 ### T5.3 — Edição de célula no canvas · G
 
-**Estado: feita.** Clicar numa célula põe o cursor nela e escreve-se como em
+**Estado: feita — e corrigida depois, ao ser usada a sério.**
+
+A primeira versão inseria a tabela e não deixava editá-la. Duas causas, ambas
+óbvias em uso e invisíveis nos testes que eu tinha escrito:
+
+**Uma tabela vazia não se via.** Sem conteúdo, as linhas automáticas têm altura
+zero, e o que aparecia era uma lasca de dois pontos com duas réguas. Uma tabela
+nova passa a nascer com altura de linha, largura de coluna e **a grelha toda
+desenhada** — o oposto do `booktabs` que uma tabela acabada quer, e certo na
+mesma: uma tabela que se está a preencher é outro objecto, e pedir a quem
+escreve que imagine as células é a pior das trocas. A grelha é andaime, e o
+inspetor tira-a.
+
+**Uma célula vazia não se podia clicar.** O cursor coloca-se procurando o glifo
+mais próximo do clique, e uma célula vazia não tem glifo nenhum — portanto a
+tabela era uma coisa que se via e em que não se entrava. O motor passa a emitir,
+por célula, um rectângulo sem preenchimento e sem traço com a proveniência
+dela: **geometria de proveniência**, o mesmo papel que o `DisplayFrame` faz por
+um frame. Os dois emissores saltam um rectângulo sem tinta, portanto não custa
+uma gota nem um byte de PDF — conferido. O editor procura primeiro um glifo,
+depois a caixa da célula, e só então o topo do frame.
+
+**O que fica de lição:** eu tinha um teste que escrevia numa célula e outro que
+saltava de célula em célula, e ambos passavam — porque ambos começavam com o
+cursor já colocado por mim. Nenhum passava pelo clique, que é por onde toda a
+gente começa.
+
+**Detalhes anteriores.** Clicar numa célula põe o cursor nela e escreve-se como em
 qualquer parágrafo; Tab salta para a seguinte em ordem de leitura, Shift+Tab
 volta, e ambos chegam com o texto da célula seleccionado — o que se escreve a
 seguir substitui-o, como em qualquer processador de texto. No fim da tabela

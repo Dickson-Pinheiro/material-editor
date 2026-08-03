@@ -13,7 +13,7 @@
 import { Engine } from "./engine";
 import { Store, normalize, parseLen } from "./store";
 import { TextEditor, byteToIndex, indexToByte, utf8Length } from "./text";
-import { caretAt, caretGeometry, collectRuns, compareCarets, frameAt } from "./hit";
+import { caretAt, caretGeometry, caretInCell, cellBoxAt, collectRuns, compareCarets, frameAt } from "./hit";
 import { placement, toFrame, trace } from "./contour";
 import { PAGE_GAP, Renderer, placePages, pointIn } from "./renderer";
 import { LayersPanel } from "./layers";
@@ -1439,6 +1439,65 @@ async function run(): Promise<void> {
     assert(editor.hasSelection(), "com a célula seleccionada");
     editor.insert("Gasoso");
     equal(textOf(written, 2), "Gasoso", "e o que se escreve substitui o que lá estava");
+  });
+
+  check("uma célula vazia pode ser clicada, escrita e vista", () => {
+    // The defect this closes: a caret is placed by finding the glyph nearest
+    // the click, and an empty cell has no glyph — so a table you had just
+    // inserted was a thing you could see and could not enter.
+    const table = newTable(2, 2, false);
+    const doc: DocumentSpec = {
+      page: { size: "A4", margins: 40 },
+      style: { fontFamily: "corpo", fontSize: 11 },
+      pages: [{ frames: [{ id: "quadro", type: "text", rect: [40, 40, 300, 200], blocks: [table] }] }],
+    };
+    const store = new Store(engine, normalize(doc));
+    const page = store.list.pages[0]!;
+
+    // Nothing is written anywhere, so nothing can be aimed at.
+    assert(collectRuns(page).length === 0, "a tabela está vazia");
+
+    // A frame wraps its content in a group, so the items are one level down.
+    const flat: DisplayItem[] = [];
+    const walk = (items: DisplayItem[]) => {
+      for (const item of items) {
+        if (item.type === "group") walk(item.items);
+        else flat.push(item);
+      }
+    };
+    walk(page.items);
+
+    // And it is visible all the same: the rules give it a shape.
+    const rules = flat.filter((item) => item.type === "line").length;
+    assert(rules >= 6, `uma grelha desenhada: ${rules} réguas`);
+
+    // Four cells, four boxes, each naming its own cell.
+    const boxes = flat.filter(
+      (item) => item.type === "rect" && !item.fill && !item.stroke && item.source?.cells?.length,
+    );
+    equal(boxes.length, 4, "uma caixa por célula");
+
+    // A point inside the second cell resolves to the second cell.
+    const second = boxes.find(
+      (item) => item.type === "rect" && item.source!.cells![0]!.cell === 1,
+    );
+    assert(second && second.type === "rect", "a caixa da segunda célula");
+    const middle = {
+      x: second.rect.x + second.rect.w / 2,
+      y: second.rect.y + second.rect.h / 2,
+    };
+    const hit = cellBoxAt(page, middle.x, middle.y);
+    assert(hit, "o clique cai numa célula");
+    equal(hit.cells![0]!.cell, 1, "e é a segunda");
+
+    // And what is typed there goes there.
+    const editor = new TextEditor(store);
+    editor.enter("quadro", caretInCell(hit));
+    editor.insert("Mudança");
+
+    const written = (store.frame("quadro") as { blocks: Block[] }).blocks[0] as TableBlock;
+    equal(textOf(written, 1), "Mudança", "na célula que foi clicada");
+    equal(textOf(written, 0), "", "e em nenhuma outra");
   });
 
   // ── Report ────────────────────────────────────────────────────────────────

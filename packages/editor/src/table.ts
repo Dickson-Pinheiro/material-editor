@@ -16,7 +16,7 @@
  * in `tests.ts` check this copy against the same cases the engine's do.
  */
 
-import type { Cell, Paragraph, TableBlock, TrackSize } from "./types";
+import type { Cell, GridLine, Paragraph, TableBlock, TrackSize } from "./types";
 
 /** Where a cell sits once the grid is resolved. */
 export interface Placed {
@@ -145,12 +145,25 @@ export function emptyCell(x: number, y: number): Cell {
   return { x, y, blocks: [paragraph] };
 }
 
+/** Height a fresh row is given, so an empty table looks like a table. */
+const NEW_ROW_HEIGHT = 22;
+/** Width a fresh column is given, for the same reason. */
+const NEW_COLUMN_WIDTH = 90;
+/** The grid a table is born with: a hairline, one step off the paper. */
+const NEW_RULE = "#cbd5e1";
+
 /**
- * A fresh table of `rows` × `columns`, with a rule under the heading.
+ * A fresh table of `rows` × `columns`.
  *
- * Two rules and no vertical ones: the `booktabs` model, which is what makes a
- * table read. A grid of boxes is what a spreadsheet does, and a spreadsheet is
- * not a page.
+ * **Born with every rule drawn, and with rows that have a height.** The
+ * finished thing usually wants the `booktabs` treatment — two or three rules,
+ * well placed, and no vertical ones at all, which is what makes a table read.
+ * But a table you are still filling in is a different object: without the
+ * grid it is a blank rectangle, and without a row height it is a two-point
+ * sliver, and in neither case can you see the structure you are typing into.
+ *
+ * So the grid is scaffolding, and the inspector takes it away. Starting from
+ * nothing and asking the author to imagine the cells is the worse trade.
  */
 export function newTable(rows: number, columns: number, heading: boolean): TableBlock {
   const cells: Cell[] = [];
@@ -160,21 +173,27 @@ export function newTable(rows: number, columns: number, heading: boolean): Table
     }
   }
 
+  const lines: GridLine[] = [];
+  for (let at = 0; at <= rows; at += 1) {
+    lines.push({ axis: "horizontal", at, width: at === 0 || at === rows ? 1 : 0.5, color: NEW_RULE });
+  }
+  for (let at = 0; at <= columns; at += 1) {
+    lines.push({ axis: "vertical", at, width: 0.5, color: NEW_RULE });
+  }
+
   const table: TableBlock = {
     type: "table",
-    columns: Array.from({ length: columns }, () => "auto" as TrackSize),
-    rows: [],
+    columns: Array.from({ length: columns }, () => NEW_COLUMN_WIDTH as TrackSize),
+    rows: Array.from({ length: rows }, () => NEW_ROW_HEIGHT as TrackSize),
     cells,
-    inset: 4,
-    lines: [
-      { axis: "horizontal", at: 0, width: 1 },
-      { axis: "horizontal", at: rows, width: 1 },
-    ],
+    inset: 5,
+    lines,
   };
 
   if (heading) {
     table.header = { rows: 1, repeat: true };
-    table.lines!.splice(1, 0, { axis: "horizontal", at: 1, width: 0.5 });
+    const under = lines.find((line) => line.axis === "horizontal" && line.at === 1);
+    if (under) under.width = 1;
   }
   return table;
 }
@@ -197,6 +216,8 @@ export function insertColumn(table: TableBlock, at: number): void {
   for (let y = 0; y < rows; y += 1) {
     if (cellAt(table, at, y) === null) table.cells!.push(emptyCell(at, y));
   }
+  shiftLines(table, "vertical", at);
+  growGrid(table);
   sortCells(table);
 }
 
@@ -216,6 +237,7 @@ export function insertRow(table: TableBlock, at: number): void {
     if (cellAt(table, x, at) === null) table.cells!.push(emptyCell(x, at));
   }
   shiftLines(table, "horizontal", at);
+  growGrid(table);
   sortCells(table);
 }
 
@@ -272,6 +294,31 @@ function shiftLines(table: TableBlock, axis: "horizontal" | "vertical", at: numb
     if (where >= at) line.at = where + by;
     return true;
   });
+}
+
+/**
+ * Close the gap a new track leaves in a table that was drawn as a full grid.
+ *
+ * Only where the grid was full to begin with: a table set the `booktabs` way
+ * has three rules on purpose, and quietly adding a fourth because a row was
+ * inserted would undo a decision the author made.
+ */
+function growGrid(table: TableBlock): void {
+  const grid = place(table);
+  const has = (axis: "horizontal" | "vertical", at: number) =>
+    (table.lines ?? []).some((line) => (line.axis ?? "horizontal") === axis && line.at === at);
+
+  for (const [axis, count] of [
+    ["horizontal", grid.rows],
+    ["vertical", grid.columns],
+  ] as const) {
+    const boundaries = Array.from({ length: count + 1 }, (_, at) => at);
+    const missing = boundaries.filter((at) => !has(axis, at));
+    // Full but for the one the insertion opened.
+    if (missing.length !== 1) continue;
+    table.lines ??= [];
+    table.lines.push({ axis, at: missing[0]!, width: 0.5, color: NEW_RULE });
+  }
 }
 
 /** Reading order, so the JSON stays legible and Tab has an order to follow. */

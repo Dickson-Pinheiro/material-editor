@@ -590,13 +590,31 @@ pub(crate) fn emit(
             continue;
         }
         let cell = &table.cells[placed.cell];
+        let padding = cell.inset.unwrap_or(table.inset);
+        let outer = box_of(&lefts, &tops, &sizes, placed);
+
+        // Where the cell is, said out loud and painted with nothing.
+        //
+        // An empty cell puts no glyph on the page, and a caret is placed by
+        // finding the glyph nearest the click — so without this an empty
+        // table is a thing you can see and cannot enter. This is provenance
+        // geometry, the same job `DisplayFrame` does for a frame: both
+        // emitters skip a rectangle with neither fill nor stroke, so it costs
+        // no ink and not a byte of PDF.
+        items.push(DisplayItem::Rect(RectItem {
+            rect: outer,
+            radius: 0.0,
+            fill: None,
+            stroke: None,
+            source: Some(cell_source(source, placed, cell)),
+        }));
+
         if cell.blocks.is_empty() {
             continue;
         }
-        let padding = cell.inset.unwrap_or(table.inset);
-        let outer = box_of(&lefts, &tops, &sizes, placed);
         let width = (outer.w - padding.horizontal()).max(0.0);
         let height = (outer.h - padding.vertical()).max(0.0);
+
 
         // Only the alignments that need it pay for a second measurement.
         let shift = match cell.vertical_align {
@@ -618,20 +636,7 @@ pub(crate) fn emit(
             width,
             height,
         );
-        // One step down into the table, so what the cell's blocks report is
-        // read against the cell and not against the frame. `origin` is what a
-        // continuation carries: the index the cell has where the author wrote
-        // it, which is the only one the document can be edited through.
-        let mut here = source.clone();
-        here.cells.push(CellStep {
-            block: source.block.unwrap_or(0),
-            cell: cell.origin.unwrap_or(placed.cell as u32),
-        });
-        here.block = None;
-        here.inline = None;
-        here.offset = None;
-
-        items.extend(cells.render(&cell.blocks, style, inner, &here));
+        items.extend(cells.render(&cell.blocks, style, inner, &cell_source(source, placed, cell)));
     }
 
     // ── The continuation footer, under what was drawn ───────────────────────
@@ -648,6 +653,24 @@ pub(crate) fn emit(
     }
 
     Layout { items, height, sizes, grid: grid_layout, issues, leftover }
+}
+
+/// The provenance of everything inside one cell.
+///
+/// One step down into the table, so what the cell's own blocks report is read
+/// against the cell and not against the frame. `origin` is what a
+/// continuation carries: the index the cell has where the author wrote it,
+/// which is the only one the document can be edited through.
+fn cell_source(source: &SourceRef, placed: &Placed, cell: &Cell) -> SourceRef {
+    let mut here = source.clone();
+    here.cells.push(CellStep {
+        block: source.block.unwrap_or(0),
+        cell: cell.origin.unwrap_or(placed.cell as u32),
+    });
+    here.block = None;
+    here.inline = None;
+    here.offset = None;
+    here
 }
 
 /// The index a cell has in the table as the author wrote it.
@@ -1282,6 +1305,7 @@ mod tests {
         /// One rectangle marking where the content was told to go. Enough to
         /// check the geometry of a cell without dragging a font in; the real
         /// glyphs are what `tests/tabela.golden` is for.
+
         fn render(
             &self,
             blocks: &[Block],
@@ -1844,10 +1868,16 @@ mod tests {
         }
     }
 
-    /// A one-word label for each item, in paint order.
+    /// A one-word label for each item that puts ink on the page, in paint
+    /// order.
+    ///
+    /// The cell boxes are left out: they carry neither fill nor stroke, both
+    /// emitters skip them, and counting them here would be counting something
+    /// nobody sees.
     fn order(items: &[DisplayItem]) -> Vec<&'static str> {
         items
             .iter()
+            .filter(|item| !is_box(item))
             .map(|item| match item {
                 DisplayItem::Rect(r) if r.fill.is_some() => "fill",
                 DisplayItem::Rect(_) => "content",
@@ -1857,9 +1887,22 @@ mod tests {
             .collect()
     }
 
+    /// A rectangle that says where a cell is and paints nothing.
+    ///
+    /// Told apart by its provenance and not only by its lack of ink: the
+    /// ruler's stand-in for content has neither fill nor stroke either, and
+    /// what separates them is that a box knows which cell it is.
+    fn is_box(item: &DisplayItem) -> bool {
+        matches!(item, DisplayItem::Rect(r)
+            if r.fill.is_none()
+                && r.stroke.is_none()
+                && r.source.as_ref().is_some_and(|source| !source.cells.is_empty()))
+    }
+
     fn rects(items: &[DisplayItem]) -> Vec<Rect> {
         items
             .iter()
+            .filter(|item| !is_box(item))
             .filter_map(|item| match item {
                 DisplayItem::Rect(r) => Some(r.rect),
                 _ => None,
@@ -2068,9 +2111,15 @@ mod tests {
     }
 
     /// Top-left corner of each cell's content, in declaration order.
+    /// Where the ruler said the content of each cell was told to go.
+    ///
+    /// The cell's own box has no fill either, and is skipped: it is the whole
+    /// cell, not the space inside its padding, and counting it would report
+    /// every alignment as zero.
     fn contents(items: &[DisplayItem]) -> Vec<(f64, f64)> {
         items
             .iter()
+            .filter(|item| !is_box(item))
             .filter_map(|item| match item {
                 DisplayItem::Rect(r) if r.fill.is_none() => Some((r.rect.x, r.rect.y)),
                 _ => None,

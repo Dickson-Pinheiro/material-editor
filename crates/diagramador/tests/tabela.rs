@@ -271,6 +271,10 @@ fn record(name: &str, list: &DisplayList) -> String {
                         run.text.trim_end(),
                     );
                 }
+                // The box a cell emits to say where it is paints nothing, and
+                // a record of what the page looks like should not carry it.
+                DisplayItem::Rect(rect)
+                    if rect.fill.is_none() && rect.stroke.is_none() => {}
                 DisplayItem::Rect(rect) => {
                     let _ = writeln!(
                         out,

@@ -17,7 +17,7 @@ pub mod wrap;
 use std::collections::{BTreeMap, HashMap};
 
 use crate::display::{
-    CellStep, ClipShape, Diagnostic, DisplayFont, DisplayFrame, DisplayGroup, DisplayItem, DisplayList,
+    ClipShape, Diagnostic, DisplayFont, DisplayFrame, DisplayGroup, DisplayItem, DisplayList,
     DisplayPage, EllipseItem, ImageItem, LineItem, RectItem, SourceRef, Stroke,
 };
 use crate::fonts::FontRegistry;
@@ -1383,6 +1383,7 @@ fn translate_items(items: &mut [DisplayItem], dx: f64, dy: f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::display::CellStep;
     use crate::display::GlyphRun;
     use crate::fonts::test_fonts;
     use crate::spec::FontWeight;
