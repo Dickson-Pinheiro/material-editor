@@ -1182,9 +1182,55 @@ tem de sair melhor, e a diferença tem de ser intencional.
 
 **Depende de.** Fase 2.
 
+**Estado: feita.** Trinta frames posicionados à mão viraram duas declarações.
+A página 5 tinha 21 frames e tem 10; a página 9 tinha 34 e tem 17.
+
+**A prova foi feita rasterizando as treze páginas antes e depois, e comparando
+pixel a pixel.** Onze saíram idênticas. As outras duas:
+
+**Página 9: idêntica também.** Nem um pixel. As quinze células vazias, o
+cabeçalho e as cinco réguas caem onde caíam.
+
+**Página 5: 108 pixels, numa única coluna, na borda direita da tabela.** A
+explicação, encontrada indo ao fluxo de conteúdo do PDF: o desenho antigo
+recortava cada célula à sua própria caixa, e as três células da coluna direita
+empilhavam três recortes na mesma borda. Cada passagem escurecia um pouco mais
+o pixel da fronteira. A tabela declarada é recortada uma vez, pela moldura que
+a segura. **Diferença intencional, e a favor do novo:** uma célula não é um
+enquadramento, e o desenho à mão só a recortava porque cada célula tinha de ser
+um frame.
+
+**Duas coisas que a comparação apanhou e que eu tinha errado**, e que só
+apareceram porque a prova é ao pixel:
+
+- Dei fundo escuro ao texto branco do cabeçalho *depois* de o texto já lá
+  estar. Texto branco sobre nada é texto invisível, e foi o que saiu na
+  primeira tentativa.
+- Presumi um estilo de corpo comum às três colunas. Não era: a primeira coluna
+  é `#0a2540` e negrito porque nomeia o estado; as outras duas são `#0f172a`.
+  O olho não distinguiu as duas tintas; a comparação distinguiu.
+
+**Uma ferramenta que a tarefa acrescentou.** `cargo run --example render -- doc.json
+saida.json` escreve a display list em vez de um PDF. É o que se quer quando
+duas versões diferem num pixel e a pergunta é em quanto: comparar posições de
+glifo e rectângulos responde em segundos ao que a olho não se resolve.
+
 ### T6.2 — Uma página de gráfico no material · M
 
 **Depende de.** Fase 4.
+
+**Estado: feita.** Um gráfico de dispersão no pé da página 3, onde havia 166
+pontos vazios e o capítulo fala do ciclo da água: o tempo médio de permanência
+de uma molécula em cada reservatório, da atmosfera às geleiras.
+
+**Dispersão e não barras, e escala logarítmica.** Nove dias e nove mil anos não
+partilham um eixo linear, e numa escala logarítmica uma barra mede a razão
+entre o valor e o começo do eixo — que ali é arbitrário. Um ponto não afirma
+isso. É o caso que justifica as duas escolhas em vez de as decorar.
+
+O eixo categórico fica na vertical e lê-se de cima para baixo, a grelha vem do
+eixo dos anos, e o `nice` não toca num domínio logarítmico — as marcas são as
+potências de dez, que é a única marcação que um leitor interpreta ali.
 
 ---
 

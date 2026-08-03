@@ -888,6 +888,129 @@
           }
         },
         {
+          "id": "p3-gt",
+          "name": "Título do gráfico",
+          "type": "text",
+          "rect": [
+            48,
+            640,
+            499,
+            18
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Quanto tempo a água fica em cada lugar"
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 9.5,
+            "lineHeight": 1.55,
+            "fontWeight": "bold",
+            "color": "#0f172a"
+          }
+        },
+        {
+          "id": "p3-grafico",
+          "name": "Tempo de permanência",
+          "type": "chart",
+          "rect": [
+            48,
+            658,
+            499,
+            108
+          ],
+          "mark": "point",
+          "data": [
+            {
+              "reservatorio": "Atmosfera",
+              "anos": 0.025
+            },
+            {
+              "reservatorio": "Rios",
+              "anos": 0.044
+            },
+            {
+              "reservatorio": "Solo",
+              "anos": 1
+            },
+            {
+              "reservatorio": "Lagos",
+              "anos": 17
+            },
+            {
+              "reservatorio": "Águas subterrâneas",
+              "anos": 1400
+            },
+            {
+              "reservatorio": "Oceanos",
+              "anos": 3200
+            },
+            {
+              "reservatorio": "Geleiras",
+              "anos": 9700
+            }
+          ],
+          "encoding": {
+            "x": {
+              "field": "anos",
+              "title": "Anos (escala logarítmica)",
+              "scale": {
+                "kind": "log"
+              }
+            },
+            "y": {
+              "field": "reservatorio",
+              "kind": "categorical",
+              "title": ""
+            }
+          },
+          "axes": {
+            "x": {
+              "grid": true
+            }
+          },
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 7.5,
+            "color": "#0f172a"
+          }
+        },
+        {
+          "id": "p3-gc",
+          "name": "Legenda do gráfico",
+          "type": "text",
+          "rect": [
+            48,
+            770,
+            499,
+            24
+          ],
+          "blocks": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Tempo médio de permanência de uma molécula de água em cada reservatório. A escala é logarítmica: cada marca do eixo vale dez vezes a anterior."
+                }
+              ]
+            }
+          ],
+          "style": {
+            "fontFamily": "corpo",
+            "fontSize": 8,
+            "lineHeight": 1.4,
+            "color": "#64748b"
+          }
+        },
+        {
           "id": "p3-frule",
           "name": "Régua do rodapé",
           "type": "shape",
@@ -1677,517 +1800,316 @@
           }
         },
         {
-          "id": "p5-h0",
-          "name": "Célula",
+          "id": "p5-tabela",
+          "name": "Tabela dos estados",
           "type": "text",
           "rect": [
             48,
             186,
-            140,
-            30
+            499,
+            168
           ],
           "blocks": [
             {
-              "type": "paragraph",
-              "content": [
+              "type": "table",
+              "columns": [
+                140,
+                120,
+                239
+              ],
+              "cells": [
                 {
-                  "type": "text",
-                  "text": "Estado"
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Estado"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "plex",
+                        "fontSize": 9,
+                        "fontWeight": "bold",
+                        "color": "#ffffff"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle",
+                  "fill": "#0a2540"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Mudança"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "plex",
+                        "fontSize": 9,
+                        "fontWeight": "bold",
+                        "color": "#ffffff"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle",
+                  "fill": "#0a2540"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Onde observamos"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "plex",
+                        "fontSize": 9,
+                        "fontWeight": "bold",
+                        "color": "#ffffff"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle",
+                  "fill": "#0a2540"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Sólido"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "lineHeight": 1.45,
+                        "color": "#0a2540",
+                        "fontWeight": "bold"
+                      }
+                    }
+                  ],
+                  "fill": "#ffffff",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Fusão · Solidificação"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "lineHeight": 1.45,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "fill": "#ffffff",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Geleiras, calotas polares e o granizo que cai em tempestades fortes."
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "lineHeight": 1.45,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "fill": "#ffffff",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Líquido"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "lineHeight": 1.45,
+                        "color": "#0a2540",
+                        "fontWeight": "bold"
+                      }
+                    }
+                  ],
+                  "fill": "#f8fafc",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Vaporização · Condensação"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "lineHeight": 1.45,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "fill": "#f8fafc",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Oceanos, rios, lagos, lençóis freáticos e a água da torneira."
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "lineHeight": 1.45,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "fill": "#f8fafc",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Gasoso"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "lineHeight": 1.45,
+                        "color": "#0a2540",
+                        "fontWeight": "bold"
+                      }
+                    }
+                  ],
+                  "fill": "#ffffff",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Condensação · Sublimação"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "lineHeight": 1.45,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "fill": "#ffffff",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Vapor invisível na atmosfera; as nuvens já são água líquida em gotículas."
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "lineHeight": 1.45,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "fill": "#ffffff",
+                  "verticalAlign": "middle"
                 }
+              ],
+              "header": {
+                "rows": 1,
+                "repeat": true
+              },
+              "inset": [
+                8,
+                9
+              ],
+              "lines": [
+                {
+                  "axis": "horizontal",
+                  "at": 2,
+                  "width": 0.75,
+                  "color": "#cbd5e1"
+                },
+                {
+                  "axis": "horizontal",
+                  "at": 3,
+                  "width": 0.75,
+                  "color": "#cbd5e1"
+                },
+                {
+                  "axis": "horizontal",
+                  "at": 4,
+                  "width": 0.75,
+                  "color": "#cbd5e1"
+                }
+              ],
+              "rows": [
+                30,
+                46,
+                46,
+                46
               ]
             }
-          ],
-          "style": {
-            "fontFamily": "plex",
-            "fontSize": 9,
-            "fontWeight": "bold",
-            "color": "#ffffff",
-            "textAlign": "left"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#0a2540",
-          "verticalAlign": "middle"
-        },
-        {
-          "id": "p5-h1",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            188,
-            186,
-            120,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Mudança"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "plex",
-            "fontSize": 9,
-            "fontWeight": "bold",
-            "color": "#ffffff",
-            "textAlign": "left"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#0a2540",
-          "verticalAlign": "middle"
-        },
-        {
-          "id": "p5-h2",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            308,
-            186,
-            239,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Onde observamos"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "plex",
-            "fontSize": 9,
-            "fontWeight": "bold",
-            "color": "#ffffff",
-            "textAlign": "left"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#0a2540",
-          "verticalAlign": "middle"
-        },
-        {
-          "id": "p5-r0c0",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            48,
-            216,
-            140,
-            46
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Sólido"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "lineHeight": 1.45,
-            "color": "#0a2540",
-            "textAlign": "left",
-            "fontWeight": "bold"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#ffffff",
-          "verticalAlign": "middle",
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p5-r0c1",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            188,
-            216,
-            120,
-            46
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Fusão · Solidificação"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "lineHeight": 1.45,
-            "color": "#0f172a",
-            "textAlign": "left"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#ffffff",
-          "verticalAlign": "middle",
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p5-r0c2",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            308,
-            216,
-            239,
-            46
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Geleiras, calotas polares e o granizo que cai em tempestades fortes."
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "lineHeight": 1.45,
-            "color": "#0f172a",
-            "textAlign": "left"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#ffffff",
-          "verticalAlign": "middle",
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p5-r1c0",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            48,
-            262,
-            140,
-            46
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Líquido"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "lineHeight": 1.45,
-            "color": "#0a2540",
-            "textAlign": "left",
-            "fontWeight": "bold"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#f8fafc",
-          "verticalAlign": "middle",
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p5-r1c1",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            188,
-            262,
-            120,
-            46
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Vaporização · Condensação"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "lineHeight": 1.45,
-            "color": "#0f172a",
-            "textAlign": "left"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#f8fafc",
-          "verticalAlign": "middle",
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p5-r1c2",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            308,
-            262,
-            239,
-            46
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Oceanos, rios, lagos, lençóis freáticos e a água da torneira."
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "lineHeight": 1.45,
-            "color": "#0f172a",
-            "textAlign": "left"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#f8fafc",
-          "verticalAlign": "middle",
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p5-r2c0",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            48,
-            308,
-            140,
-            46
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Gasoso"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "lineHeight": 1.45,
-            "color": "#0a2540",
-            "textAlign": "left",
-            "fontWeight": "bold"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#ffffff",
-          "verticalAlign": "middle",
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p5-r2c1",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            188,
-            308,
-            120,
-            46
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Condensação · Sublimação"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "lineHeight": 1.45,
-            "color": "#0f172a",
-            "textAlign": "left"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#ffffff",
-          "verticalAlign": "middle",
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p5-r2c2",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            308,
-            308,
-            239,
-            46
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Vapor invisível na atmosfera; as nuvens já são água líquida em gotículas."
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "lineHeight": 1.45,
-            "color": "#0f172a",
-            "textAlign": "left"
-          },
-          "padding": [
-            8,
-            9
-          ],
-          "fill": "#ffffff",
-          "verticalAlign": "middle",
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
+          ]
         },
         {
           "id": "p5-note",
@@ -3948,721 +3870,423 @@
           }
         },
         {
-          "id": "p9-h0",
-          "name": "Cabeçalho",
+          "id": "p9-tabela",
+          "name": "Tabela do consumo",
           "type": "text",
           "rect": [
             48,
             322,
-            150,
-            30
+            499,
+            180
           ],
           "blocks": [
             {
-              "type": "paragraph",
-              "content": [
+              "type": "table",
+              "columns": [
+                150,
+                110,
+                120
+              ],
+              "rows": [
+                30,
+                30,
+                30,
+                30,
+                30,
+                30
+              ],
+              "cells": [
                 {
-                  "type": "text",
-                  "text": "Pessoa"
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Pessoa"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "plex",
+                        "fontSize": 9,
+                        "fontWeight": "bold",
+                        "color": "#ffffff"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle",
+                  "fill": "#0a2540"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Minutos/dia"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "plex",
+                        "fontSize": 9,
+                        "fontWeight": "bold",
+                        "color": "#ffffff"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle",
+                  "fill": "#0a2540"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Litros/semana"
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "plex",
+                        "fontSize": 9,
+                        "fontWeight": "bold",
+                        "color": "#ffffff"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle",
+                  "fill": "#0a2540"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                },
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": " "
+                        }
+                      ],
+                      "style": {
+                        "fontFamily": "corpo",
+                        "fontSize": 9,
+                        "color": "#0f172a"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "middle"
+                }
+              ],
+              "header": {
+                "rows": 1,
+                "repeat": true
+              },
+              "inset": [
+                7,
+                9
+              ],
+              "lines": [
+                {
+                  "axis": "horizontal",
+                  "at": 2,
+                  "width": 0.75,
+                  "color": "#cbd5e1"
+                },
+                {
+                  "axis": "horizontal",
+                  "at": 3,
+                  "width": 0.75,
+                  "color": "#cbd5e1"
+                },
+                {
+                  "axis": "horizontal",
+                  "at": 4,
+                  "width": 0.75,
+                  "color": "#cbd5e1"
+                },
+                {
+                  "axis": "horizontal",
+                  "at": 5,
+                  "width": 0.75,
+                  "color": "#cbd5e1"
+                },
+                {
+                  "axis": "horizontal",
+                  "at": 6,
+                  "width": 0.75,
+                  "color": "#cbd5e1"
                 }
               ]
             }
-          ],
-          "style": {
-            "fontFamily": "plex",
-            "fontSize": 9,
-            "fontWeight": "bold",
-            "color": "#ffffff"
-          },
-          "fill": "#0a2540",
-          "padding": [
-            7,
-            9
-          ],
-          "verticalAlign": "middle"
-        },
-        {
-          "id": "p9-h1",
-          "name": "Cabeçalho",
-          "type": "text",
-          "rect": [
-            198,
-            322,
-            110,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Minutos/dia"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "plex",
-            "fontSize": 9,
-            "fontWeight": "bold",
-            "color": "#ffffff"
-          },
-          "fill": "#0a2540",
-          "padding": [
-            7,
-            9
-          ],
-          "verticalAlign": "middle"
-        },
-        {
-          "id": "p9-h2",
-          "name": "Cabeçalho",
-          "type": "text",
-          "rect": [
-            308,
-            322,
-            120,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Litros/semana"
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "plex",
-            "fontSize": 9,
-            "fontWeight": "bold",
-            "color": "#ffffff"
-          },
-          "fill": "#0a2540",
-          "padding": [
-            7,
-            9
-          ],
-          "verticalAlign": "middle"
-        },
-        {
-          "id": "p9-c00",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            48,
-            352,
-            150,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c01",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            198,
-            352,
-            110,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c02",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            308,
-            352,
-            120,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c10",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            48,
-            382,
-            150,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c11",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            198,
-            382,
-            110,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c12",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            308,
-            382,
-            120,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c20",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            48,
-            412,
-            150,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c21",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            198,
-            412,
-            110,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c22",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            308,
-            412,
-            120,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c30",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            48,
-            442,
-            150,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c31",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            198,
-            442,
-            110,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c32",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            308,
-            442,
-            120,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c40",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            48,
-            472,
-            150,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c41",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            198,
-            472,
-            110,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
-        },
-        {
-          "id": "p9-c42",
-          "name": "Célula",
-          "type": "text",
-          "rect": [
-            308,
-            472,
-            120,
-            30
-          ],
-          "blocks": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": " "
-                }
-              ]
-            }
-          ],
-          "style": {
-            "fontFamily": "corpo",
-            "fontSize": 9,
-            "color": "#0f172a"
-          },
-          "padding": [
-            7,
-            9
-          ],
-          "border": {
-            "width": 0.75,
-            "color": "#cbd5e1",
-            "sides": {
-              "top": false,
-              "right": false,
-              "bottom": true,
-              "left": false
-            }
-          }
+          ]
         },
         {
           "id": "p9-q5",

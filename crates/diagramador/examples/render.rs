@@ -2,6 +2,7 @@
 //!
 //! ```sh
 //! cargo run --example render -- examples/material.json out.pdf
+//! cargo run --example render -- examples/material.json out.json   # display list
 //! ```
 
 use std::fs;
@@ -98,6 +99,25 @@ fn main() -> ExitCode {
                 .map(|f| format!(" (frame {f})"))
                 .unwrap_or_default()
         );
+    }
+
+    // Asking for JSON gives the display list instead of a PDF: every position
+    // the engine decided, before anything is drawn. It is what you want when
+    // two renderings differ by a pixel and the question is by how much.
+    if output.ends_with(".json") {
+        let text = match serde_json::to_string_pretty(&list) {
+            Ok(text) => text,
+            Err(error) => {
+                eprintln!("erro ao serializar a display list: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        if let Err(error) = fs::write(&output, &text) {
+            eprintln!("erro ao escrever {output}: {error}");
+            return ExitCode::FAILURE;
+        }
+        println!("{output}: {} páginas, {} itens", list.pages.len(), list.item_count());
+        return ExitCode::SUCCESS;
     }
 
     let bytes = match engine.render_display_list(&list, &document) {

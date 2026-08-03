@@ -79,7 +79,8 @@ crates/diagramador/src/
 ├── spec/           o schema público
 │   ├── document.rs Document, Page, Resources, Master, PageGeometry
 │   ├── frame.rs    Frame, FrameContent, Border, ImageFit
-│   ├── content.rs  Block, Inline, Paragraph, Marker, Origin
+│   ├── content.rs  Block, Inline, Paragraph, Marker, Origin, TableBlock, Cell
+│   ├── chart.rs    ChartFrame, Encoding, Channel, Mark, Axes, Legend
 │   └── style.rs    Style (parcial) e ResolvedStyle (concreto)
 ├── fonts.rs        registro de faces, seleção CSS por peso/itálico, contornos
 ├── images.rs       registro, sondagem de dimensões (header PNG/JPEG), decode
@@ -87,7 +88,12 @@ crates/diagramador/src/
 │   ├── mod.rs      páginas, frames, colunas, threading, grupos
 │   ├── cascade.rs  Document → Page → Frame → Block → Run
 │   ├── shape.rs    rustybuzz, uma única conversão de unidades de fonte → pt
-│   └── text.rs     spans → oportunidades de quebra → linhas → itens
+│   ├── text.rs     spans → oportunidades de quebra → linhas → itens
+│   ├── grid.rs     resolve pistas fixas, relativas, fraccionárias e automáticas
+│   ├── table.rs    colocação, larguras, alturas, réguas, e a quebra entre páginas
+│   ├── scale.rs    Linear, Log, Band, Point — de dado para página
+│   ├── ticks.rs    onde pôr as marcas de um eixo (o tickIncrement do d3)
+│   └── chart.rs    moldura, eixos, marcas, legenda e o rótulo que não cabe
 ├── display.rs      o DisplayList: IR posicionado, serializável, com proveniência
 ├── pdf/
 │   ├── emit.rs     DisplayList → operadores PDF (a inversão do eixo y)
@@ -98,6 +104,32 @@ crates/diagramador/src/
     ├── browser.rs  wasm-bindgen
     └── wasi.rs     C-ABI para Python/Go
 ```
+
+---
+
+### Medição intrínseca
+
+O motor sabe diagramar um parágrafo a uma largura dada. Sabe também responder,
+sem largura nenhuma, quão estreito e quão largo ele pode ser:
+
+```rust
+pub(crate) struct Intrinsic { pub min: f64, pub max: f64 }
+fn measure_paragraph(&self, para: &Paragraph, parent: &ResolvedStyle) -> Intrinsic
+```
+
+`min` é a peça inquebrável mais larga — abaixo disso alguma linha transborda.
+`max` é o parágrafo todo numa linha só. Entre os dois está toda a diagramação
+que ele pode tomar, que é exactamente o que o algoritmo de tabela precisa para
+repartir colunas.
+
+**Sai quase de graça**, e é por isso que a tabela sabe decidir larguras
+sozinha: `build_pieces` já calcula, por peça, a sua largura. O mínimo é o
+máximo dessas larguras e o máximo é a soma delas, cortada em cada quebra
+obrigatória. Sem shaping novo e sem uma segunda passagem sobre o texto — o
+caro, moldar os glifos, já foi feito.
+
+É a capacidade que mais gente vai usar sem saber que existe. Uma coluna
+`auto` numa tabela é isto, e nada mais.
 
 ---
 
@@ -192,6 +224,16 @@ inline de A, com o `offset` adiantado. Sem isso, o editor escreveria no lugar
 errado em qualquer texto encadeado. `Paragraph::origin` carrega essa informação
 através das divisões; `threaded_runs_point_back_at_the_story_they_came_from`
 trava o comportamento.
+
+Dentro de uma tabela, o `SourceRef` leva ainda um rasto de células — `cells`,
+um passo por tabela atravessada, cada um com o bloco da tabela e o índice da
+célula. `block`, `inline` e `offset` lêem-se contra a célula mais interior.
+Sem o rasto, um clique numa célula endereçaria o parágrafo do frame que
+calhasse ter aquele índice, e escrever estragaria o documento. O mesmo
+princípio da origem aplica-se aqui: uma tabela que continua noutra página é um
+bloco novo com as linhas renumeradas, e `Cell::origin` e `TableBlock::origin`
+dizem de onde a cópia veio, para que o cabeçalho repetido na página quatro
+edite o que foi escrito na página um.
 
 ---
 
