@@ -116,6 +116,14 @@ const MAX_BAR_SHARE: f64 = 1.0 / 6.0;
 /// Thickness of a line mark.
 const LINE_WIDTH: f64 = 1.5;
 
+/// How much of its colour a lone area keeps.
+///
+/// A wash, never a saturated block: the region is there to give the line a
+/// body, and at full strength it would shout down the line it belongs to and
+/// bury the grid behind it. Stacked areas are the exception and stay solid —
+/// they do not overlap, and each has to be told from the next.
+const AREA_ALPHA: f32 = 0.18;
+
 /// Diameter of a scatter mark, in ems of the chart's own type.
 ///
 /// Big enough to read as a mark of its own rather than a speck of dirt, and
@@ -295,7 +303,27 @@ fn tick_target(length: f64) -> usize {
     (length / PT_PER_TICK).round().clamp(2.0, 10.0) as usize
 }
 
+/// Which axis a bar or an area measures its quantity on.
+///
+/// The one that is not a list of names. When neither is — an area of readings
+/// against years — it is the vertical one, because an area is the region
+/// under a line and a line runs across.
+fn value_axis(chart: &ChartFrame, rows: &[Row]) -> &'static str {
+    let kind = |channel: &Channel| channel.kind.unwrap_or_else(|| infer(rows, &channel.field));
+    match (kind(&chart.encoding.x), kind(&chart.encoding.y)) {
+        (FieldKind::Categorical, _) => "y",
+        (_, FieldKind::Categorical) => "x",
+        _ => "y",
+    }
+}
+
 /// Settle one axis: what its domain is, and what it will be marked with.
+///
+/// `measured` is a span the caller worked out for itself, standing in for the
+/// one the field would give. Stacked areas are what need it: the axis has to
+/// reach the total the layers add up to, and the field on its own knows only
+/// the tallest single layer.
+#[allow(clippy::too_many_arguments)]
 fn draft(
     channel: &Channel,
     axis: &AxisSpec,
@@ -303,6 +331,10 @@ fn draft(
     mark: Mark,
     want: usize,
     name: &'static str,
+    // Whether this is the axis the quantity is read on — which is the axis
+    // zero belongs to, and the only one.
+    carries_value: bool,
+    measured: Option<(f64, f64)>,
     issues: &mut Vec<Issue>,
 ) -> Draft {
     let spec = channel.scale.clone().unwrap_or_default();
@@ -338,15 +370,26 @@ fn draft(
             }
         }
         ScaleKind::Linear | ScaleKind::Log => {
-            let (mut low, mut high) = spec.domain.unwrap_or_else(|| span_of(rows, &channel.field));
+            // What the author declared wins, then what the caller measured,
+            // and only then the field on its own.
+            let (mut low, mut high) = spec
+                .domain
+                .or(measured)
+                .unwrap_or_else(|| span_of(rows, &channel.field));
 
             // A bar or an area measures a quantity from a baseline, and a
             // baseline that is not zero misstates every proportion drawn
             // against it. The author can say otherwise; the default will not
             // say it for them.
+            //
+            // Of the axis that carries the quantity, and of no other. The
+            // other one says *where*, not *how much*. An area of enrolments
+            // by year had its axis of years pulled back to the year nought,
+            // and ten years of data came out as a hairline against two
+            // millennia of empty page.
             let wants_zero = spec
                 .zero
-                .unwrap_or(matches!(mark, Mark::Bar | Mark::Area));
+                .unwrap_or(carries_value && matches!(mark, Mark::Bar | Mark::Area));
 
             let mut log = (kind == ScaleKind::Log).then(|| spec.base.unwrap_or(10.0));
 
@@ -527,6 +570,13 @@ pub(crate) fn plot(
 ) -> Plotted {
     let mut issues = Vec::new();
 
+    // Before anything is drafted, because one thing about the vertical axis
+    // depends on it: areas stack, and an axis that reached only the tallest
+    // layer would cut off the total the layers add up to.
+    let drawn = series(chart, rows, &mut issues);
+    let piled = (chart.mark == Mark::Area).then(|| stacked_span(chart, &drawn)).flatten();
+    let carries = value_axis(chart, rows);
+
     let x = draft(
         &chart.encoding.x,
         &chart.axes.x,
@@ -534,6 +584,8 @@ pub(crate) fn plot(
         chart.mark,
         tick_target(frame.w),
         "x",
+        carries == "x",
+        None,
         &mut issues,
     );
     let y = draft(
@@ -543,13 +595,13 @@ pub(crate) fn plot(
         chart.mark,
         tick_target(frame.h),
         "y",
+        carries == "y",
+        piled,
         &mut issues,
     );
 
     let tick_length = style.font_size * TICK_EM;
     let gap = style.font_size * GAP_EM;
-
-    let drawn = series(chart, rows, &mut issues);
 
     // ── What the legend costs ───────────────────────────────────────────────
     //
@@ -787,10 +839,175 @@ fn marks(
         Mark::Bar => bars(chart, series, x, y, plot, issues),
         Mark::Line => lines(chart, series, x, y),
         Mark::Point => points(chart, series, x, y, style.font_size * POINT_EM),
-        // Área is T4.6. Drawing nothing is the honest state of a mark that
-        // has a vocabulary and no geometry yet.
-        Mark::Area => Vec::new(),
+        Mark::Area => areas(chart, series, x, y, plot),
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Area
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One observation of an area, once the layers under it are counted.
+struct Layer<'a> {
+    row: &'a Row,
+    /// Where the region's underside and its top sit, in the value axis's own
+    /// terms. `None` is a hole — kept rather than dropped, because a hole is
+    /// what breaks the region in two, and a reading quietly left out would
+    /// have the area roof over the gap instead.
+    span: Option<(f64, f64)>,
+}
+
+/// Where each observation sits once the series below it are added up.
+///
+/// **Areas stack; bars stand side by side.** Two bars are each read against
+/// the axis on their own, so they need room of their own. Two filled regions
+/// laid over one another cannot be read that way at all — the one in front
+/// hides what is behind it — so the only honest reading is as parts of one
+/// total, and that is what stacking draws.
+///
+/// The order is the one the series were declared in, from the axis outward.
+/// A hole contributes nothing and does not raise the floor for the layer
+/// above: a month nobody measured did not measure zero.
+fn stack<'a>(chart: &ChartFrame, series: &'a [Series<'a>]) -> Vec<Vec<Layer<'a>>> {
+    let position = &chart.encoding.x.field;
+    let value = &chart.encoding.y.field;
+
+    let mut floor: std::collections::BTreeMap<String, f64> = Default::default();
+    let mut out = Vec::with_capacity(series.len());
+
+    for one in series {
+        let mut layers = Vec::new();
+        for row in &one.rows {
+            let Some(key) = row.get(position).and_then(Value::as_category) else {
+                continue;
+            };
+            let Some(amount) = row.get(value).and_then(Value::as_number) else {
+                layers.push(Layer { row, span: None });
+                continue;
+            };
+            let base = *floor.get(&key).unwrap_or(&0.0);
+            let top = base + amount;
+            floor.insert(key, top);
+            layers.push(Layer { row, span: Some((base, top)) });
+        }
+        out.push(layers);
+    }
+
+    out
+}
+
+/// The span a stacked chart's value axis has to cover.
+///
+/// `None` when nothing stacks up — the field's own span is right then, and
+/// standing in for it would only be a longer way of saying the same thing.
+fn stacked_span(chart: &ChartFrame, series: &[Series<'_>]) -> Option<(f64, f64)> {
+    let piled = stack(chart, series);
+    let mut low = f64::INFINITY;
+    let mut high = f64::NEG_INFINITY;
+    for layers in &piled {
+        for (base, top) in layers.iter().filter_map(|layer| layer.span) {
+            low = low.min(base).min(top);
+            high = high.max(base).max(top);
+        }
+    }
+    (low <= high).then_some((low, high))
+}
+
+/// A filled region under each series' line, closed on the axis's baseline.
+///
+/// **Closed on the baseline and not on the foot of the frame.** An area over
+/// an axis that does not start at zero has to close at zero all the same, or
+/// the region's height stops standing for the quantity it is drawn to show.
+/// Where zero is off the scale entirely, it closes at the near end of the
+/// axis, which is as close to the truth as the axis allows.
+fn areas(
+    chart: &ChartFrame,
+    series: &[Series<'_>],
+    x: &Scale,
+    y: &Scale,
+    plot: Rect,
+) -> Vec<DisplayItem> {
+    let piled = stack(chart, series);
+    // With one series there is nothing behind to hide, so the fill is a wash
+    // and the line over it reads. Stacked, the layers do not overlap and each
+    // has to be told from the next, which a wash would not manage.
+    let solid = series.len() > 1;
+
+    let mut items = Vec::new();
+    for (one, layers) in series.iter().zip(piled) {
+        // In the order the axis reads, exactly as a line is. An area is the
+        // region under a line, so the two cannot disagree about the order.
+        let mut points: Vec<(f64, Option<(f64, f64)>)> = layers
+            .iter()
+            .filter_map(|layer| {
+                let at = position(x, layer.row.get(&chart.encoding.x.field))?;
+                let Some((base, top)) = layer.span else {
+                    return Some((at, None));
+                };
+                let top = clamp_to(y.map(top).ok(), plot);
+                let base = clamp_to(y.map(base).ok(), plot);
+                Some((at, top.zip(base)))
+            })
+            .collect();
+        points.sort_by(|a, b| a.0.total_cmp(&b.0));
+
+        // A hole breaks the region in two rather than roofing over the gap.
+        for run in points.split(|(_, pair)| pair.is_none()) {
+            let run: Vec<(f64, f64, f64)> = run
+                .iter()
+                .filter_map(|(at, pair)| pair.map(|(top, base)| (*at, top, base)))
+                .collect();
+            if run.len() < 2 {
+                continue;
+            }
+
+            let mut commands = Vec::with_capacity(run.len() * 2 + 1);
+            commands.push(PathCommand::MoveTo { x: run[0].0, y: run[0].1 });
+            for (at, top, _) in run.iter().skip(1) {
+                commands.push(PathCommand::LineTo { x: *at, y: *top });
+            }
+            for (at, _, base) in run.iter().rev() {
+                commands.push(PathCommand::LineTo { x: *at, y: *base });
+            }
+            commands.push(PathCommand::Close);
+
+            let mut fill = one.colour;
+            if !solid {
+                fill.a *= AREA_ALPHA;
+            }
+
+            items.push(DisplayItem::Path(PathItem {
+                commands,
+                fill: Some(fill),
+                fill_rule: FillRule::NonZero,
+                stroke: None,
+                source: None,
+            }));
+
+            // The line along the top, over its own region: it is what the eye
+            // follows, and a wash on its own has no edge to follow.
+            let mut edge = Vec::with_capacity(run.len());
+            edge.push(PathCommand::MoveTo { x: run[0].0, y: run[0].1 });
+            for (at, top, _) in run.iter().skip(1) {
+                edge.push(PathCommand::LineTo { x: *at, y: *top });
+            }
+            items.push(DisplayItem::Path(PathItem {
+                commands: edge,
+                fill: None,
+                fill_rule: FillRule::NonZero,
+                stroke: Some(Stroke { color: one.colour, width: LINE_WIDTH, dash: None }),
+                source: None,
+            }));
+        }
+    }
+
+    items
+}
+
+/// Hold a mapped value inside the plot, so an axis that does not reach zero
+/// closes its regions at its own end rather than off the page.
+fn clamp_to(at: Option<f64>, plot: Rect) -> Option<f64> {
+    at.map(|value| value.clamp(plot.y, plot.bottom()))
 }
 
 /// One mark per observation, at the crossing of its two values.
@@ -2834,7 +3051,7 @@ mod tests {
                 .collect();
             let channel = Channel { field: "t".into(), ..Channel::default() };
             let mut drafted =
-                draft(&channel, axis, &data, Mark::Line, 12, "x", &mut Vec::new());
+                draft(&channel, axis, &data, Mark::Line, 12, "x", false, None, &mut Vec::new());
             let before = drafted.ticks.len();
             let turn = fit(&mut drafted, axis, room, Side::Along, &style(), &Ruler);
             (before, drafted.ticks.len(), turn)
@@ -2866,7 +3083,7 @@ mod tests {
         let axis =
             AxisSpec { title: Some(String::new()), ticks: Some(12), ..AxisSpec::default() };
 
-        let mut drafted = draft(&channel, &axis, &data, Mark::Line, 12, "x", &mut Vec::new());
+        let mut drafted = draft(&channel, &axis, &data, Mark::Line, 12, "x", false, None, &mut Vec::new());
         let before = drafted.ticks.len();
         let turn = fit(&mut drafted, &axis, 60.0, Side::Along, &style(), &Ruler);
         assert_eq!(drafted.ticks.len(), before, "as marcas pedidas ficam todas");
@@ -2893,7 +3110,7 @@ mod tests {
         let axis =
             AxisSpec { title: Some(String::new()), ticks: Some(2), ..AxisSpec::default() };
 
-        let mut drafted = draft(&channel, &axis, &data, Mark::Line, 2, "x", &mut Vec::new());
+        let mut drafted = draft(&channel, &axis, &data, Mark::Line, 2, "x", false, None, &mut Vec::new());
         assert_eq!(
             drafted.ticks.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>(),
             vec!["0", "500000000", "1000000000"],
@@ -3179,5 +3396,327 @@ mod tests {
         for name in ["jan", "fev", "mar", "abr"] {
             assert!(written.contains(&name.to_string()), "`{name}` continua lá: {written:?}");
         }
+    }
+
+    // ── Área ────────────────────────────────────────────────────────────────
+
+    /// An area over a numeric horizontal axis, split by `serie` when asked.
+    fn area(coloured: bool) -> ChartFrame {
+        ChartFrame {
+            mark: Mark::Area,
+            encoding: Encoding {
+                x: Channel { field: "t".into(), ..Channel::default() },
+                y: Channel { field: "v".into(), ..Channel::default() },
+                color: coloured.then(by_series),
+            },
+            axes: bare(),
+            legend: Some(crate::spec::chart::Legend { visible: false, ..Default::default() }),
+            ..ChartFrame::default()
+        }
+    }
+
+    fn reading(t: f64, series: &str, v: Value) -> Row {
+        Row::from([
+            ("t".to_string(), Value::Number(t)),
+            ("serie".to_string(), Value::Text(series.to_string())),
+            ("v".to_string(), v),
+        ])
+    }
+
+    /// Only the filled regions — the stroked edge over each is a path too.
+    fn regions(out: &Plotted) -> Vec<PathItem> {
+        paths_of(&out.items).into_iter().filter(|path| path.fill.is_some()).collect()
+    }
+
+    /// The `y` of every point a path visits.
+    fn heights(path: &PathItem) -> Vec<f64> {
+        path.commands
+            .iter()
+            .filter_map(|command| match command {
+                PathCommand::MoveTo { y, .. } | PathCommand::LineTo { y, .. } => Some(*y),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_area_is_a_closed_region_under_its_own_line() {
+        let data: Vec<Row> = [(0.0, 10.0), (1.0, 30.0), (2.0, 20.0)]
+            .iter()
+            .map(|(t, v)| reading(*t, "a", Value::Number(*v)))
+            .collect();
+        let out = plot(&area(false), &data, &style(), &Ruler, FRAME);
+
+        let filled = regions(&out);
+        assert_eq!(filled.len(), 1, "uma região");
+        assert!(
+            matches!(filled[0].commands.last(), Some(PathCommand::Close)),
+            "e fechada: {:?}",
+            filled[0].commands.last(),
+        );
+        // Three tops out, three bases back: the region has both edges.
+        assert_eq!(filled[0].commands.len(), 3 + 3 + 1);
+
+        let edges: Vec<PathItem> =
+            paths_of(&out.items).into_iter().filter(|p| p.fill.is_none()).collect();
+        assert_eq!(edges.len(), 1, "e uma linha por cima");
+        assert!(edges[0].stroke.is_some());
+        assert!(
+            !edges[0].commands.iter().any(|c| matches!(c, PathCommand::Close)),
+            "que não se fecha sobre si mesma",
+        );
+    }
+
+    #[test]
+    fn an_area_closes_on_the_baseline_and_not_on_the_foot_of_the_frame() {
+        // The rule this task is about. An area over an axis that does not
+        // start at zero still closes at zero, or the region's height stops
+        // standing for the quantity it is drawn to show.
+        let data: Vec<Row> = [(0.0, 120.0), (1.0, 180.0)]
+            .iter()
+            .map(|(t, v)| reading(*t, "a", Value::Number(*v)))
+            .collect();
+
+        let mut acima = area(false);
+        acima.encoding.y.scale = Some(crate::spec::chart::ScaleSpec {
+            domain: Some((-50.0, 200.0)),
+            nice: Some(false),
+            ..Default::default()
+        });
+        let out = plot(&acima, &data, &style(), &Ruler, FRAME);
+        let lowest = heights(&regions(&out)[0]).into_iter().fold(f64::MIN, f64::max);
+        assert!(
+            (lowest - out.y.map(0.0).unwrap()).abs() < 1e-9,
+            "fecha no zero: {lowest}, zero em {}",
+            out.y.map(0.0).unwrap(),
+        );
+        assert!(lowest < out.plot.bottom() - 1e-9, "e o fundo da moldura fica por baixo dele");
+
+        // Where zero is off the scale altogether, it closes at the near end
+        // of the axis, which is as close to the truth as the axis allows.
+        let mut fora = area(false);
+        fora.encoding.y.scale = Some(crate::spec::chart::ScaleSpec {
+            zero: Some(false),
+            domain: Some((100.0, 200.0)),
+            nice: Some(false),
+            ..Default::default()
+        });
+        let out = plot(&fora, &data, &style(), &Ruler, FRAME);
+        let lowest = heights(&regions(&out)[0]).into_iter().fold(f64::MIN, f64::max);
+        assert!(
+            (lowest - out.plot.bottom()).abs() < 1e-9,
+            "{lowest} vs {}",
+            out.plot.bottom(),
+        );
+    }
+
+    #[test]
+    fn three_areas_stack_in_the_order_they_were_declared() {
+        let data: Vec<Row> = ["a", "b", "c"]
+            .iter()
+            .flat_map(|series| {
+                [0.0, 1.0, 2.0]
+                    .iter()
+                    .map(|t| reading(*t, series, Value::Number(10.0)))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        let out = plot(&area(true), &data, &style(), &Ruler, FRAME);
+
+        let filled = regions(&out);
+        assert_eq!(filled.len(), 3, "três regiões");
+
+        // Each layer sits wholly above the one before it: stacked, not laid
+        // over. Page y grows downward, so higher is a smaller number.
+        let tops: Vec<f64> = filled
+            .iter()
+            .map(|path| heights(path).into_iter().fold(f64::MAX, f64::min))
+            .collect();
+        for pair in tops.windows(2) {
+            assert!(pair[1] < pair[0], "cada camada assenta na anterior: {tops:?}");
+        }
+
+        // And the axis reaches the total, not the tallest single layer.
+        match out.y {
+            Scale::Linear { domain, .. } => {
+                assert!(domain.1 >= 30.0, "três séries de dez somam trinta: {domain:?}")
+            }
+            _ => panic!("escala contínua"),
+        }
+    }
+
+    #[test]
+    fn stacked_areas_are_solid_and_a_lone_one_is_a_wash() {
+        let one: Vec<Row> = [0.0, 1.0]
+            .iter()
+            .map(|t| reading(*t, "a", Value::Number(10.0)))
+            .collect();
+        let many: Vec<Row> = ["a", "b"]
+            .iter()
+            .flat_map(|s| {
+                [0.0, 1.0].iter().map(|t| reading(*t, s, Value::Number(10.0))).collect::<Vec<_>>()
+            })
+            .collect();
+
+        let sozinha = regions(&plot(&area(false), &one, &style(), &Ruler, FRAME));
+        let empilhadas = regions(&plot(&area(true), &many, &style(), &Ruler, FRAME));
+
+        assert!(
+            sozinha[0].fill.unwrap().a < 0.5,
+            "uma só é um lavado, para a linha se ler por cima: {}",
+            sozinha[0].fill.unwrap().a,
+        );
+        for path in &empilhadas {
+            assert!(
+                path.fill.unwrap().a > 0.9,
+                "empilhadas são cheias, para se distinguirem: {}",
+                path.fill.unwrap().a,
+            );
+        }
+    }
+
+    #[test]
+    fn a_hole_interrupts_the_area_instead_of_roofing_over_it() {
+        let data = vec![
+            reading(0.0, "a", Value::Number(10.0)),
+            reading(1.0, "a", Value::Number(20.0)),
+            reading(2.0, "a", Value::Null),
+            reading(3.0, "a", Value::Number(15.0)),
+            reading(4.0, "a", Value::Number(25.0)),
+        ];
+        let out = plot(&area(false), &data, &style(), &Ruler, FRAME);
+
+        let filled = regions(&out);
+        assert_eq!(filled.len(), 2, "duas regiões, uma de cada lado do buraco");
+        for path in &filled {
+            assert!(matches!(path.commands.last(), Some(PathCommand::Close)), "ambas fechadas");
+        }
+
+        // And nothing is drawn across the gap.
+        let missing = out.x.map(2.0).unwrap();
+        for path in &filled {
+            let xs: Vec<f64> = path
+                .commands
+                .iter()
+                .filter_map(|c| match c {
+                    PathCommand::MoveTo { x, .. } | PathCommand::LineTo { x, .. } => Some(*x),
+                    _ => None,
+                })
+                .collect();
+            let from = xs.iter().copied().fold(f64::MAX, f64::min);
+            let to = xs.iter().copied().fold(f64::MIN, f64::max);
+            assert!(
+                to <= missing + 1e-9 || from >= missing - 1e-9,
+                "uma região atravessa o vazio: {from}..{to} sobre {missing}",
+            );
+        }
+    }
+
+    #[test]
+    fn a_negative_area_hangs_below_the_baseline() {
+        let data: Vec<Row> = [(0.0, 20.0), (1.0, -20.0), (2.0, -10.0)]
+            .iter()
+            .map(|(t, v)| reading(*t, "a", Value::Number(*v)))
+            .collect();
+        let out = plot(&area(false), &data, &style(), &Ruler, FRAME);
+
+        let zero = out.y.map(0.0).unwrap();
+        assert!(zero > out.plot.y && zero < out.plot.bottom(), "o zero fica no meio");
+
+        let alturas = heights(&regions(&out)[0]);
+        assert!(alturas.iter().any(|y| *y < zero - 1e-9), "há região acima: {alturas:?}");
+        assert!(alturas.iter().any(|y| *y > zero + 1e-9), "e região abaixo: {alturas:?}");
+    }
+
+    #[test]
+    fn only_the_axis_that_carries_the_quantity_is_pulled_to_zero() {
+        // An area of enrolments by year: both axes are numbers, and only one
+        // of them is a quantity. Pulling the years back to the year nought
+        // drew ten years of data as a hairline against two millennia of empty
+        // page — which is what the corpus showed and no unit test had asked.
+        let mut spec = area(false);
+        spec.encoding.x = Channel { field: "ano".into(), ..Channel::default() };
+        let data: Vec<Row> = (2015..2025)
+            .map(|year| {
+                Row::from([
+                    ("ano".to_string(), Value::Number(year as f64)),
+                    ("v".to_string(), Value::Number((year - 2000) as f64)),
+                ])
+            })
+            .collect();
+
+        let out = plot(&spec, &data, &style(), &Ruler, FRAME);
+        match out.x {
+            Scale::Linear { domain, .. } => assert!(
+                domain.0 > 1900.0,
+                "o eixo dos anos fica junto aos dados: {domain:?}",
+            ),
+            _ => panic!("escala contínua"),
+        }
+        match out.y {
+            Scale::Linear { domain, .. } => {
+                assert_eq!(domain.0, 0.0, "e o da grandeza continua a alcançar o zero")
+            }
+            _ => panic!("escala contínua"),
+        }
+    }
+
+    #[test]
+    fn an_author_who_asks_for_zero_on_the_other_axis_gets_it() {
+        // Which axis carries the quantity decides the *default*. Saying so
+        // outright is not a default.
+        let mut spec = area(false);
+        spec.encoding.x = Channel {
+            field: "ano".into(),
+            scale: Some(crate::spec::chart::ScaleSpec {
+                zero: Some(true),
+                ..Default::default()
+            }),
+            ..Channel::default()
+        };
+        let data: Vec<Row> = (2015..2025)
+            .map(|year| {
+                Row::from([
+                    ("ano".to_string(), Value::Number(year as f64)),
+                    ("v".to_string(), Value::Number(1.0)),
+                ])
+            })
+            .collect();
+
+        let out = plot(&spec, &data, &style(), &Ruler, FRAME);
+        match out.x {
+            Scale::Linear { domain, .. } => assert_eq!(domain.0, 0.0, "veio {domain:?}"),
+            _ => panic!("escala contínua"),
+        }
+    }
+
+    #[test]
+    fn a_lone_reading_between_two_holes_is_no_region_at_all() {
+        let data = vec![
+            reading(0.0, "a", Value::Null),
+            reading(1.0, "a", Value::Number(20.0)),
+            reading(2.0, "a", Value::Null),
+        ];
+        let out = plot(&area(false), &data, &style(), &Ruler, FRAME);
+        assert!(regions(&out).is_empty(), "um ponto não tem área por baixo");
+    }
+
+    #[test]
+    fn a_hole_does_not_raise_the_floor_for_the_layer_above_it() {
+        // A month nobody measured did not measure zero, and the layer above
+        // has to sit on what was actually counted.
+        let data = vec![
+            reading(0.0, "a", Value::Number(10.0)),
+            reading(1.0, "a", Value::Null),
+            reading(0.0, "b", Value::Number(5.0)),
+            reading(1.0, "b", Value::Number(5.0)),
+        ];
+        let spec = area(true);
+        let drawn = series(&spec, &data, &mut Vec::new());
+        let piled = stack(&spec, &drawn);
+
+        assert_eq!(piled[0][1].span, None, "a leitura em falta fica como buraco");
+        assert_eq!(piled[1][0].span, Some((10.0, 15.0)), "em t=0 assenta sobre a de baixo");
+        assert_eq!(piled[1][1].span, Some((0.0, 5.0)), "em t=1 não havia nada por baixo");
     }
 }

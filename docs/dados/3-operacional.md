@@ -1040,6 +1040,50 @@ vazio.
 
 **Depende de.** T1.0, T4.3.
 
+**Estado: feita, e com ela a Fase 4.** `layout/chart.rs` — `areas`, `stack`,
+`stacked_span`, `Layer`, `value_axis`, `clamp_to`. 10 testes novos no módulo
+(415 na biblioteca).
+
+**A primitiva de caminho da T1.0 serve aqui o que a fez entrar.** Uma região
+fechada sob uma linha não se exprime em rectângulos, e foi por isso que o item
+de caminho foi a primeira tarefa do plano em vez de uma condicionada no fim.
+Duas fases depois, a área não teve de se contorcer para caber.
+
+Decisões que a implementação fixou:
+
+- **Áreas empilham-se; barras põem-se lado a lado.** Duas barras lêem-se cada
+  uma contra o eixo, por isso precisam de espaço próprio. Duas regiões cheias
+  sobrepostas não se podem ler assim — a da frente tapa a de trás — e a única
+  leitura honesta é como partes de um total, que é o que empilhar desenha.
+- **O eixo alcança o total e não a camada mais alta.** Foi o que obrigou o
+  `draft` a aceitar um intervalo medido de fora: o campo sozinho só conhece a
+  maior das camadas.
+- **Um buraco não levanta o chão da camada de cima.** Um mês que ninguém mediu
+  não mediu zero.
+- **Uma área só é um lavado; empilhadas são cheias.** Sozinha, a região dá
+  corpo à linha e tem de deixá-la ler-se e a grelha aparecer por trás.
+  Empilhadas não se sobrepõem, e cada uma tem de distinguir-se da seguinte.
+
+**Seis mutações, seis quedas.** Mas os dois defeitos reais desta tarefa não
+vieram de mutação nenhuma — vieram de olhar para o desenho.
+
+**Um: o buraco não partia a região.** O `stack` descartava as leituras nulas
+em vez de as guardar, e o que chegava ao desenho era uma série contínua com
+menos pontos. O buraco passou a ser parte do modelo — `Layer.span` é
+`Option` — em vez de uma ausência.
+
+**Dois, e este era grave: o eixo dos anos foi arrastado até ao zero.** A regra
+do zero aplicava-se a qualquer eixo contínuo sob uma marca de barra ou área.
+Mas o zero pertence ao eixo que carrega a grandeza, e a um eixo de anos não:
+esse diz *onde*, não *quanto*. Dez anos de dados saíram desenhados como um
+fio contra dois milénios de página vazia. Nenhum teste o apanhou porque todos
+usavam `t = 0, 1, 2`, onde o zero já estava no intervalo. `value_axis` decide
+agora qual dos eixos é o da grandeza, e um `zero` declarado pelo autor
+continua a valer em qualquer um.
+
+**A Fase 4 fecha aqui.** Quatro marcas, quatro escalas, eixos com marcas
+escolhidas por algoritmo, grelha e legenda.
+
 ---
 
 ## Fase 5 — editor
