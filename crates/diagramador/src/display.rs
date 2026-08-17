@@ -20,7 +20,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::color::Color;
-use crate::units::Rect;
+use crate::units::{Corners, Rect};
 
 /// Bumped when the display list shape changes in a way JS must know about.
 pub const DISPLAY_VERSION: u32 = 1;
@@ -165,7 +165,7 @@ impl DisplayGroup {
 #[serde(rename_all = "camelCase", default)]
 pub struct ClipShape {
     pub rect: Rect,
-    pub radius: f64,
+    pub radius: Corners,
 }
 
 /// A sequence of positioned glyphs sharing one font, size and colour.
@@ -207,7 +207,7 @@ pub struct Glyph {
 #[serde(rename_all = "camelCase", default)]
 pub struct RectItem {
     pub rect: Rect,
-    pub radius: f64,
+    pub radius: Corners,
     pub fill: Option<Color>,
     pub stroke: Option<Stroke>,
     pub source: Option<SourceRef>,

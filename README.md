@@ -115,8 +115,9 @@ não dá para fazer clicando, não está lá. Cabeçalhos e rodapés se repetem 
 página porque é assim que se faz sem páginas mestre: duplicando.
 
 O que ele exercita: caixas de texto com colunas, formas (retângulo, elipse,
-linha), preenchimento, bordas com lados independentes, raio, opacidade, grupos,
-marcas de caractere na seleção, e `{page}` digitado no rodapé.
+linha), preenchimento, bordas com lados independentes, raio por canto,
+opacidade, grupos, marcas de caractere na seleção, e `{page}` digitado no
+rodapé.
 
 ## Uso
 

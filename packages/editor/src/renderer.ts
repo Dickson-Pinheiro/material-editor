@@ -109,6 +109,33 @@ export function handlePositions(rect: Rect): Record<HandleName, [number, number]
   };
 }
 
+/**
+ * A box, rounded corner by corner.
+ *
+ * `roundRect` already speaks the shape the engine emits — a number for all
+ * four, `[topLeft, topRight]` for the diagonals, four for each corner in turn
+ * — and it scales overlapping radii by one common factor, which is the rule
+ * the PDF emitter follows too. So the list goes straight through, and the two
+ * renderers agree without either of them restating the arithmetic.
+ *
+ * A plain rectangle when nothing is rounded: cheaper, and it keeps a
+ * square-cornered box out of `roundRect`'s hands entirely.
+ */
+function boxPath(rect: Rect, radius: number | number[]): Path2D {
+  const path = new Path2D();
+  const wanted = Array.isArray(radius) ? radius : [radius];
+
+  if (wanted.some((r) => r > 0)) {
+    // Negative is not a corner cut the other way — it is nothing, and
+    // `roundRect` would throw on it.
+    const safe = wanted.map((r) => Math.max(0, r));
+    path.roundRect(rect.x, rect.y, rect.w, rect.h, safe);
+  } else {
+    path.rect(rect.x, rect.y, rect.w, rect.h);
+  }
+  return path;
+}
+
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly images = new Map<string, CanvasImageSource>();
@@ -292,11 +319,7 @@ export class Renderer {
       ctx.transform(a, b, c, d, e, f);
     }
     if (group.clip) {
-      const path = new Path2D();
-      const { rect, radius } = group.clip;
-      if (radius > 0) path.roundRect(rect.x, rect.y, rect.w, rect.h, radius);
-      else path.rect(rect.x, rect.y, rect.w, rect.h);
-      ctx.clip(path);
+      ctx.clip(boxPath(group.clip.rect, group.clip.radius));
     }
     if (group.opacity < 1) ctx.globalAlpha *= group.opacity;
 
@@ -332,10 +355,7 @@ export class Renderer {
 
   private drawRect(item: Extract<DisplayItem, { type: "rect" }>): void {
     const { ctx } = this;
-    const { rect, radius } = item;
-    const path = new Path2D();
-    if (radius > 0) path.roundRect(rect.x, rect.y, rect.w, rect.h, radius);
-    else path.rect(rect.x, rect.y, rect.w, rect.h);
+    const path = boxPath(item.rect, item.radius);
 
     if (item.fill) {
       ctx.fillStyle = item.fill;

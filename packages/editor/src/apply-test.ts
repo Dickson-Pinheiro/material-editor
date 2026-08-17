@@ -112,6 +112,14 @@ const inset = (store: Store, id: string): [unknown, unknown, unknown, unknown] =
   return [a, b, c, d];
 };
 
+/** A frame's radius spread over the four corners, clockwise from the top-left. */
+const corner = (store: Store, id: string): [unknown, unknown, unknown, unknown] => {
+  const value = frameOf(store, id).radius ?? 0;
+  const list = Array.isArray(value) ? value : [value];
+  const [a = 0, b = a, c = a, d = b] = list;
+  return [a, b, c, d];
+};
+
 /** The page margins spread over the four sides, however they were written. */
 const sides = (store: Store): [unknown, unknown, unknown, unknown] => {
   const value = store.doc.page?.margins ?? 0;
@@ -127,7 +135,10 @@ const FRAME_PROBES: Probe[] = [
   { field: "rect.w", as: "number", set: 250, read: (s) => Number(frameOf(s, "texto").rect[2]), expect: 250 },
   { field: "rect.h", as: "number", set: 180, read: (s) => Number(frameOf(s, "texto").rect[3]), expect: 180 },
   { field: "rotation", as: "number", set: 15, read: (s) => frameOf(s, "texto").rotation, expect: 15 },
-  { field: "radius", as: "number", set: 8, read: (s) => frameOf(s, "texto").radius, expect: 8 },
+  { field: "radius.topLeft", as: "text", set: "8", read: (s) => corner(s, "texto")[0], expect: 8 },
+  { field: "radius.topRight", as: "text", set: "4mm", read: (s) => corner(s, "texto")[1], expect: "4mm" },
+  { field: "radius.bottomRight", as: "text", set: "12", read: (s) => corner(s, "texto")[2], expect: 12 },
+  { field: "radius.bottomLeft", as: "text", set: "3", read: (s) => corner(s, "texto")[3], expect: 3 },
   { field: "opacity", as: "number", set: 40, read: (s) => frameOf(s, "texto").opacity, expect: 0.4, near: true },
   { field: "padding.top", as: "text", set: "6mm", read: (s) => inset(s, "texto")[0], expect: "6mm" },
   { field: "padding.right", as: "text", set: "8mm", read: (s) => inset(s, "texto")[1], expect: "8mm" },

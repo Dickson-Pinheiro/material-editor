@@ -50,6 +50,7 @@ import type {
   FieldKind,
   LegendPosition,
   Mark,
+  Radius,
   ScaleKind,
   ShapeFrame,
   ShapeKind,
@@ -272,6 +273,47 @@ export class Inspector {
     );
   }
 
+  /**
+   * Four corners, four boxes.
+   *
+   * The same argument as the margins: rounding only the top of a card used to
+   * mean knowing the shorthand and retyping the three corners you did not want
+   * to touch. What is stored stays CSS order — clockwise from the top-left —
+   * but the boxes are laid out where the corners actually are, so the field in
+   * the lower left of the panel is the corner in the lower left of the frame.
+   */
+  private corners(current: Radius, write: (next: Radius) => void): HTMLElement {
+    const slots = fourCorners(current);
+    // Label, name, and which slot of `[tl, tr, br, bl]` it edits.
+    const BOXES: [string, string, number][] = [
+      ["Sup. esq.", "topLeft", 0],
+      ["Sup. dir.", "topRight", 1],
+      ["Inf. esq.", "bottomLeft", 3],
+      ["Inf. dir.", "bottomRight", 2],
+    ];
+
+    return grid(
+      2,
+      BOXES.map(([name, key, slot]) =>
+        textField(
+          name,
+          String(slots[slot]),
+          (value) => {
+            const one = parseLenList(value);
+            if (one === null || Array.isArray(one)) return false;
+            const next: [Len, Len, Len, Len] = [...slots];
+            next[slot] = one;
+            write(shortest(next));
+            return true;
+          },
+          `Raio do canto ${name.toLowerCase()}. Aceita unidades: 4mm`,
+          false,
+          `radius.${key}`,
+        ),
+      ),
+    );
+  }
+
   /** Four sides, four boxes. Used by the page margins and by frame padding. */
   private insets(
     current: Len | Len[],
@@ -335,13 +377,8 @@ export class Inspector {
             icon: true,
             field: "rotation",
           }),
-          num("radius", frame.radius ?? 0, (value) => change((f) => void (f.radius = value)), {
-            min: 0,
-            title: "Raio dos cantos",
-            icon: true,
-            field: "radius",
-          }),
         ]),
+        this.corners(frame.radius ?? 0, (next) => change((f) => void (f.radius = next))),
       ]),
     );
 
@@ -1528,6 +1565,17 @@ function fourSides(value: Len | Len[]): [Len, Len, Len, Len] {
   const list = Array.isArray(value) ? value : [value];
   const [a = 0, b = a, c = a, d = b] = list;
   return [a, b, c, d];
+}
+
+/**
+ * The same four-slot expansion, read as corners rather than edges.
+ *
+ * CSS spells `border-radius` and `padding` with one rule, so the arithmetic is
+ * shared; only the vocabulary differs. Here the slots are clockwise from the
+ * top-left, and the two-value form means the two diagonals — not top/bottom.
+ */
+function fourCorners(value: Radius): [Len, Len, Len, Len] {
+  return fourSides(value);
 }
 
 /** The shortest shorthand that still means these four sides. */

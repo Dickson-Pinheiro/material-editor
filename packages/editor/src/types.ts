@@ -173,6 +173,15 @@ export interface Border {
   sides?: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
 }
 
+/**
+ * Corner radii, clockwise from the top-left.
+ *
+ * A single number rounds all four — the common case, and what every document
+ * written before corners were separable says. The list forms follow CSS:
+ * `[topLeft, topRight]` are the two diagonals, four are each corner in turn.
+ */
+export type Radius = Len | Len[];
+
 interface FrameBase {
   id?: string;
   name?: string;
@@ -182,7 +191,7 @@ interface FrameBase {
   padding?: Len | Len[];
   fill?: string;
   border?: Border;
-  radius?: number;
+  radius?: Radius;
   clip?: boolean;
   visible?: boolean;
   locked?: boolean;
@@ -449,7 +458,8 @@ export interface Stroke {
 export interface RectItem {
   type: "rect";
   rect: Rect;
-  radius: number;
+  /** Always points here — the engine resolves units before it emits. */
+  radius: number | number[];
   fill?: string | null;
   stroke?: Stroke | null;
   source?: SourceRef | null;
@@ -509,7 +519,7 @@ export interface GroupItem {
   source?: SourceRef | null;
   /** Affine `[a, b, c, d, e, f]`, applied before painting the children. */
   transform?: [number, number, number, number, number, number] | null;
-  clip?: { rect: Rect; radius: number } | null;
+  clip?: { rect: Rect; radius: number | number[] } | null;
   opacity: number;
   items: DisplayItem[];
 }

@@ -30,7 +30,7 @@ use crate::spec::ResolvedStyle;
 use crate::spec::chart::{
     Axis as AxisSpec, Channel, ChartFrame, FieldKind, LegendPosition, Mark, Row, ScaleKind, Value,
 };
-use crate::units::Rect;
+use crate::units::{Corners, Rect};
 
 use super::scale::Scale;
 use super::ticks;
@@ -1194,7 +1194,7 @@ impl LegendBox {
             }
             Mark::Bar | Mark::Area => DisplayItem::Rect(RectItem {
                 rect: Rect::new(x, middle - self.swatch / 2.0, self.swatch, self.swatch),
-                radius: 0.0,
+                radius: Corners::ZERO,
                 fill: Some(colour),
                 stroke: None,
                 source: None,
@@ -1384,7 +1384,7 @@ fn bars(
                     Standing::Upright => Rect::new(start, near, slot.1, far - near),
                     Standing::Lying => Rect::new(near, start, far - near, slot.1),
                 },
-                radius: 0.0,
+                radius: Corners::ZERO,
                 fill: Some(one.colour),
                 stroke: None,
                 source: None,

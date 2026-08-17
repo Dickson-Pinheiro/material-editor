@@ -797,6 +797,39 @@ async function run(): Promise<void> {
     assert(vazado(40, 100) < 40, "e a moldura fica pintada nos dois casos");
   });
 
+  check("cada canto arredonda-se por si", () => {
+    // A black box filling most of the page, with only the top-left cut away.
+    const box = { x: 20, y: 20, w: 160, h: 160 };
+    const at = pintado([{ type: "rect", rect: box, radius: [40, 0, 0, 0], fill: "#000000" }]);
+
+    // 6pt inside a corner is outside an arc of 40 but inside a square corner.
+    assert(at(26, 26) > 200, "o canto superior esquerdo tem de ficar em papel");
+    assert(at(174, 26) < 40, "o superior direito tem de continuar quadrado");
+    assert(at(174, 174) < 40, "o inferior direito tem de continuar quadrado");
+    assert(at(26, 174) < 40, "o inferior esquerdo tem de continuar quadrado");
+    assert(at(100, 100) < 40, "e o miolo continua pintado");
+  });
+
+  check("um raio único ainda arredonda os quatro cantos", () => {
+    const box = { x: 20, y: 20, w: 160, h: 160 };
+    const at = pintado([{ type: "rect", rect: box, radius: 40, fill: "#000000" }]);
+
+    for (const [x, y] of [[26, 26], [174, 26], [174, 174], [26, 174]]) {
+      assert(at(x!, y!) > 200, `o canto (${x}, ${y}) tem de ficar em papel`);
+    }
+    assert(at(100, 100) < 40, "e o miolo continua pintado");
+  });
+
+  check("dois valores são as diagonais, como no CSS", () => {
+    const box = { x: 20, y: 20, w: 160, h: 160 };
+    const at = pintado([{ type: "rect", rect: box, radius: [40, 0], fill: "#000000" }]);
+
+    assert(at(26, 26) > 200, "superior esquerdo arredondado");
+    assert(at(174, 174) > 200, "inferior direito arredondado — a mesma diagonal");
+    assert(at(174, 26) < 40, "superior direito quadrado");
+    assert(at(26, 174) < 40, "inferior esquerdo quadrado");
+  });
+
   // ── Text wrap ─────────────────────────────────────────────────────────────
 
   const WRAPPED: DocumentSpec = {

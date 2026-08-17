@@ -362,6 +362,190 @@ impl<'de> Deserialize<'de> for Insets {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Corners
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The four corner radii of a box, in points.
+///
+/// Corners go clockwise from the top-left — the order CSS `border-radius` and
+/// Canvas `roundRect` both use — rather than the top/right/bottom/left order
+/// [`Insets`] uses. The two are different things: an inset belongs to an
+/// **edge**, a radius to a **corner**, and a shared order would only invite
+/// reading one as the other.
+///
+/// JSON accepts the same shorthands as insets, so `"radius": 8` keeps meaning
+/// what it always meant: a single number, `[top_left, top_right]` for the two
+/// diagonals, `[top_left, top_right, bottom_right, bottom_left]`, or a map. It
+/// writes itself back in the shortest form that still means the same thing, so
+/// a document does not gain noise for having passed through the engine.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Corners {
+    pub top_left: f64,
+    pub top_right: f64,
+    pub bottom_right: f64,
+    pub bottom_left: f64,
+}
+
+impl Corners {
+    pub const ZERO: Corners = Corners::all(0.0);
+
+    pub const fn all(v: f64) -> Self {
+        Corners { top_left: v, top_right: v, bottom_right: v, bottom_left: v }
+    }
+
+    /// Clockwise from the top-left.
+    pub const fn new(top_left: f64, top_right: f64, bottom_right: f64, bottom_left: f64) -> Self {
+        Corners { top_left, top_right, bottom_right, bottom_left }
+    }
+
+    /// Nothing to round — the caller can emit a plain rectangle.
+    #[inline]
+    pub fn is_zero(&self) -> bool {
+        self.max() <= 0.0
+    }
+
+    #[inline]
+    pub fn is_uniform(&self) -> bool {
+        self.top_left == self.top_right
+            && self.top_right == self.bottom_right
+            && self.bottom_right == self.bottom_left
+    }
+
+    #[inline]
+    pub fn max(&self) -> f64 {
+        self.top_left.max(self.top_right).max(self.bottom_right).max(self.bottom_left)
+    }
+
+    /// The radii that actually fit inside a `w`×`h` box.
+    ///
+    /// Two radii sharing an edge can together ask for more than the edge has.
+    /// CSS answers by scaling *every* corner by the single worst ratio rather
+    /// than clamping each one alone: shrinking only the offending pair would
+    /// bend the outline out of proportion, while one factor keeps the shape
+    /// recognisably itself. Canvas `roundRect` does the same, which is what
+    /// keeps the PDF and the editor's canvas drawing the same box.
+    pub fn fitted(&self, w: f64, h: f64) -> Corners {
+        let mut out = Corners {
+            top_left: self.top_left.max(0.0),
+            top_right: self.top_right.max(0.0),
+            bottom_right: self.bottom_right.max(0.0),
+            bottom_left: self.bottom_left.max(0.0),
+        };
+
+        // Each edge is shared by two corners; the tightest edge sets the scale.
+        let ratio = |span: f64, a: f64, b: f64| {
+            let want = a + b;
+            if want <= span { 1.0 } else { span / want }
+        };
+        let scale = ratio(w, out.top_left, out.top_right)
+            .min(ratio(w, out.bottom_left, out.bottom_right))
+            .min(ratio(h, out.top_left, out.bottom_left))
+            .min(ratio(h, out.top_right, out.bottom_right));
+
+        if scale < 1.0 && scale.is_finite() {
+            out.top_left *= scale;
+            out.top_right *= scale;
+            out.bottom_right *= scale;
+            out.bottom_left *= scale;
+        }
+        out
+    }
+}
+
+impl Serialize for Corners {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if self.is_uniform() {
+            return s.serialize_f64(self.top_left);
+        }
+        // A pair when opposite corners mirror, four otherwise.
+        if self.top_left == self.bottom_right && self.top_right == self.bottom_left {
+            return [self.top_left, self.top_right].serialize(s);
+        }
+        [self.top_left, self.top_right, self.bottom_right, self.bottom_left].serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Corners {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct CornersVisitor;
+
+        impl<'de> Visitor<'de> for CornersVisitor {
+            type Value = Corners;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str(
+                    "a number, [tl, tr], [tl, tr, br, bl] \
+                     or { topLeft, topRight, bottomRight, bottomLeft }",
+                )
+            }
+
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<Corners, E> {
+                Ok(Corners::all(v))
+            }
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Corners, E> {
+                Ok(Corners::all(v as f64))
+            }
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Corners, E> {
+                Ok(Corners::all(v as f64))
+            }
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Corners, E> {
+                parse_len(v).map(|l| Corners::all(l.get())).map_err(E::custom)
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Corners, A::Error> {
+                let mut vals = Vec::with_capacity(4);
+                while let Some(v) = seq.next_element::<Len>()? {
+                    vals.push(v.get());
+                }
+                Ok(match vals.len() {
+                    1 => Corners::all(vals[0]),
+                    // Like CSS: the pair is the two diagonals, not two edges.
+                    2 => Corners::new(vals[0], vals[1], vals[0], vals[1]),
+                    3 => Corners::new(vals[0], vals[1], vals[2], vals[1]),
+                    4 => Corners::new(vals[0], vals[1], vals[2], vals[3]),
+                    _ => Corners::ZERO,
+                })
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Corners, A::Error> {
+                let mut out = Corners::ZERO;
+                while let Some(key) = map.next_key::<String>()? {
+                    let val = map.next_value::<Len>()?.get();
+                    match key.as_str() {
+                        "topLeft" | "top_left" => out.top_left = val,
+                        "topRight" | "top_right" => out.top_right = val,
+                        "bottomRight" | "bottom_right" => out.bottom_right = val,
+                        "bottomLeft" | "bottom_left" => out.bottom_left = val,
+                        // An edge name reaches both corners that sit on it.
+                        "top" => {
+                            out.top_left = val;
+                            out.top_right = val;
+                        }
+                        "bottom" => {
+                            out.bottom_left = val;
+                            out.bottom_right = val;
+                        }
+                        "left" => {
+                            out.top_left = val;
+                            out.bottom_left = val;
+                        }
+                        "right" => {
+                            out.top_right = val;
+                            out.bottom_right = val;
+                        }
+                        "all" => out = Corners::all(val),
+                        _ => {}
+                    }
+                }
+                Ok(out)
+            }
+        }
+
+        d.deserialize_any(CornersVisitor)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PageSize
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -524,6 +708,80 @@ mod tests {
             serde_json::from_str::<Insets>(r#"{"vertical":2,"left":9}"#).unwrap(),
             Insets { top: 2.0, right: 0.0, bottom: 2.0, left: 9.0 }
         );
+    }
+
+    #[test]
+    fn a_bare_radius_still_rounds_all_four_corners() {
+        // Every document written before corners were separable says this.
+        assert_eq!(serde_json::from_str::<Corners>("8").unwrap(), Corners::all(8.0));
+        assert_eq!(
+            serde_json::from_str::<Corners>(r#""5mm""#).unwrap(),
+            Corners::all(5.0 * PT_PER_MM)
+        );
+    }
+
+    #[test]
+    fn corners_accept_css_shorthands() {
+        // The pair is the two diagonals, as in CSS — not two edges.
+        assert_eq!(
+            serde_json::from_str::<Corners>("[4, 9]").unwrap(),
+            Corners::new(4.0, 9.0, 4.0, 9.0)
+        );
+        assert_eq!(
+            serde_json::from_str::<Corners>("[1, 2, 3, 4]").unwrap(),
+            Corners::new(1.0, 2.0, 3.0, 4.0)
+        );
+        assert_eq!(
+            serde_json::from_str::<Corners>(r#"{"topLeft":6,"bottomRight":2}"#).unwrap(),
+            Corners::new(6.0, 0.0, 2.0, 0.0)
+        );
+        // An edge name reaches both corners that sit on it.
+        assert_eq!(
+            serde_json::from_str::<Corners>(r#"{"top":6}"#).unwrap(),
+            Corners::new(6.0, 6.0, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn corners_write_themselves_back_in_the_shortest_form() {
+        let json = |c: Corners| serde_json::to_string(&c).unwrap();
+        assert_eq!(json(Corners::all(8.0)), "8.0");
+        assert_eq!(json(Corners::new(4.0, 9.0, 4.0, 9.0)), "[4.0,9.0]");
+        assert_eq!(json(Corners::new(1.0, 2.0, 3.0, 4.0)), "[1.0,2.0,3.0,4.0]");
+
+        // And a round trip lands back where it started.
+        let odd = Corners::new(1.0, 2.0, 3.0, 4.0);
+        assert_eq!(serde_json::from_str::<Corners>(&json(odd)).unwrap(), odd);
+    }
+
+    #[test]
+    fn corners_too_big_for_the_box_shrink_together() {
+        // 30 + 30 on a 40-wide edge: the whole outline scales by 40/60, so the
+        // proportion between the corners survives.
+        let fitted = Corners::all(30.0).fitted(40.0, 200.0);
+        assert!((fitted.top_left - 20.0).abs() < 1e-9);
+        assert!(fitted.is_uniform());
+
+        // One oversized corner drags the others down with it, by the same factor.
+        let lopsided = Corners::new(80.0, 20.0, 0.0, 0.0).fitted(100.0, 100.0);
+        assert!((lopsided.top_left - 80.0).abs() < 1e-9);
+        assert!((lopsided.top_right - 20.0).abs() < 1e-9);
+
+        let tight = Corners::new(90.0, 30.0, 0.0, 0.0).fitted(100.0, 100.0);
+        assert!((tight.top_left - 75.0).abs() < 1e-9);
+        assert!((tight.top_right - 25.0).abs() < 1e-9);
+
+        // What already fits is left alone.
+        let roomy = Corners::new(5.0, 6.0, 7.0, 8.0);
+        assert_eq!(roomy.fitted(200.0, 200.0), roomy);
+    }
+
+    #[test]
+    fn a_zero_radius_is_still_a_square_corner() {
+        assert!(Corners::ZERO.is_zero());
+        assert!(!Corners::new(0.0, 0.0, 0.0, 3.0).is_zero());
+        // A negative radius is not a corner cut the other way — it is nothing.
+        assert!(Corners::all(-4.0).fitted(50.0, 50.0).is_zero());
     }
 
     #[test]

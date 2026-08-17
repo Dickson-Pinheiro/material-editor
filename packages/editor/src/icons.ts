@@ -79,7 +79,6 @@ const PATHS: Record<string, string> = {
   // Property affixes
   opacity: "M8 2.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM8 2.5v11",
   padding: "M2.5 2.5h11v11h-11zM5 5h6v6H5z",
-  radius: "M3 13V6a3 3 0 013-3h7",
   rotation: "M3 8a5 5 0 105-5V1.5M5.5 3.5L8 1.5",
   strokeWidth: "M2.5 5h11M2.5 9.5h11M2.5 12h11",
   columns: "M2.5 3h11v10h-11zM8 3v10",

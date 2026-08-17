@@ -26,7 +26,7 @@ use crate::spec::{
     Block, Border, Document, Frame, FrameContent, ImageFit, ImageFrame, Origin, Overflow, Page,
     ResolvedStyle, ShapeKind, Style, TextFrame, VerticalAlign,
 };
-use crate::units::{PT_PER_PX, Rect};
+use crate::units::{Corners, PT_PER_PX, Rect};
 
 use text::{TextLayouter, Variables, uses_total_pages};
 
@@ -1279,7 +1279,17 @@ fn stroke_of(border: &Border) -> Stroke {
 }
 
 /// A border is one rectangle when all sides are drawn, otherwise one line each.
-fn border_items(border: &Border, rect: Rect, radius: f64, source: &SourceRef) -> Vec<DisplayItem> {
+///
+/// The straight-edge fallback drops the rounding: a corner arc belongs to two
+/// edges at once, and with one of them switched off there is nothing left for
+/// it to join. Drawing it anyway would leave an arc hanging off the end of a
+/// line that stops short of it.
+fn border_items(
+    border: &Border,
+    rect: Rect,
+    radius: Corners,
+    source: &SourceRef,
+) -> Vec<DisplayItem> {
     if border.width.get() <= 0.0 || border.sides.none() {
         return Vec::new();
     }
@@ -3173,6 +3183,69 @@ texto disponível aqui."
         bytes.extend_from_slice(&height.to_be_bytes());
         bytes.extend_from_slice(&[8, 6, 0, 0, 0]);
         bytes
+    }
+
+    /// Every rectangle painted on the first page, however deeply nested.
+    fn all_rects(list: &DisplayList) -> Vec<RectItem> {
+        fn walk(items: &[DisplayItem], out: &mut Vec<RectItem>) {
+            for item in items {
+                match item {
+                    DisplayItem::Rect(rect) => out.push(rect.clone()),
+                    DisplayItem::Group(group) => walk(&group.items, out),
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(&list.pages[0].items, &mut out);
+        out
+    }
+
+    #[test]
+    fn a_frame_hands_each_corner_to_the_fill_and_to_the_border() {
+        let Some(list) = layout_json(
+            r##"{
+                "style": {"fontFamily": "body", "fontSize": 12},
+                "pages": [{"frames": [{
+                    "type": "text", "rect": [0, 0, 200, 200], "blocks": [],
+                    "fill": "#ffffff", "border": {"width": 1},
+                    "radius": [10, 0, 4, 0]
+                }]}]
+            }"##,
+        ) else {
+            return;
+        };
+
+        let wanted = Corners::new(10.0, 0.0, 4.0, 0.0);
+        let rects = all_rects(&list);
+        assert!(!rects.is_empty(), "the frame should paint a rectangle");
+        for rect in &rects {
+            assert_eq!(rect.radius, wanted, "every painted box keeps the corners");
+        }
+    }
+
+    #[test]
+    fn a_border_missing_a_side_gives_up_its_arcs() {
+        // The corner arc belongs to two edges; with one gone there is nothing
+        // for it to join, so the remaining edges are drawn as plain lines.
+        let Some(list) = layout_json(
+            r#"{
+                "style": {"fontFamily": "body", "fontSize": 12},
+                "pages": [{"frames": [{
+                    "type": "text", "rect": [0, 0, 200, 200], "blocks": [],
+                    "border": {"width": 1, "sides": {"top": false}},
+                    "radius": 12
+                }]}]
+            }"#,
+        ) else {
+            return;
+        };
+
+        let stroked: Vec<_> = all_rects(&list)
+            .into_iter()
+            .filter(|rect| rect.stroke.is_some())
+            .collect();
+        assert!(stroked.is_empty(), "a partial border is lines, not a box");
     }
 
     #[test]

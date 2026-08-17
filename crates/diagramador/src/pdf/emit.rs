@@ -25,7 +25,7 @@ use crate::display::{
 use crate::fonts::FontRegistry;
 use crate::images::ImageStore;
 use crate::spec::Meta;
-use crate::units::Rect;
+use crate::units::{Corners, Rect};
 
 /// Control-point distance for approximating a quarter circle with a cubic.
 const KAPPA: f64 = 0.552_284_749_8;
@@ -519,34 +519,54 @@ fn paint(content: &mut Content, fill: bool, stroke: bool) {
     };
 }
 
-/// Append a rectangle path, rounded when `radius > 0`.
-fn path_rect(content: &mut Content, rect: Rect, radius: f64, height: f64) {
+/// Append a rectangle path, rounding each corner by its own radius.
+///
+/// The walk is counter-clockwise because this is already PDF space, where `y`
+/// grows upward: it starts on the bottom edge and comes back round to it. The
+/// corner named for where it sits on the **page** therefore appears flipped
+/// here — the document's top-left is this path's `(x0, y1)`.
+fn path_rect(content: &mut Content, rect: Rect, radius: Corners, height: f64) {
     let x = rect.x;
     let y = height - rect.y - rect.h;
     let w = rect.w;
     let h = rect.h;
 
-    let r = radius.min(w / 2.0).min(h / 2.0);
-    if r <= 0.0 {
+    let r = radius.fitted(w, h);
+    if r.is_zero() {
         content.rect(x as f32, y as f32, w as f32, h as f32);
         return;
     }
 
-    let k = r * KAPPA;
     let (x0, y0) = (x, y);
     let (x1, y1) = (x + w, y + h);
-
     let f = |v: f64| v as f32;
 
-    content.move_to(f(x0 + r), f(y0));
-    content.line_to(f(x1 - r), f(y0));
-    content.cubic_to(f(x1 - r + k), f(y0), f(x1), f(y0 + r - k), f(x1), f(y0 + r));
-    content.line_to(f(x1), f(y1 - r));
-    content.cubic_to(f(x1), f(y1 - r + k), f(x1 - r + k), f(y1), f(x1 - r), f(y1));
-    content.line_to(f(x0 + r), f(y1));
-    content.cubic_to(f(x0 + r - k), f(y1), f(x0), f(y1 - r + k), f(x0), f(y1 - r));
-    content.line_to(f(x0), f(y0 + r));
-    content.cubic_to(f(x0), f(y0 + r - k), f(x0 + r - k), f(y0), f(x0 + r), f(y0));
+    // Named for the page, so `bl` is the bottom-left of the document even
+    // though it is the corner at `(x0, y0)` after the flip.
+    let (tl, tr, br, bl) = (r.top_left, r.top_right, r.bottom_right, r.bottom_left);
+    let k = |v: f64| v * KAPPA;
+
+    // Bottom edge, left to right.
+    content.move_to(f(x0 + bl), f(y0));
+    content.line_to(f(x1 - br), f(y0));
+    if br > 0.0 {
+        content.cubic_to(f(x1 - br + k(br)), f(y0), f(x1), f(y0 + br - k(br)), f(x1), f(y0 + br));
+    }
+    // Right edge, bottom to top.
+    content.line_to(f(x1), f(y1 - tr));
+    if tr > 0.0 {
+        content.cubic_to(f(x1), f(y1 - tr + k(tr)), f(x1 - tr + k(tr)), f(y1), f(x1 - tr), f(y1));
+    }
+    // Top edge, right to left.
+    content.line_to(f(x0 + tl), f(y1));
+    if tl > 0.0 {
+        content.cubic_to(f(x0 + tl - k(tl)), f(y1), f(x0), f(y1 - tl + k(tl)), f(x0), f(y1 - tl));
+    }
+    // Left edge, top to bottom.
+    content.line_to(f(x0), f(y0 + bl));
+    if bl > 0.0 {
+        content.cubic_to(f(x0), f(y0 + bl - k(bl)), f(x0 + bl - k(bl)), f(y0), f(x0 + bl), f(y0));
+    }
     content.close_path();
 }
 
@@ -624,5 +644,50 @@ mod tests {
         let alphas = collect_alphas(&list);
         assert_eq!(alphas.len(), 1);
         assert!(alphas.contains(&400));
+    }
+
+    /// The operators of a freshly built path, as text.
+    fn path_ops(radius: Corners) -> String {
+        let mut content = Content::new();
+        // A 100×100 box on a 100-tall page, so PDF space and page space agree
+        // on the origin and the numbers stay readable.
+        path_rect(&mut content, Rect::new(0.0, 0.0, 100.0, 100.0), radius, 100.0);
+        String::from_utf8_lossy(&content.finish()).into_owned()
+    }
+
+    #[test]
+    fn a_square_box_is_still_one_rectangle_operator() {
+        let ops = path_ops(Corners::ZERO);
+        assert!(ops.contains(" re"), "expected a rect operator, got {ops}");
+        assert!(!ops.contains(" c\n"), "nothing to curve: {ops}");
+    }
+
+    #[test]
+    fn each_rounded_corner_costs_exactly_one_curve() {
+        let count = |radius: Corners| path_ops(radius).matches(" c").count();
+
+        assert_eq!(count(Corners::all(10.0)), 4);
+        assert_eq!(count(Corners::new(10.0, 0.0, 0.0, 0.0)), 1);
+        assert_eq!(count(Corners::new(10.0, 0.0, 10.0, 0.0)), 2);
+        assert_eq!(count(Corners::new(1.0, 2.0, 3.0, 0.0)), 3);
+    }
+
+    #[test]
+    fn the_curve_lands_on_the_corner_that_asked_for_it() {
+        // Only the document's top-left is rounded. After the flip that corner
+        // is at (0, 100), so the arc must sit up there and nowhere else.
+        let ops = path_ops(Corners::new(20.0, 0.0, 0.0, 0.0));
+
+        // The top edge stops 20pt short of the left…
+        assert!(ops.contains("20 100 l"), "{ops}");
+        // …and the arc from there lands 20pt down the left edge.
+        assert!(ops.contains("0 80 c"), "{ops}");
+        // The other three corners are reached square, on the box itself.
+        for corner in ["0 0", "100 0", "100 100"] {
+            assert!(
+                ops.contains(&format!("{corner} l")) || ops.contains(&format!("{corner} m")),
+                "corner {corner} should be square: {ops}"
+            );
+        }
     }
 }

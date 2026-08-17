@@ -333,7 +333,7 @@ fn rectangles_land_at_their_display_list_position() {
     // about what is painted.
     let square: Vec<_> = rects
         .iter()
-        .filter(|rect| rect.radius == 0.0)
+        .filter(|rect| rect.radius.is_zero())
         .filter(|rect| rect.fill.is_some() || rect.stroke.is_some())
         .collect();
     assert!(!square.is_empty(), "fixture should contain a square-cornered rect");

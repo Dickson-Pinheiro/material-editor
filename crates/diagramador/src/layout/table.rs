@@ -17,7 +17,7 @@ use crate::spec::content::{
     Block, Cell, CellAlign, GridAxis, GridLine, RepeatRows, Stripe, TableBlock, TrackSize,
 };
 use crate::spec::ResolvedStyle;
-use crate::units::{Insets, Len, Rect};
+use crate::units::{Corners, Insets, Len, Rect};
 
 /// Where a cell ended up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -603,7 +603,7 @@ pub(crate) fn emit(
         // no ink and not a byte of PDF.
         items.push(DisplayItem::Rect(RectItem {
             rect: outer,
-            radius: 0.0,
+            radius: Corners::ZERO,
             fill: None,
             stroke: None,
             source: Some(cell_source(source, placed, cell)),
@@ -981,7 +981,7 @@ fn box_of(lefts: &[f64], tops: &[f64], sizes: &Sizes, placed: &Placed) -> Rect {
 fn fill_rect(rect: Rect, fill: Color, source: &SourceRef) -> DisplayItem {
     DisplayItem::Rect(RectItem {
         rect,
-        radius: 0.0,
+        radius: Corners::ZERO,
         fill: Some(fill),
         stroke: None,
         source: Some(source.clone()),
@@ -1318,7 +1318,7 @@ mod tests {
             }
             vec![DisplayItem::Rect(RectItem {
                 rect,
-                radius: 0.0,
+                radius: Corners::ZERO,
                 fill: None,
                 stroke: None,
                 source: None,

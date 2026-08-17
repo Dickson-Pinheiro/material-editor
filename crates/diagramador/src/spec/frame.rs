@@ -10,7 +10,7 @@ use super::content::Block;
 use super::chart::ChartFrame;
 use super::style::{Overflow, Style, VerticalAlign};
 use crate::color::Color;
-use crate::units::{Insets, Len, Rect};
+use crate::units::{Corners, Insets, Len, Rect};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Frame
@@ -38,8 +38,12 @@ pub struct Frame {
     pub padding: Insets,
     pub fill: Option<Color>,
     pub border: Option<Border>,
-    /// Corner radius in points.
-    pub radius: f64,
+    /// Corner radii in points, clockwise from the top-left.
+    ///
+    /// A bare number still rounds all four the same, which is what most boxes
+    /// want and what every document written before corners were separable
+    /// says.
+    pub radius: Corners,
 
     /// Clip content to the frame box.
     pub clip: bool,
@@ -62,7 +66,7 @@ impl Default for Frame {
             padding: Insets::ZERO,
             fill: None,
             border: None,
-            radius: 0.0,
+            radius: Corners::ZERO,
             clip: false,
             visible: true,
             locked: false,
@@ -551,6 +555,27 @@ mod tests {
         assert!(!dotted.is_uniform());
         assert!(!dotted.sides.top && dotted.sides.bottom);
         assert!(dotted.dash_pattern().is_some());
+    }
+
+    #[test]
+    fn a_frame_rounds_its_corners_one_by_one() {
+        let json = r#"{"type":"shape","rect":[0,0,100,100],"radius":[8,0,0,8]}"#;
+        let f: Frame = serde_json::from_str(json).unwrap();
+        assert_eq!(f.radius, Corners::new(8.0, 0.0, 0.0, 8.0));
+
+        // The old spelling has not changed meaning.
+        let flat: Frame =
+            serde_json::from_str(r#"{"type":"shape","rect":[0,0,100,100],"radius":6}"#).unwrap();
+        assert_eq!(flat.radius, Corners::all(6.0));
+        assert_eq!(
+            serde_json::to_value(&flat).unwrap()["radius"],
+            serde_json::json!(6.0),
+            "a uniform radius stays a bare number on the way out"
+        );
+
+        // A frame that never mentioned corners still has none.
+        let bare: Frame = serde_json::from_str(r#"{"type":"shape","rect":[0,0,10,10]}"#).unwrap();
+        assert!(bare.radius.is_zero());
     }
 
     #[test]
