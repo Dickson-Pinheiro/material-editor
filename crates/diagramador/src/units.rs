@@ -465,6 +465,63 @@ impl Serialize for Corners {
     }
 }
 
+/// One corner's length, where "nothing written" reads as zero.
+///
+/// [`Len`] is right to refuse an empty string: a page 0mm wide, or a margin
+/// that was never given, is a document to be fixed, not guessed at. A corner
+/// is the opposite case — a box with no radius is the ordinary box, and the
+/// natural way to ask for one is to clear the field. Refusing that would fail
+/// the whole document over a blank corner, and take every other frame on the
+/// page down with it.
+struct CornerLen(f64);
+
+impl CornerLen {
+    fn parse(raw: &str) -> Result<f64, String> {
+        if raw.trim().is_empty() {
+            return Ok(0.0);
+        }
+        parse_len(raw).map(|l| l.get())
+    }
+}
+
+impl<'de> Deserialize<'de> for CornerLen {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct LenVisitor;
+
+        impl<'de> Visitor<'de> for LenVisitor {
+            type Value = CornerLen;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a length, or nothing for a square corner")
+            }
+
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<CornerLen, E> {
+                Ok(CornerLen(v))
+            }
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<CornerLen, E> {
+                Ok(CornerLen(v as f64))
+            }
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<CornerLen, E> {
+                Ok(CornerLen(v as f64))
+            }
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<CornerLen, E> {
+                CornerLen::parse(v).map(CornerLen).map_err(E::custom)
+            }
+            fn visit_unit<E: de::Error>(self) -> Result<CornerLen, E> {
+                Ok(CornerLen(0.0))
+            }
+            fn visit_none<E: de::Error>(self) -> Result<CornerLen, E> {
+                Ok(CornerLen(0.0))
+            }
+            fn visit_some<D: Deserializer<'de>>(self, d: D) -> Result<CornerLen, D::Error> {
+                d.deserialize_any(LenVisitor)
+            }
+        }
+
+        d.deserialize_any(LenVisitor)
+    }
+}
+
 impl<'de> Deserialize<'de> for Corners {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct CornersVisitor;
@@ -489,13 +546,26 @@ impl<'de> Deserialize<'de> for Corners {
                 Ok(Corners::all(v as f64))
             }
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Corners, E> {
-                parse_len(v).map(|l| Corners::all(l.get())).map_err(E::custom)
+                Ok(Corners::all(CornerLen::parse(v).map_err(E::custom)?))
+            }
+
+            // No corner at all is a square corner, not a broken document. A
+            // field cleared to nothing arrives here as `""` or `null`, and
+            // failing on it would take the whole page down over one blank box.
+            fn visit_unit<E: de::Error>(self) -> Result<Corners, E> {
+                Ok(Corners::ZERO)
+            }
+            fn visit_none<E: de::Error>(self) -> Result<Corners, E> {
+                Ok(Corners::ZERO)
+            }
+            fn visit_some<D: Deserializer<'de>>(self, d: D) -> Result<Corners, D::Error> {
+                d.deserialize_any(CornersVisitor)
             }
 
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Corners, A::Error> {
                 let mut vals = Vec::with_capacity(4);
-                while let Some(v) = seq.next_element::<Len>()? {
-                    vals.push(v.get());
+                while let Some(v) = seq.next_element::<CornerLen>()? {
+                    vals.push(v.0);
                 }
                 Ok(match vals.len() {
                     1 => Corners::all(vals[0]),
@@ -510,7 +580,7 @@ impl<'de> Deserialize<'de> for Corners {
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Corners, A::Error> {
                 let mut out = Corners::ZERO;
                 while let Some(key) = map.next_key::<String>()? {
-                    let val = map.next_value::<Len>()?.get();
+                    let val = map.next_value::<CornerLen>()?.0;
                     match key.as_str() {
                         "topLeft" | "top_left" => out.top_left = val,
                         "topRight" | "top_right" => out.top_right = val,
@@ -782,6 +852,33 @@ mod tests {
         assert!(!Corners::new(0.0, 0.0, 0.0, 3.0).is_zero());
         // A negative radius is not a corner cut the other way — it is nothing.
         assert!(Corners::all(-4.0).fitted(50.0, 50.0).is_zero());
+    }
+
+    #[test]
+    fn a_corner_with_no_number_in_it_is_a_square_corner() {
+        // A cleared field must not take the whole document down with it.
+        let zero = |json: &str| {
+            let parsed = serde_json::from_str::<Corners>(json)
+                .unwrap_or_else(|e| panic!("{json} should parse, got {e}"));
+            assert!(parsed.is_zero(), "{json} should be square, got {parsed:?}");
+        };
+        zero(r#""""#);
+        zero(r#""   ""#);
+        zero("null");
+        zero("[]");
+        zero(r#"["", "", "", ""]"#);
+        zero(r#"{"topLeft": ""}"#);
+        zero(r#"{"topLeft": null}"#);
+
+        // And a blank among numbers only flattens its own corner.
+        assert_eq!(
+            serde_json::from_str::<Corners>(r#"[8, "", 8, null]"#).unwrap(),
+            Corners::new(8.0, 0.0, 8.0, 0.0)
+        );
+
+        // Something that is not a length at all is still an error: "abc" is a
+        // mistake to report, not an intention to guess at.
+        assert!(serde_json::from_str::<Corners>(r#""abc""#).is_err());
     }
 
     #[test]

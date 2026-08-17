@@ -8,7 +8,7 @@
  */
 
 import { Engine } from "./engine";
-import { Store, normalize } from "./store";
+import { Store, normalize, parseLen } from "./store";
 import { TextEditor } from "./text";
 import { Inspector } from "./inspector";
 import { place } from "./table";
@@ -407,6 +407,59 @@ async function run(): Promise<void> {
     // Select "Ação" so the marks have something to apply to.
     text.enter("texto", { cells: [], frame: "texto", story: null, block: 0, inline: 0, offset: 0 });
     text.place({ cells: [], frame: "texto", story: null, block: 0, inline: 0, offset: 6 }, true);
+  });
+
+  check("esvaziar os quatro cantos deixa-os em zero, e o frame de pé", () => {
+    selected = ["texto"];
+    editing = null;
+    store.commit(() => {
+      const frame = store.frame("texto");
+      if (frame) frame.radius = [10, 20, 30, 40];
+    });
+
+    for (const key of ["topLeft", "topRight", "bottomRight", "bottomLeft"]) {
+      render();
+      const host = root.querySelector<HTMLElement>(`[data-field="radius.${key}"]`);
+      assert(host, `o campo radius.${key} não está no painel`);
+      const input = host.querySelector<HTMLInputElement>("input")!;
+      const errorsBefore = thrown.length;
+
+      input.value = "";
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+
+      assert(thrown.length === errorsBefore, `apagar ${key} lançou: ${thrown.at(-1)}`);
+      assert(!store.lastError, `apagar ${key} foi recusado: ${store.lastError}`);
+      assert(
+        store.list.pages[0]!.frames.some((f) => f.id === "texto"),
+        `o frame desapareceu depois de apagar ${key}`,
+      );
+    }
+
+    assert(
+      parseLen(frameOf(store, "texto").radius as never) === 0,
+      `os quatro vazios deviam valer 0, e valem ${JSON.stringify(frameOf(store, "texto").radius)}`,
+    );
+  });
+
+  check("um raio negativo é recusado, não guardado", () => {
+    selected = ["texto"];
+    editing = null;
+    store.commit(() => {
+      const frame = store.frame("texto");
+      if (frame) frame.radius = 6;
+    });
+    render();
+
+    const input = root
+      .querySelector<HTMLElement>('[data-field="radius.topLeft"]')!
+      .querySelector<HTMLInputElement>("input")!;
+    input.value = "-5";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    assert(
+      corner(store, "texto")[0] === 6,
+      `o canto devia continuar em 6, e diz ${JSON.stringify(corner(store, "texto")[0])}`,
+    );
   });
 
   // Nothing may be left untested: every declared field must appear above.

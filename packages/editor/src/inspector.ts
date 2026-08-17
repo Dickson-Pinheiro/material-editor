@@ -301,12 +301,16 @@ export class Inspector {
           (value) => {
             const one = parseLenList(value);
             if (one === null || Array.isArray(one)) return false;
+            // An empty box is a square corner — `parseLenList` already reads it
+            // as 0. A negative one is not a corner cut the other way, it is
+            // nothing at all, so it is refused rather than quietly zeroed.
+            if (parseLen(one) < 0) return false;
             const next: [Len, Len, Len, Len] = [...slots];
             next[slot] = one;
             write(shortest(next));
             return true;
           },
-          `Raio do canto ${name.toLowerCase()}. Aceita unidades: 4mm`,
+          `Raio do canto ${name.toLowerCase()}. Vazio é canto reto. Aceita unidades: 4mm`,
           false,
           `radius.${key}`,
         ),
