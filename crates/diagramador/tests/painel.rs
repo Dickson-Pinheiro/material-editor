@@ -221,3 +221,44 @@ fn a_moldura_volta_do_json_como_entrou() {
     let outra: diagramador::spec::Block = serde_json::from_str(&volta).unwrap();
     assert_eq!(bloco, outra);
 }
+
+#[test]
+fn uma_barra_lateral_e_uma_borda_de_um_lado_so() {
+    let Some(list) = layout(&page_with(
+        r##"{"type": "panel", "fill": "#faf5ff", "inset": 8,
+             "border": {"width": 3, "color": "#9333ea",
+                        "sides": {"top": false, "right": false, "bottom": false, "left": true}},
+             "blocks": ["destaque"]}"##,
+    )) else {
+        return;
+    };
+
+    // Uma caixa com quatro lados vira retângulo tracejado; um lado só vira
+    // linha — é o mesmo caminho que os frames seguem.
+    let com_traco: Vec<_> = rects(&list, 0).into_iter().filter(|r| r.stroke.is_some()).collect();
+    assert!(com_traco.is_empty(), "um lado só não vira retângulo tracejado");
+
+    let linhas: Vec<_> = list.pages[0]
+        .items
+        .iter()
+        .flat_map(|item| match item {
+            DisplayItem::Group(g) => g.items.clone(),
+            other => vec![other.clone()],
+        })
+        .filter(|i| matches!(i, DisplayItem::Line(_)))
+        .collect();
+    assert_eq!(linhas.len(), 1, "uma aresta, uma linha");
+}
+
+#[test]
+fn os_quatro_lados_ligados_mantem_o_raio() {
+    let Some(list) = layout(&page_with(
+        r##"{"type": "panel", "inset": 8, "radius": 6,
+             "border": {"width": 2, "color": "#1f4e79"}, "blocks": ["caixa"]}"##,
+    )) else {
+        return;
+    };
+
+    let moldura = rects(&list, 0).into_iter().find(|r| r.stroke.is_some()).unwrap();
+    assert_eq!(moldura.radius, Corners::all(6.0), "borda inteira mantém o canto");
+}

@@ -875,11 +875,10 @@ impl<'a> LayoutEngine<'a> {
 
                     let before = if y > 0.0 { inner_style.space_before } else { 0.0 };
                     let inset = panel.inset;
-                    let stroke = panel.border.as_ref().map(stroke_of);
                     // A borda é centrada na aresta: metade dela cai para fora
                     // da moldura, e é essa metade que o conteúdo não pode
                     // invadir.
-                    let edge = stroke.as_ref().map_or(0.0, |s| s.width);
+                    let edge = panel.border.as_ref().map_or(0.0, |b| b.width.get());
 
                     let content = Rect::new(
                         column.x + inset.left + edge,
@@ -922,16 +921,24 @@ impl<'a> LayoutEngine<'a> {
                     let height = inner.used + inset.vertical() + edge * 2.0;
                     let box_rect = Rect::new(column.x, column.y + y + before, column.w, height);
 
-                    // A moldura antes do conteúdo: um preenchimento pintado
-                    // depois cobriria o texto que ele deveria emoldurar.
-                    if panel.fill.is_some() || stroke.is_some() {
+                    // O preenchimento antes do conteúdo: pintado depois, ele
+                    // cobriria o texto que deveria emoldurar.
+                    if let Some(fill) = panel.fill {
                         items.push(DisplayItem::Rect(RectItem {
                             rect: box_rect,
                             radius: panel.radius,
-                            fill: panel.fill,
-                            stroke,
+                            fill: Some(fill),
+                            stroke: None,
                             source: Some(source.clone()),
                         }));
+                    }
+
+                    // A borda pela mesma função que os frames usam, e por isso
+                    // com o mesmo comportamento: uma caixa quando os quatro
+                    // lados estão ligados, uma linha por aresta quando não —
+                    // caso em que o arco do canto não tem o que juntar e cai.
+                    if let Some(border) = &panel.border {
+                        items.extend(border_items(border, box_rect, panel.radius, source));
                     }
 
                     items.extend(inner.items);
