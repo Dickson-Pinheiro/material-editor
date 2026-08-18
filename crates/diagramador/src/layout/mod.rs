@@ -23,6 +23,7 @@ use crate::display::{
 use crate::fonts::FontRegistry;
 use crate::images::ImageStore;
 use crate::spec::{
+    PanelBlock,
     Block, Border, Document, Frame, FrameContent, ImageFit, ImageFrame, Origin, Overflow, Page,
     ResolvedStyle, ShapeKind, Style, TextFrame, VerticalAlign,
 };
@@ -859,6 +860,93 @@ impl<'a> LayoutEngine<'a> {
                         over.extend_from_slice(&blocks[index + 1..]);
                         return FlowResult { items, used: y, leftover: over, stopped: None, walled_in, diagnostics };
                     }
+                }
+
+                Block::Panel(panel) => {
+                    // O estilo do painel vale para o que está dentro dele, e é
+                    // dele que saem `spaceBefore`, `spaceAfter` e o
+                    // `keepWithNext` que o prende ao bloco seguinte.
+                    let inner_style = cascade::resolve(
+                        style,
+                        layouter.styles,
+                        panel.use_style.as_deref(),
+                        panel.style.as_ref(),
+                    );
+
+                    let before = if y > 0.0 { inner_style.space_before } else { 0.0 };
+                    let inset = panel.inset;
+                    let stroke = panel.border.as_ref().map(stroke_of);
+                    // A borda é centrada na aresta: metade dela cai para fora
+                    // da moldura, e é essa metade que o conteúdo não pode
+                    // invadir.
+                    let edge = stroke.as_ref().map_or(0.0, |s| s.width);
+
+                    let content = Rect::new(
+                        column.x + inset.left + edge,
+                        column.y + y + before + inset.top + edge,
+                        (column.w - inset.horizontal() - edge * 2.0).max(1.0),
+                        0.0,
+                    );
+
+                    let chrome = before + inset.vertical() + edge * 2.0;
+                    let room = max_height.map(|_| (remaining - chrome).max(0.0));
+
+                    // Uma moldura sem espaço nem para a própria borda desce
+                    // inteira para a coluna seguinte — cortá-la ali daria uma
+                    // caixa sem conteúdo com o traço no meio da página.
+                    if let Some(room) = room
+                        && room <= 0.0
+                        && y > 0.0
+                    {
+                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in, diagnostics };
+                    }
+
+                    let mut here = source.clone();
+                    here.block = Some(panel.origin.unwrap_or(index as u32));
+
+                    let inner = self.flow_blocks(
+                        layouter,
+                        &panel.blocks,
+                        &inner_style,
+                        content,
+                        room,
+                        &here,
+                        // O conteúdo de um painel não desvia dos contornos da
+                        // página: a moldura já o isolou.
+                        &[],
+                    );
+
+                    diagnostics.extend(inner.diagnostics);
+                    walled_in |= inner.walled_in;
+
+                    let height = inner.used + inset.vertical() + edge * 2.0;
+                    let box_rect = Rect::new(column.x, column.y + y + before, column.w, height);
+
+                    // A moldura antes do conteúdo: um preenchimento pintado
+                    // depois cobriria o texto que ele deveria emoldurar.
+                    if panel.fill.is_some() || stroke.is_some() {
+                        items.push(DisplayItem::Rect(RectItem {
+                            rect: box_rect,
+                            radius: panel.radius,
+                            fill: panel.fill,
+                            stroke,
+                            source: Some(source.clone()),
+                        }));
+                    }
+
+                    items.extend(inner.items);
+                    y += before + height;
+
+                    if !inner.leftover.is_empty() {
+                        let mut over = vec![Block::Panel(PanelBlock {
+                            origin: here.block,
+                            ..panel.continuing(inner.leftover)
+                        })];
+                        over.extend_from_slice(&blocks[index + 1..]);
+                        return FlowResult { items, used: y, leftover: over, stopped: inner.stopped, walled_in, diagnostics };
+                    }
+
+                    y += inner_style.space_after;
                 }
 
                 Block::ColumnBreak => {

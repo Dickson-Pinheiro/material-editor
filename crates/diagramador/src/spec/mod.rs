@@ -17,6 +17,7 @@ pub mod frame;
 pub mod style;
 
 pub use content::{
+    PanelBlock,
     Block, Inline, InlineImage, InlineRule, Marker, Origin, Paragraph, RuleBlock, SpaceRun,
     SpacerBlock, Tab, TextRun,
 };

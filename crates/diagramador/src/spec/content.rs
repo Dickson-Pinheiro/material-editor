@@ -17,7 +17,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use super::style::Style;
 use crate::color::Color;
-use crate::units::{Insets, Len};
+use crate::units::{Corners, Insets, Len};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tables
@@ -303,6 +303,56 @@ pub struct Stripe {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Blocos dentro de uma moldura, que flui com o texto.
+///
+/// A moldura de um frame não serve aqui: um frame é posicionado em coordenada
+/// absoluta, e por isso não desce junto com o parágrafo que o antecede nem
+/// quebra quando a página acaba. Um destaque, um quadro de atividade ou uma
+/// citação recuada precisam das duas coisas ao mesmo tempo — pintura própria e
+/// fluxo — e é essa a lacuna que este bloco fecha.
+///
+/// Antes dele, a única forma de ter moldura no fluxo era uma tabela de uma
+/// célula. Funcionava, mas custava caro: tabela não tem raio de canto, e a
+/// borda tinha de ser escrita como quatro linhas de grade, que duas caixas
+/// vizinhas então compartilhavam.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PanelBlock {
+    pub blocks: Vec<Block>,
+
+    pub fill: Option<Color>,
+    pub border: Option<super::frame::Border>,
+    /// Os quatro cantos, no sentido horário a partir do superior esquerdo.
+    pub radius: Corners,
+    /// Espaço entre a moldura e o conteúdo.
+    pub inset: Insets,
+
+    #[serde(rename = "use")]
+    pub use_style: Option<String>,
+    /// `spaceBefore` e `spaceAfter` valem para a moldura inteira, e
+    /// `keepWithNext` prende o painel ao bloco seguinte.
+    pub style: Option<Style>,
+
+    /// Onde o autor escreveu este painel na lista de blocos.
+    ///
+    /// Um painel que continua na página seguinte é refluído numa lista nova,
+    /// cujos índices recomeçam; sem isto o editor perderia de vista de qual
+    /// painel a continuação veio. Mesma razão que `TableBlock::origin`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<u32>,
+}
+
+impl PanelBlock {
+    /// A moldura repetida numa continuação, sem o conteúdo.
+    pub(crate) fn continuing(&self, blocks: Vec<Block>) -> PanelBlock {
+        PanelBlock { blocks, ..self.clone() }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Block
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -325,6 +375,8 @@ pub enum Block {
     PageBreak,
     /// A grid of cells, sized from its own content.
     Table(TableBlock),
+    /// Blocks inside a frame of their own, flowing with the text around them.
+    Panel(PanelBlock),
 }
 
 impl Block {
@@ -353,6 +405,7 @@ impl<'de> Deserialize<'de> for Block {
             ColumnBreak,
             PageBreak,
             Table(TableBlock),
+            Panel(PanelBlock),
         }
 
         #[derive(Deserialize)]
@@ -368,6 +421,7 @@ impl<'de> Deserialize<'de> for Block {
             Repr::Tagged(Tagged::Rule(r)) => Block::Rule(r),
             Repr::Tagged(Tagged::Spacer(s)) => Block::Spacer(s),
             Repr::Tagged(Tagged::Table(t)) => Block::Table(t),
+            Repr::Tagged(Tagged::Panel(p)) => Block::Panel(p),
             Repr::Tagged(Tagged::FrameBreak) => Block::FrameBreak,
             Repr::Tagged(Tagged::ColumnBreak) => Block::ColumnBreak,
             Repr::Tagged(Tagged::PageBreak) => Block::PageBreak,
