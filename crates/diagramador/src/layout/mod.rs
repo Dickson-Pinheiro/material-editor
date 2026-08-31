@@ -993,7 +993,17 @@ impl<'a> LayoutEngine<'a> {
                     diagnostics.extend(inner.diagnostics);
                     walled_in |= inner.walled_in;
 
-                    let height = inner.used + inset.vertical() + edge * 2.0;
+                    let natural = inner.used + inset.vertical() + edge * 2.0;
+                    // O piso pedido, limitado ao que a coluna ainda tem. Uma
+                    // moldura mais alta que a mancha empurraria para fora o que
+                    // vem depois, e nada na página diria por quê.
+                    let height = match panel.min_height {
+                        Some(min) => {
+                            let teto = room.map_or(min.get(), |room| min.get().min(room));
+                            natural.max(teto)
+                        }
+                        None => natural,
+                    };
                     let box_rect = Rect::new(column.x, column.y + y + before, column.w, height);
 
                     // Onde a moldura é, dito em voz alta e pintado com nada.

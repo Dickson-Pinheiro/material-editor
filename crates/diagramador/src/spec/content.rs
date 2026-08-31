@@ -330,6 +330,19 @@ pub struct PanelBlock {
     /// Espaço entre a moldura e o conteúdo.
     pub inset: Insets,
 
+    /// Altura mínima da moldura, borda inclusa.
+    ///
+    /// A moldura cresce com o conteúdo; isto lhe dá um piso. É o que permite a
+    /// um editor deixar um quadro de atividade com espaço de sobra para o
+    /// aluno escrever, sem encher o painel de blocos vazios para empurrá-lo.
+    ///
+    /// Não é altura fixa: conteúdo que passe do piso continua crescendo, e um
+    /// piso maior do que o que resta na coluna é limitado ao que resta — uma
+    /// moldura que passasse da mancha empurraria para fora o que vem depois,
+    /// sem que nada na página dissesse por quê.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_height: Option<Len>,
+
     #[serde(rename = "use")]
     pub use_style: Option<String>,
     /// `spaceBefore` e `spaceAfter` valem para a moldura inteira, e
