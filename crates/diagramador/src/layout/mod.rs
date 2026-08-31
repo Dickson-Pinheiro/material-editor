@@ -790,6 +790,39 @@ impl<'a> LayoutEngine<'a> {
 
                     let mut placed = layout.items;
                     translate_items(&mut placed, column.x, column.y + y);
+
+                    // Onde o parágrafo é, quando ele não pinta nada.
+                    //
+                    // Um parágrafo vazio não põe glifo na página, e um cursor
+                    // é colocado achando o glifo mais próximo do clique — sem
+                    // isto, um bloco recém-inserido é uma coisa que não se vê
+                    // e na qual não se consegue escrever. Mesma geometria de
+                    // procedência que a célula e a moldura já emitem, e pelo
+                    // mesmo motivo.
+                    //
+                    // Só quando não há glifo: um parágrafo com texto já se
+                    // endereça pelas letras, e um retângulo a mais por
+                    // parágrafo engordaria a display list de todo documento.
+                    if placed.is_empty() {
+                        let mut here = source.clone();
+                        here.block = Some(para.origin.map_or(index as u32, |o| o.block));
+                        here.inline = Some(0);
+                        here.offset = Some(0);
+
+                        items.push(DisplayItem::Rect(RectItem {
+                            rect: Rect::new(
+                                column.x,
+                                column.y + y,
+                                column.w,
+                                layout.height.max(style.font_size),
+                            ),
+                            radius: Corners::ZERO,
+                            fill: None,
+                            stroke: None,
+                            source: Some(here),
+                        }));
+                    }
+
                     items.extend(placed);
                     y += layout.height;
 

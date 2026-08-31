@@ -333,3 +333,40 @@ fn uma_moldura_vazia_pode_ser_clicada() {
         "e carrega a trilha que leva para dentro dela"
     );
 }
+
+#[test]
+fn um_paragrafo_vazio_declara_onde_esta() {
+    // Um bloco recém-inserido não pinta glifo nenhum. Sem esta geometria ele
+    // é uma coisa que não se vê e na qual não se consegue escrever.
+    let Some(list) = layout(&page_with(r##"{"type": "paragraph", "content": []}"##)) else {
+        return;
+    };
+
+    let area = rects(&list, 0)
+        .into_iter()
+        .find(|r| r.fill.is_none() && r.stroke.is_none())
+        .expect("o parágrafo vazio declara onde está");
+
+    assert!(area.rect.h > 0.0, "com altura de linha, não zero");
+    assert_eq!(
+        area.source.as_ref().and_then(|s| s.inline),
+        Some(0),
+        "e aponta para o começo do texto"
+    );
+}
+
+#[test]
+fn um_paragrafo_com_texto_nao_ganha_retangulo() {
+    // Um por parágrafo engordaria a display list de todo documento, e o texto
+    // já se endereça pelas próprias letras.
+    let Some(list) = layout(&page_with(r##"{"type": "paragraph", "content": ["escrito"]}"##)) else {
+        return;
+    };
+
+    let vazios: Vec<_> = rects(&list, 0)
+        .into_iter()
+        .filter(|r| r.fill.is_none() && r.stroke.is_none())
+        .collect();
+
+    assert!(vazios.is_empty(), "nenhum retângulo a mais");
+}
