@@ -835,23 +835,41 @@ impl<'a> LayoutEngine<'a> {
 
                 Block::Rule(rule) => {
                     let thickness = rule.thickness.map_or(0.75, |t| t.get());
-                    if y + thickness > budget {
+
+                    // A régua honra o próprio `style`, como o parágrafo.
+                    //
+                    // Ignorá-lo deixava réguas seguidas encostadas: quatro
+                    // linhas de resposta de uma atividade saíam a 0,75 pt uma
+                    // da outra — a espessura delas — em vez do espaço que o
+                    // documento pedia. Parecia uma linha grossa só, e não havia
+                    // onde escrever.
+                    let own = cascade::resolve(
+                        style,
+                        layouter.styles,
+                        None,
+                        rule.style.as_ref(),
+                    );
+                    let before = if y > 0.0 { own.space_before } else { 0.0 };
+                    let after = own.space_after;
+
+                    if y + before + thickness > budget {
                         return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in, diagnostics };
                     }
+
                     let width = column.w * rule.width.unwrap_or(1.0).clamp(0.0, 1.0);
                     items.push(DisplayItem::Line(LineItem {
                         x1: column.x,
-                        y1: column.y + y + thickness / 2.0,
+                        y1: column.y + y + before + thickness / 2.0,
                         x2: column.x + width,
-                        y2: column.y + y + thickness / 2.0,
+                        y2: column.y + y + before + thickness / 2.0,
                         stroke: Stroke {
-                            color: rule.color.unwrap_or(style.color),
+                            color: rule.color.unwrap_or(own.color),
                             width: thickness,
                             dash: None,
                         },
                         source: Some(source.clone()),
                     }));
-                    y += thickness;
+                    y += before + thickness + after;
                 }
 
                 Block::Spacer(spacer) => {

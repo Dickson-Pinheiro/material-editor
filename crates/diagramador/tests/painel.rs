@@ -370,3 +370,43 @@ fn um_paragrafo_com_texto_nao_ganha_retangulo() {
 
     assert!(vazios.is_empty(), "nenhum retângulo a mais");
 }
+
+#[test]
+fn reguas_seguidas_respeitam_o_espaco_pedido() {
+    // Quatro linhas de resposta de uma atividade saíam a 0,75 pt uma da outra
+    // — a espessura delas — porque a régua ignorava o próprio `style`.
+    // Pareciam uma linha grossa só, e não havia onde escrever.
+    let Some(list) = layout(&page_with(
+        r##"{"type": "panel", "inset": 6, "blocks": [
+             {"type": "rule", "thickness": 0.75, "style": {"spaceBefore": 10}},
+             {"type": "rule", "thickness": 0.75, "style": {"spaceBefore": 10}},
+             {"type": "rule", "thickness": 0.75, "style": {"spaceBefore": 10}}
+           ]}"##,
+    )) else {
+        return;
+    };
+
+    let mut alturas: Vec<f64> = list.pages[0]
+        .items
+        .iter()
+        .flat_map(|item| match item {
+            DisplayItem::Group(g) => g.items.clone(),
+            other => vec![other.clone()],
+        })
+        .filter_map(|i| match i {
+            DisplayItem::Line(l) => Some(l.y1),
+            _ => None,
+        })
+        .collect();
+
+    alturas.sort_by(f64::total_cmp);
+    assert_eq!(alturas.len(), 3, "as três réguas foram desenhadas");
+
+    for par in alturas.windows(2) {
+        let vao = par[1] - par[0];
+        assert!(
+            vao > 9.0,
+            "o espaço pedido é de 10 pt; veio {vao:.2}"
+        );
+    }
+}
