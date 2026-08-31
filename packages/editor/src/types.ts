@@ -82,9 +82,31 @@ export interface Paragraph {
   content: Inline[];
 }
 
+/**
+ * A frame that flows.
+ *
+ * Fill, border, radius and inset on a block that stacks with the text and
+ * breaks between pages — the callout, the activity box, the pulled quote. It
+ * is what a one-cell table used to stand in for, before the engine grew a node
+ * that could paint chrome *and* break.
+ */
+export interface PanelBlock {
+  type: "panel";
+  blocks: Block[];
+  fill?: string | null;
+  border?: Border | null;
+  radius?: Radius;
+  inset?: Len | Len[];
+  use?: string;
+  style?: Style;
+  /** Where the author wrote this panel, kept across a page break. */
+  origin?: number;
+}
+
 export type Block =
   | Paragraph
   | TableBlock
+  | PanelBlock
   | { type: "rule"; thickness?: Len; color?: string; width?: number; style?: Style }
   | { type: "spacer"; height: Len }
   | { type: "frameBreak" }

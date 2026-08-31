@@ -6,7 +6,7 @@
 //! junto com o texto.
 
 use diagramador::Engine;
-use diagramador::display::{DisplayItem, DisplayList, RectItem};
+use diagramador::display::{PathCommand, DisplayItem, DisplayList, RectItem};
 use diagramador::spec::{Document, FontWeight};
 use diagramador::units::Corners;
 
@@ -233,21 +233,68 @@ fn uma_barra_lateral_e_uma_borda_de_um_lado_so() {
         return;
     };
 
-    // Uma caixa com quatro lados vira retângulo tracejado; um lado só vira
-    // linha — é o mesmo caminho que os frames seguem.
+    // Uma caixa com quatro lados vira retângulo tracejado; um subconjunto vira
+    // caminho — é o mesmo caminho que os frames seguem.
     let com_traco: Vec<_> = rects(&list, 0).into_iter().filter(|r| r.stroke.is_some()).collect();
     assert!(com_traco.is_empty(), "um lado só não vira retângulo tracejado");
 
-    let linhas: Vec<_> = list.pages[0]
+    let caminhos: Vec<_> = list.pages[0]
         .items
         .iter()
         .flat_map(|item| match item {
             DisplayItem::Group(g) => g.items.clone(),
             other => vec![other.clone()],
         })
-        .filter(|i| matches!(i, DisplayItem::Line(_)))
+        .filter_map(|i| match i {
+            DisplayItem::Path(p) => Some(p),
+            _ => None,
+        })
         .collect();
-    assert_eq!(linhas.len(), 1, "uma aresta, uma linha");
+
+    assert_eq!(caminhos.len(), 1, "uma aresta, um caminho");
+    // Sem raio declarado, os cantos são retos: só o traço da aresta.
+    assert_eq!(caminhos[0].commands.len(), 2, "ir até o começo e riscar");
+}
+
+#[test]
+fn a_barra_lateral_acompanha_o_raio_da_moldura() {
+    // A queixa que originou a correção: o preenchimento saía arredondado e a
+    // barra saía reta, e as duas discordavam no canto.
+    let Some(list) = layout(&page_with(
+        r##"{"type": "panel", "fill": "#faf5ff", "inset": 8, "radius": 10,
+             "border": {"width": 3, "color": "#9333ea",
+                        "sides": {"top": false, "right": false, "bottom": false, "left": true}},
+             "blocks": ["destaque"]}"##,
+    )) else {
+        return;
+    };
+
+    let preenchido = rects(&list, 0)
+        .into_iter()
+        .find(|r| r.fill.is_some())
+        .expect("a moldura tem preenchimento");
+    assert_eq!(preenchido.radius, Corners::all(10.0), "o preenchimento arredonda");
+
+    let caminho = list.pages[0]
+        .items
+        .iter()
+        .flat_map(|item| match item {
+            DisplayItem::Group(g) => g.items.clone(),
+            other => vec![other.clone()],
+        })
+        .find_map(|i| match i {
+            DisplayItem::Path(p) => Some(p),
+            _ => None,
+        })
+        .expect("a barra é um caminho");
+
+    let curvas = caminho
+        .commands
+        .iter()
+        .filter(|c| matches!(c, PathCommand::CurveTo { .. }))
+        .count();
+
+    assert_eq!(curvas, 2, "a barra arredonda nos dois cantos que toca");
 }
 
 #[test]
@@ -261,4 +308,105 @@ fn os_quatro_lados_ligados_mantem_o_raio() {
 
     let moldura = rects(&list, 0).into_iter().find(|r| r.stroke.is_some()).unwrap();
     assert_eq!(moldura.radius, Corners::all(6.0), "borda inteira mantém o canto");
+}
+
+#[test]
+fn uma_moldura_vazia_pode_ser_clicada() {
+    // Um painel sem glifo é uma coisa que se vê e, sem esta geometria, não se
+    // consegue entrar: o cursor é colocado achando o glifo mais próximo, e não
+    // há nenhum. A célula de tabela já emitia a própria área; a moldura não.
+    let Some(list) = layout(&page_with(
+        r##"{"type": "panel", "fill": "#eef2ff", "inset": 8, "blocks": []}"##,
+    )) else {
+        return;
+    };
+
+    let area = rects(&list, 0)
+        .into_iter()
+        .find(|r| r.fill.is_none() && r.stroke.is_none())
+        .expect("a moldura declara onde está");
+
+    assert!(area.rect.w > 0.0, "a área tem largura");
+    assert!(area.rect.h > 0.0, "a área tem altura");
+    assert!(
+        area.source.as_ref().is_some_and(|s| !s.cells.is_empty()),
+        "e carrega a trilha que leva para dentro dela"
+    );
+}
+
+#[test]
+fn um_paragrafo_vazio_declara_onde_esta() {
+    // Um bloco recém-inserido não pinta glifo nenhum. Sem esta geometria ele
+    // é uma coisa que não se vê e na qual não se consegue escrever.
+    let Some(list) = layout(&page_with(r##"{"type": "paragraph", "content": []}"##)) else {
+        return;
+    };
+
+    let area = rects(&list, 0)
+        .into_iter()
+        .find(|r| r.fill.is_none() && r.stroke.is_none())
+        .expect("o parágrafo vazio declara onde está");
+
+    assert!(area.rect.h > 0.0, "com altura de linha, não zero");
+    assert_eq!(
+        area.source.as_ref().and_then(|s| s.inline),
+        Some(0),
+        "e aponta para o começo do texto"
+    );
+}
+
+#[test]
+fn um_paragrafo_com_texto_nao_ganha_retangulo() {
+    // Um por parágrafo engordaria a display list de todo documento, e o texto
+    // já se endereça pelas próprias letras.
+    let Some(list) = layout(&page_with(r##"{"type": "paragraph", "content": ["escrito"]}"##)) else {
+        return;
+    };
+
+    let vazios: Vec<_> = rects(&list, 0)
+        .into_iter()
+        .filter(|r| r.fill.is_none() && r.stroke.is_none())
+        .collect();
+
+    assert!(vazios.is_empty(), "nenhum retângulo a mais");
+}
+
+#[test]
+fn reguas_seguidas_respeitam_o_espaco_pedido() {
+    // Quatro linhas de resposta de uma atividade saíam a 0,75 pt uma da outra
+    // — a espessura delas — porque a régua ignorava o próprio `style`.
+    // Pareciam uma linha grossa só, e não havia onde escrever.
+    let Some(list) = layout(&page_with(
+        r##"{"type": "panel", "inset": 6, "blocks": [
+             {"type": "rule", "thickness": 0.75, "style": {"spaceBefore": 10}},
+             {"type": "rule", "thickness": 0.75, "style": {"spaceBefore": 10}},
+             {"type": "rule", "thickness": 0.75, "style": {"spaceBefore": 10}}
+           ]}"##,
+    )) else {
+        return;
+    };
+
+    let mut alturas: Vec<f64> = list.pages[0]
+        .items
+        .iter()
+        .flat_map(|item| match item {
+            DisplayItem::Group(g) => g.items.clone(),
+            other => vec![other.clone()],
+        })
+        .filter_map(|i| match i {
+            DisplayItem::Line(l) => Some(l.y1),
+            _ => None,
+        })
+        .collect();
+
+    alturas.sort_by(f64::total_cmp);
+    assert_eq!(alturas.len(), 3, "as três réguas foram desenhadas");
+
+    for par in alturas.windows(2) {
+        let vao = par[1] - par[0];
+        assert!(
+            vao > 9.0,
+            "o espaço pedido é de 10 pt; veio {vao:.2}"
+        );
+    }
 }
