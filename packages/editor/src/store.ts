@@ -257,18 +257,39 @@ export class Store {
       blocks = frame.blocks;
     }
 
+    // Um passo da trilha desce para dentro de um bloco que tem lista própria.
+    // Tabela desce por `cells[step.cell]`; painel desce por `blocks`, e traz
+    // sempre `cell: 0` porque tem um compartimento só. Qual dos dois é se lê
+    // do bloco que está no índice, não do passo.
     for (const step of source.cells ?? []) {
-      const table = blocks?.[step.block];
-      if (!table || table.type !== "table") return null;
-      const cell = table.cells?.[step.cell];
-      if (!cell) return null;
-      cell.blocks ??= [];
-      blocks = cell.blocks;
+      const container = blocks?.[step.block];
+      if (!container) return null;
+
+      if (container.type === "table") {
+        const cell = container.cells?.[step.cell];
+        if (!cell) return null;
+        cell.blocks ??= [];
+        blocks = cell.blocks;
+        continue;
+      }
+
+      if (container.type === "panel") {
+        container.blocks ??= [];
+        blocks = container.blocks;
+        continue;
+      }
+
+      return null;
     }
     return blocks;
   }
 
-  /** The table a cell trail passes through, at `depth` steps down. */
+  /**
+   * The table a trail passes through, at `depth` steps down.
+   *
+   * `null` when that step is a panel — the trail carries both kinds, and only
+   * the caller that wants a table cares which one it landed on.
+   */
   tableAt(source: SourceRef, depth = 0): TableBlock | null {
     const step = source.cells?.[depth];
     if (!step) return null;

@@ -6,7 +6,7 @@
 //! junto com o texto.
 
 use diagramador::Engine;
-use diagramador::display::{DisplayItem, DisplayList, RectItem};
+use diagramador::display::{PathCommand, DisplayItem, DisplayList, RectItem};
 use diagramador::spec::{Document, FontWeight};
 use diagramador::units::Corners;
 
@@ -233,21 +233,68 @@ fn uma_barra_lateral_e_uma_borda_de_um_lado_so() {
         return;
     };
 
-    // Uma caixa com quatro lados vira retângulo tracejado; um lado só vira
-    // linha — é o mesmo caminho que os frames seguem.
+    // Uma caixa com quatro lados vira retângulo tracejado; um subconjunto vira
+    // caminho — é o mesmo caminho que os frames seguem.
     let com_traco: Vec<_> = rects(&list, 0).into_iter().filter(|r| r.stroke.is_some()).collect();
     assert!(com_traco.is_empty(), "um lado só não vira retângulo tracejado");
 
-    let linhas: Vec<_> = list.pages[0]
+    let caminhos: Vec<_> = list.pages[0]
         .items
         .iter()
         .flat_map(|item| match item {
             DisplayItem::Group(g) => g.items.clone(),
             other => vec![other.clone()],
         })
-        .filter(|i| matches!(i, DisplayItem::Line(_)))
+        .filter_map(|i| match i {
+            DisplayItem::Path(p) => Some(p),
+            _ => None,
+        })
         .collect();
-    assert_eq!(linhas.len(), 1, "uma aresta, uma linha");
+
+    assert_eq!(caminhos.len(), 1, "uma aresta, um caminho");
+    // Sem raio declarado, os cantos são retos: só o traço da aresta.
+    assert_eq!(caminhos[0].commands.len(), 2, "ir até o começo e riscar");
+}
+
+#[test]
+fn a_barra_lateral_acompanha_o_raio_da_moldura() {
+    // A queixa que originou a correção: o preenchimento saía arredondado e a
+    // barra saía reta, e as duas discordavam no canto.
+    let Some(list) = layout(&page_with(
+        r##"{"type": "panel", "fill": "#faf5ff", "inset": 8, "radius": 10,
+             "border": {"width": 3, "color": "#9333ea",
+                        "sides": {"top": false, "right": false, "bottom": false, "left": true}},
+             "blocks": ["destaque"]}"##,
+    )) else {
+        return;
+    };
+
+    let preenchido = rects(&list, 0)
+        .into_iter()
+        .find(|r| r.fill.is_some())
+        .expect("a moldura tem preenchimento");
+    assert_eq!(preenchido.radius, Corners::all(10.0), "o preenchimento arredonda");
+
+    let caminho = list.pages[0]
+        .items
+        .iter()
+        .flat_map(|item| match item {
+            DisplayItem::Group(g) => g.items.clone(),
+            other => vec![other.clone()],
+        })
+        .find_map(|i| match i {
+            DisplayItem::Path(p) => Some(p),
+            _ => None,
+        })
+        .expect("a barra é um caminho");
+
+    let curvas = caminho
+        .commands
+        .iter()
+        .filter(|c| matches!(c, PathCommand::CurveTo { .. }))
+        .count();
+
+    assert_eq!(curvas, 2, "a barra arredonda nos dois cantos que toca");
 }
 
 #[test]

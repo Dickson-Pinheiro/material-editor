@@ -17,6 +17,10 @@ pub mod wrap;
 use std::collections::{BTreeMap, HashMap};
 
 use crate::display::{
+    PathItem,
+    PathCommand,
+    FillRule,
+    CellStep,
     ClipShape, Diagnostic, DisplayFont, DisplayFrame, DisplayGroup, DisplayItem, DisplayList,
     DisplayPage, EllipseItem, ImageItem, LineItem, RectItem, SourceRef, Stroke,
 };
@@ -900,8 +904,28 @@ impl<'a> LayoutEngine<'a> {
                         return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in, diagnostics };
                     }
 
+                    // Um passo para dentro da moldura, como a célula de tabela
+                    // faz em `cell_source`.
+                    //
+                    // Sem isto o painel só marcava `block` e descia, e
+                    // `flow_blocks` sobrescrevia esse índice com o de cada
+                    // filho — o conteúdo do painel passava a reportar a mesma
+                    // referência que os blocos do frame. Um editor que
+                    // resolvesse um clique por `SourceRef` editava o parágrafo
+                    // solto de índice igual, e não o de dentro da moldura.
+                    //
+                    // A moldura tem um compartimento só, então o passo é
+                    // `cell: 0`. O consumidor distingue os dois pelo bloco que
+                    // encontra no índice: tabela desce por `cells`, painel por
+                    // `blocks`.
                     let mut here = source.clone();
-                    here.block = Some(panel.origin.unwrap_or(index as u32));
+                    here.cells.push(CellStep {
+                        block: panel.origin.unwrap_or(index as u32),
+                        cell: 0,
+                    });
+                    here.block = None;
+                    here.inline = None;
+                    here.offset = None;
 
                     let inner = self.flow_blocks(
                         layouter,
@@ -1373,12 +1397,20 @@ fn stroke_of(border: &Border) -> Stroke {
     }
 }
 
-/// A border is one rectangle when all sides are drawn, otherwise one line each.
+/// A border is one rectangle when all sides are drawn, otherwise a path that
+/// follows the rounding.
 ///
-/// The straight-edge fallback drops the rounding: a corner arc belongs to two
-/// edges at once, and with one of them switched off there is nothing left for
-/// it to join. Drawing it anyway would leave an arc hanging off the end of a
-/// line that stops short of it.
+/// The earlier fallback drew straight lines corner to corner and dropped the
+/// radius, on the reasoning that a corner arc belongs to two edges at once and
+/// has nothing to join when one of them is off. But there is a well-defined
+/// answer, and it is the one every browser gives: **the arc is drawn when
+/// either of its two edges is drawn**, and the edge stops at the tangent point
+/// rather than at the geometric corner.
+///
+/// The arc then ends in the air, which is exactly right — it is the rounded
+/// end of the bar. Without this a callout with a coloured left bar and rounded
+/// corners printed the fill rounded and the bar square, and the two disagreed
+/// at the corner.
 fn border_items(
     border: &Border,
     rect: Rect,
@@ -1401,31 +1433,158 @@ fn border_items(
         })];
     }
 
-    let edge = |x1: f64, y1: f64, x2: f64, y2: f64| {
-        DisplayItem::Line(LineItem {
-            x1,
-            y1,
-            x2,
-            y2,
-            stroke: stroke.clone(),
-            source: Some(source.clone()),
-        })
-    };
+    partial_border_items(border, rect, radius, &stroke, source)
+}
 
-    let mut out = Vec::new();
-    if border.sides.top {
-        out.push(edge(rect.x, rect.y, rect.right(), rect.y));
+/// Control-point ratio for a quarter circle drawn as a cubic Bézier.
+const KAPPA: f64 = 0.552_284_749_830_793_4;
+
+/// One segment of the outline: an edge, or the arc that turns a corner.
+///
+/// Walking the eight of them clockwise is what lets a run of adjacent sides
+/// come out as a single path instead of disjoint pieces that overlap at the
+/// joins and print a darker pixel there.
+enum Segment {
+    Edge { to: (f64, f64) },
+    /// `r` is the corner's radius: at zero the arc is a point, and the two
+    /// edges meet there without a command of their own.
+    Arc { r: f64, c1: (f64, f64), c2: (f64, f64), to: (f64, f64) },
+}
+
+/// The outline of a border that covers some of the sides, following the radius.
+fn partial_border_items(
+    border: &Border,
+    rect: Rect,
+    radius: Corners,
+    stroke: &Stroke,
+    source: &SourceRef,
+) -> Vec<DisplayItem> {
+    let (x, y) = (rect.x, rect.y);
+    let (r, b) = (rect.right(), rect.bottom());
+
+    // A radius wider than the box would cross itself; the box caps it, the same
+    // way it caps a fill.
+    let cap = (rect.w.min(rect.h) / 2.0).max(0.0);
+    let tl = radius.top_left.max(0.0).min(cap);
+    let tr = radius.top_right.max(0.0).min(cap);
+    let br = radius.bottom_right.max(0.0).min(cap);
+    let bl = radius.bottom_left.max(0.0).min(cap);
+
+    let s = &border.sides;
+
+    // Clockwise from the top edge's left tangent. An edge is drawn when its own
+    // side is on; an arc when either of the sides it joins is on.
+    let ring: [(bool, (f64, f64), Segment); 8] = [
+        (s.top, (x + tl, y), Segment::Edge { to: (r - tr, y) }),
+        (
+            s.top || s.right,
+            (r - tr, y),
+            Segment::Arc {
+                r: tr,
+                c1: (r - tr + KAPPA * tr, y),
+                c2: (r, y + tr - KAPPA * tr),
+                to: (r, y + tr),
+            },
+        ),
+        (s.right, (r, y + tr), Segment::Edge { to: (r, b - br) }),
+        (
+            s.right || s.bottom,
+            (r, b - br),
+            Segment::Arc {
+                r: br,
+                c1: (r, b - br + KAPPA * br),
+                c2: (r - br + KAPPA * br, b),
+                to: (r - br, b),
+            },
+        ),
+        (s.bottom, (r - br, b), Segment::Edge { to: (x + bl, b) }),
+        (
+            s.bottom || s.left,
+            (x + bl, b),
+            Segment::Arc {
+                r: bl,
+                c1: (x + bl - KAPPA * bl, b),
+                c2: (x, b - bl + KAPPA * bl),
+                to: (x, b - bl),
+            },
+        ),
+        (s.left, (x, b - bl), Segment::Edge { to: (x, y + tl) }),
+        (
+            s.left || s.top,
+            (x, y + tl),
+            Segment::Arc {
+                r: tl,
+                c1: (x, y + tl - KAPPA * tl),
+                c2: (x + tl - KAPPA * tl, y),
+                to: (x + tl, y),
+            },
+        ),
+    ];
+
+    let mut commands: Vec<PathCommand> = Vec::new();
+    let mut cursor: Option<(f64, f64)> = None;
+
+    for (on, from, segment) in ring {
+        if !on {
+            cursor = None;
+            continue;
+        }
+
+        // Um arco de raio zero não abre subcaminho por conta própria: ele não
+        // desenha, e um `MoveTo` solto antes de um lado que talvez não venha
+        // deixaria um comando sem uso.
+        let draws = !matches!(segment, Segment::Arc { r, .. } if r <= 1e-9);
+
+        // A new subpath whenever the previous segment was off, or ended
+        // somewhere else.
+        if draws
+            && cursor.map_or(true, |at| {
+                (at.0 - from.0).abs() > 1e-9 || (at.1 - from.1).abs() > 1e-9
+            })
+        {
+            commands.push(PathCommand::MoveTo { x: from.0, y: from.1 });
+        }
+
+        match segment {
+            Segment::Edge { to } => {
+                commands.push(PathCommand::LineTo { x: to.0, y: to.1 });
+                cursor = Some(to);
+            }
+            Segment::Arc { r, c1, c2, to } => {
+                // Um canto sem raio não desenha nada: os dois lados se
+                // encontram no ponto, e uma curva degenerada só acrescentaria
+                // um comando que o emissor de PDF teria de escrever à toa.
+                if r > 1e-9 {
+                    commands.push(PathCommand::CurveTo {
+                        x1: c1.0,
+                        y1: c1.1,
+                        x2: c2.0,
+                        y2: c2.1,
+                        x: to.0,
+                        y: to.1,
+                    });
+                    cursor = Some(to);
+                } else if cursor.is_some() {
+                    // Só encaminha uma continuidade que já existia. Criá-la do
+                    // nada faria o lado seguinte pular o `MoveTo` e o caminho
+                    // começar sem ponto de partida.
+                    cursor = Some(to);
+                }
+            }
+        }
     }
-    if border.sides.right {
-        out.push(edge(rect.right(), rect.y, rect.right(), rect.bottom()));
+
+    if commands.is_empty() {
+        return Vec::new();
     }
-    if border.sides.bottom {
-        out.push(edge(rect.x, rect.bottom(), rect.right(), rect.bottom()));
-    }
-    if border.sides.left {
-        out.push(edge(rect.x, rect.y, rect.x, rect.bottom()));
-    }
-    out
+
+    vec![DisplayItem::Path(PathItem {
+        commands,
+        fill: None,
+        stroke: Some(stroke.clone()),
+        fill_rule: FillRule::NonZero,
+        source: Some(source.clone()),
+    })]
 }
 
 /// Clockwise rotation about the centre of `rect`, as an affine matrix.
@@ -2587,19 +2746,91 @@ texto disponível aqui."
     }
 
     #[test]
-    fn partial_borders_become_individual_edges() {
+    fn a_partial_border_is_one_path_over_the_sides_it_covers() {
         let Some(list) = layout_json(
             r#"{"pages":[{"frames":[{"type":"text","rect":[0,0,100,50],
                 "border":{"width":1,"sides":{"top":false,"right":false,"left":false}},"blocks":[]}]}]}"#,
         ) else {
             return;
         };
-        let lines: Vec<_> = list.pages[0]
+        let paths: Vec<_> = list.pages[0]
             .items
             .iter()
-            .filter(|i| matches!(i, DisplayItem::Line(_)))
+            .filter_map(|i| match i {
+                DisplayItem::Path(p) => Some(p),
+                _ => None,
+            })
             .collect();
-        assert_eq!(lines.len(), 1, "only the bottom edge should be drawn");
+
+        assert_eq!(paths.len(), 1, "the covered sides come out as one path");
+        // Bottom only, square corners: move to the start and one line across.
+        assert_eq!(paths[0].commands.len(), 2);
+        assert!(matches!(paths[0].commands[0], PathCommand::MoveTo { .. }));
+        assert!(matches!(paths[0].commands[1], PathCommand::LineTo { .. }));
+        assert!(paths[0].fill.is_none(), "a border is stroked, never filled");
+    }
+
+    #[test]
+    fn a_partial_border_follows_the_rounding() {
+        // The bug this closes: a callout with a coloured left bar and rounded
+        // corners printed the fill rounded and the bar square, and the two
+        // disagreed at the corner. The arc is drawn when *either* of the sides
+        // it joins is drawn — the same answer every browser gives.
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[{"type":"text","rect":[0,0,100,50],"radius":10,
+                "border":{"width":3,"sides":{"top":false,"right":false,"bottom":false,"left":true}},
+                "blocks":[]}]}]}"#,
+        ) else {
+            return;
+        };
+        let path = list.pages[0]
+            .items
+            .iter()
+            .find_map(|i| match i {
+                DisplayItem::Path(p) => Some(p),
+                _ => None,
+            })
+            .expect("the left bar is a path");
+
+        let curves = path
+            .commands
+            .iter()
+            .filter(|c| matches!(c, PathCommand::CurveTo { .. }))
+            .count();
+
+        // The left edge plus the two corners it touches.
+        assert_eq!(curves, 2, "both corners of the left edge are rounded");
+        assert!(
+            path.commands
+                .iter()
+                .any(|c| matches!(c, PathCommand::LineTo { .. })),
+            "the straight part of the edge is still there"
+        );
+    }
+
+    #[test]
+    fn a_border_on_every_side_stays_a_rectangle() {
+        // The uniform case keeps the cheaper item: one rounded rect, stroked.
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[{"type":"text","rect":[0,0,100,50],"radius":8,
+                "border":{"width":2},"blocks":[]}]}]}"#,
+        ) else {
+            return;
+        };
+        assert!(
+            list.pages[0]
+                .items
+                .iter()
+                .any(|i| matches!(i, DisplayItem::Rect(r) if r.stroke.is_some())),
+            "four sides come out as a stroked rect, not a path"
+        );
+        assert!(
+            !list.pages[0]
+                .items
+                .iter()
+                .any(|i| matches!(i, DisplayItem::Path(_))),
+            "and no path is emitted alongside it"
+        );
     }
 
     #[test]
