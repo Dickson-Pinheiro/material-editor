@@ -309,3 +309,27 @@ fn os_quatro_lados_ligados_mantem_o_raio() {
     let moldura = rects(&list, 0).into_iter().find(|r| r.stroke.is_some()).unwrap();
     assert_eq!(moldura.radius, Corners::all(6.0), "borda inteira mantém o canto");
 }
+
+#[test]
+fn uma_moldura_vazia_pode_ser_clicada() {
+    // Um painel sem glifo é uma coisa que se vê e, sem esta geometria, não se
+    // consegue entrar: o cursor é colocado achando o glifo mais próximo, e não
+    // há nenhum. A célula de tabela já emitia a própria área; a moldura não.
+    let Some(list) = layout(&page_with(
+        r##"{"type": "panel", "fill": "#eef2ff", "inset": 8, "blocks": []}"##,
+    )) else {
+        return;
+    };
+
+    let area = rects(&list, 0)
+        .into_iter()
+        .find(|r| r.fill.is_none() && r.stroke.is_none())
+        .expect("a moldura declara onde está");
+
+    assert!(area.rect.w > 0.0, "a área tem largura");
+    assert!(area.rect.h > 0.0, "a área tem altura");
+    assert!(
+        area.source.as_ref().is_some_and(|s| !s.cells.is_empty()),
+        "e carrega a trilha que leva para dentro dela"
+    );
+}

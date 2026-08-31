@@ -945,6 +945,23 @@ impl<'a> LayoutEngine<'a> {
                     let height = inner.used + inset.vertical() + edge * 2.0;
                     let box_rect = Rect::new(column.x, column.y + y + before, column.w, height);
 
+                    // Onde a moldura é, dito em voz alta e pintado com nada.
+                    //
+                    // Um painel vazio não põe glifo na página, e um cursor é
+                    // colocado achando o glifo mais próximo do clique — então
+                    // sem isto uma moldura vazia é uma coisa que se vê e não
+                    // se consegue entrar. É a mesma geometria de procedência
+                    // que a célula de tabela já emitia, e custa tinta nenhuma:
+                    // os emissores pulam retângulo sem preenchimento e sem
+                    // traço.
+                    items.push(DisplayItem::Rect(RectItem {
+                        rect: box_rect,
+                        radius: Corners::ZERO,
+                        fill: None,
+                        stroke: None,
+                        source: Some(here.clone()),
+                    }));
+
                     // O preenchimento antes do conteúdo: pintado depois, ele
                     // cobriria o texto que deveria emoldurar.
                     if let Some(fill) = panel.fill {
