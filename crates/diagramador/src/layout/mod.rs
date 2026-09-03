@@ -921,11 +921,37 @@ impl<'a> LayoutEngine<'a> {
                     // O estilo do painel vale para o que está dentro dele, e é
                     // dele que saem `spaceBefore`, `spaceAfter` e o
                     // `keepWithNext` que o prende ao bloco seguinte.
-                    let inner_style = cascade::resolve(
+                    let mut inner_style = cascade::resolve(
                         style,
                         layouter.styles,
                         panel.use_style.as_deref(),
                         panel.style.as_ref(),
+                    );
+
+                    // `indentLeft`/`indentRight` movem a **moldura**, como
+                    // movem qualquer outro bloco.
+                    //
+                    // Antes eles desciam para os parágrafos de dentro e a caixa
+                    // ficava onde estava — o que, de fora, era o motor
+                    // "ignorando o recuo do painel". Quem quisesse um destaque
+                    // de meia largura não tinha como pedir, e o editor pedia
+                    // embrulhando o painel numa tabela de uma linha só. Esse
+                    // embrulho custava caro em silêncio: célula de tabela não
+                    // recebe os obstáculos da página, então um destaque
+                    // redimensionado deixava de desviar do contorno.
+                    //
+                    // Os filhos não herdam o recuo: ele já foi gasto na
+                    // moldura, e herdá-lo o contaria duas vezes.
+                    let indent_l = inner_style.indent_left.max(0.0);
+                    let indent_r = inner_style.indent_right.max(0.0);
+                    inner_style.indent_left = 0.0;
+                    inner_style.indent_right = 0.0;
+
+                    let column = Rect::new(
+                        column.x + indent_l,
+                        column.y,
+                        (column.w - indent_l - indent_r).max(1.0),
+                        column.h,
                     );
 
                     let before = if y > 0.0 { inner_style.space_before } else { 0.0 };
@@ -1855,6 +1881,62 @@ mod tests {
     }
 
     /// A picture in the middle of a column, with room on both sides of it.
+    #[test]
+    fn o_recuo_move_a_moldura() {
+        // `indentLeft`/`indentRight` moviam os parágrafos de dentro e deixavam a
+        // caixa onde estava. Quem quisesse um destaque de meia largura não tinha
+        // como pedir — e o editor pedia embrulhando o painel numa tabela, o que
+        // fazia o conteúdo perder os obstáculos da página.
+        let com = |estilo: &str| {
+            layout_json(&format!(
+                r##"{{"pages":[{{"frames":[
+                    {{"type":"text","rect":[56,100,440,500],"style":{{"fontSize":10}},
+                     "blocks":[{{"type":"panel","fill":"#eeeeee","inset":6{estilo},
+                       "blocks":["Um destaque com bastante texto para ocupar mais de uma linha."]}}]}}
+                ]}}]}}"##
+            ))
+        };
+
+        let (Some(cheio), Some(recuado)) = (com(""), com(r#","style":{"indentLeft":100,"indentRight":40}"#))
+        else {
+            return;
+        };
+
+        let a = panel_fill(&cheio).expect("fundo cheio");
+        let b = panel_fill(&recuado).expect("fundo recuado");
+
+        assert!((b.x - (a.x + 100.0)).abs() < 0.01, "a moldura devia andar 100: {} → {}", a.x, b.x);
+        assert!((b.w - (a.w - 140.0)).abs() < 0.01, "a moldura devia estreitar 140: {} → {}", a.w, b.w);
+    }
+
+    #[test]
+    fn o_recuo_da_moldura_nao_conta_duas_vezes() {
+        // Se os filhos herdassem o recuo, ele seria aplicado na caixa **e**
+        // dentro dela.
+        let Some(list) = layout_json(
+            r##"{"pages":[{"frames":[
+                {"type":"text","rect":[56,100,440,500],"style":{"fontSize":10},
+                 "blocks":[{"type":"panel","fill":"#eeeeee","inset":6,
+                   "style":{"indentLeft":100},
+                   "blocks":["Texto."]}]}
+            ]}]}"##,
+        ) else {
+            return;
+        };
+        let fundo = panel_fill(&list).expect("fundo");
+        let primeira = all_runs(&list)
+            .iter()
+            .map(|r| r.x)
+            .fold(f64::INFINITY, f64::min);
+        // O texto começa no recuo interno da moldura, não em mais 100.
+        assert!(
+            (primeira - (fundo.x + 6.0)).abs() < 1.0,
+            "o texto devia começar em {}, e começou em {}",
+            fundo.x + 6.0,
+            primeira
+        );
+    }
+
     // ── O texto dentro da moldura desvia do contorno ────────────────────────
 
     /// Uma folha com uma imagem ancorada à esquerda e um destaque ao lado.
