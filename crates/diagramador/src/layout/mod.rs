@@ -985,9 +985,28 @@ impl<'a> LayoutEngine<'a> {
                         content,
                         room,
                         &here,
-                        // O conteúdo de um painel não desvia dos contornos da
-                        // página: a moldura já o isolou.
-                        &[],
+                        // O conteúdo de um painel **desvia** dos contornos da
+                        // página, como o texto solto do frame.
+                        //
+                        // Aqui estava `&[]`, com a razão "a moldura já o
+                        // isolou". Ela descrevia uma intenção — a moldura
+                        // protege o que está dentro — que a moldura não cumpre:
+                        // ela não sai da frente de nada, e uma imagem ancorada
+                        // sobre um destaque cobria o texto em vez de conviver
+                        // com ele.
+                        //
+                        // O que a moldura de fato faz é dar fundo e borda, e
+                        // esses ficam onde estão: a imagem é pintada depois e
+                        // passa por cima do fundo, que é o arranjo de revista —
+                        // a foto invade a caixa colorida e o texto respeita a
+                        // foto. Estreitar a moldura seria a outra resposta, e é
+                        // decisão de quem diagrama, não do motor.
+                        //
+                        // `ColumnSpace` recebe o `content` do painel como
+                        // coluna e os obstáculos em coordenadas de página, que
+                        // é o mesmo par que o frame usa — não há tradução a
+                        // fazer.
+                        obstacles,
                     );
 
                     diagnostics.extend(inner.diagnostics);
@@ -1836,6 +1855,143 @@ mod tests {
     }
 
     /// A picture in the middle of a column, with room on both sides of it.
+    // ── O texto dentro da moldura desvia do contorno ────────────────────────
+
+    /// Uma folha com uma imagem ancorada à esquerda e um destaque ao lado.
+    ///
+    /// `com_imagem` liga o contorno; a moldura e o texto são os mesmos nos dois
+    /// casos, então o que mudar é efeito do contorno e de mais nada.
+    fn panel_beside_a_picture(com_imagem: bool) -> Option<DisplayList> {
+        let imagem = if com_imagem {
+            r##"{"type":"image","rect":[56,100,150,120],"src":"foto.png",
+                 "wrap":{"mode":{"kind":"box"},"padding":8}},"##
+        } else {
+            ""
+        };
+        layout_json(&format!(
+            r##"{{"pages":[{{"frames":[
+                {imagem}
+                {{"type":"text","rect":[56,100,440,500],"style":{{"fontSize":10}},
+                 "blocks":[
+                   {{"type":"panel","fill":"#eeeeee","inset":6,
+                     "blocks":["Um destaque com texto suficiente para ocupar várias linhas dentro da moldura e mostrar onde cada uma delas começou na folha."]}}
+                 ]}}
+            ]}}]}}"##
+        ))
+    }
+
+    /// O retângulo preenchido do painel — o fundo, que é o que se vê.
+    fn panel_fill(list: &DisplayList) -> Option<Rect> {
+        fn walk(items: &[DisplayItem], out: &mut Vec<Rect>) {
+            for item in items {
+                match item {
+                    DisplayItem::Rect(r) if r.fill.is_some() => out.push(r.rect),
+                    DisplayItem::Group(g) => walk(&g.items, out),
+                    _ => {}
+                }
+            }
+        }
+        let mut achados = Vec::new();
+        walk(&list.pages[0].items, &mut achados);
+        achados.into_iter().next()
+    }
+
+    #[test]
+    fn o_texto_da_moldura_desvia_do_contorno() {
+        // A decisão: desvia o **texto**, não a caixa. Aqui estava `&[]`, com a
+        // razão "a moldura já o isolou" — que descrevia uma intenção que a
+        // moldura não cumpre: ela não sai da frente de nada, e a imagem cobria
+        // o texto em vez de conviver com ele.
+        let (Some(sem), Some(com)) = (
+            panel_beside_a_picture(false),
+            panel_beside_a_picture(true),
+        ) else {
+            return;
+        };
+
+        let esquerda = |l: &DisplayList| {
+            all_runs(l)
+                .iter()
+                .map(|r| r.x)
+                .fold(f64::INFINITY, f64::min)
+        };
+
+        assert!(
+            esquerda(&com) > esquerda(&sem) + 1.0,
+            "o texto de dentro devia desviar: {} contra {}",
+            esquerda(&com),
+            esquerda(&sem)
+        );
+        // E desviou para depois da imagem mais a folga.
+        assert!(esquerda(&com) >= 56.0 + 150.0 + 8.0 - 1.0);
+    }
+
+    #[test]
+    fn a_moldura_nao_estreita() {
+        // A outra metade da decisão, e a que se vê: o fundo e a borda ficam
+        // onde estão. A imagem é pintada depois e passa por cima — o arranjo de
+        // revista, em que a foto invade a caixa colorida.
+        let (Some(sem), Some(com)) = (
+            panel_beside_a_picture(false),
+            panel_beside_a_picture(true),
+        ) else {
+            return;
+        };
+        let a = panel_fill(&sem).expect("fundo sem imagem");
+        let b = panel_fill(&com).expect("fundo com imagem");
+
+        assert!((a.x - b.x).abs() < 0.01, "a moldura andou: {} → {}", a.x, b.x);
+        assert!(
+            (a.w - b.w).abs() < 0.01,
+            "a moldura estreitou: {} → {}",
+            a.w,
+            b.w
+        );
+    }
+
+    #[test]
+    fn a_moldura_cresce_para_caber_o_texto_desviado() {
+        // Desviar consome linhas: o mesmo texto ocupa mais altura ao lado da
+        // imagem. A moldura tem de acompanhar, senão o texto vaza por baixo
+        // dela.
+        let (Some(sem), Some(com)) = (
+            panel_beside_a_picture(false),
+            panel_beside_a_picture(true),
+        ) else {
+            return;
+        };
+        let a = panel_fill(&sem).expect("fundo sem imagem");
+        let b = panel_fill(&com).expect("fundo com imagem");
+        assert!(
+            b.h > a.h - 0.01,
+            "a moldura devia crescer, e foi de {} para {}",
+            a.h,
+            b.h
+        );
+
+        let fundo = all_runs(&com)
+            .iter()
+            .map(|r| r.y)
+            .fold(f64::NEG_INFINITY, f64::max);
+        assert!(
+            fundo <= b.y + b.h + 0.5,
+            "uma linha caiu fora da moldura: {} contra {}",
+            fundo,
+            b.y + b.h
+        );
+    }
+
+    #[test]
+    fn sem_contorno_a_moldura_e_a_de_sempre() {
+        // Não-regressão: sem imagem ancorada, nada muda.
+        let Some(list) = panel_beside_a_picture(false) else {
+            return;
+        };
+        let fundo = panel_fill(&list).expect("fundo");
+        assert!((fundo.x - 56.0).abs() < 0.01);
+        assert!((fundo.w - 440.0).abs() < 0.01);
+    }
+
     fn picture_in_the_middle() -> Option<DisplayList> {
         layout_json(
             r#"{"pages":[{"frames":[
