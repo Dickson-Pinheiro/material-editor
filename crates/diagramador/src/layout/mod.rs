@@ -1093,13 +1093,27 @@ impl<'a> LayoutEngine<'a> {
                     // O preenchimento antes do conteúdo: pintado depois, ele
                     // cobriria o texto que deveria emoldurar.
                     if let Some(fill) = panel.fill {
-                        items.push(DisplayItem::Rect(RectItem {
-                            rect: box_rect,
-                            radius: panel.radius,
-                            fill: Some(fill),
-                            stroke: None,
-                            source: Some(source.clone()),
-                        }));
+                        let cortado =
+                            panel.corner == CornerStyle::Cut && !panel.radius.is_zero();
+                        let commands =
+                            if cortado { cut_outline(box_rect, panel.radius) } else { Vec::new() };
+                        items.push(if commands.is_empty() {
+                            DisplayItem::Rect(RectItem {
+                                rect: box_rect,
+                                radius: panel.radius,
+                                fill: Some(fill),
+                                stroke: None,
+                                source: Some(source.clone()),
+                            })
+                        } else {
+                            DisplayItem::Path(PathItem {
+                                commands,
+                                fill: Some(fill),
+                                stroke: None,
+                                fill_rule: FillRule::NonZero,
+                                source: Some(source.clone()),
+                            })
+                        });
                     }
 
                     // A borda pela mesma função que os frames usam, e por isso
@@ -1111,7 +1125,7 @@ impl<'a> LayoutEngine<'a> {
                             border,
                             box_rect,
                             panel.radius,
-                            CornerStyle::Round,
+                            panel.corner,
                             source,
                         ));
                     }
@@ -4053,6 +4067,37 @@ texto disponível aqui."
         let rects = all_rects(&list);
         assert_eq!(rects.len(), 1);
         assert_eq!(rects[0].radius, Corners::all(12.0));
+    }
+
+    #[test]
+    fn a_panel_cuts_its_corner_the_same_way_a_frame_does() {
+        // O callout é `PanelBlock`, não `Frame`: a moldura que flui e quebra
+        // com o texto. Sem isto, o chanfro só valeria para caixa absoluta — e
+        // nenhum bloco didático é caixa absoluta.
+        let Some(list) = layout_json(
+            r##"{
+                "style": {"fontFamily": "body", "fontSize": 12},
+                "pages": [{"frames": [{
+                    "type": "text", "rect": [0, 0, 300, 200],
+                    "blocks": [{
+                        "type": "panel", "fill": "#eeeeee",
+                        "radius": [0, 0, 10, 0], "corner": "cut",
+                        "blocks": [{"type": "paragraph", "content": [
+                            {"type": "text", "text": "conceito"}
+                        ]}]
+                    }]
+                }]}]
+            }"##,
+        ) else {
+            return;
+        };
+        let paths = all_paths(&list);
+        assert_eq!(paths.len(), 1, "o fundo do painel é um caminho");
+        assert!(paths[0].fill.is_some());
+        assert!(
+            !paths[0].commands.iter().any(|c| matches!(c, PathCommand::CurveTo { .. })),
+            "e ele corta em vez de arredondar"
+        );
     }
 
     #[test]

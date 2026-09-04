@@ -327,6 +327,8 @@ pub struct PanelBlock {
     pub border: Option<super::frame::Border>,
     /// Os quatro cantos, no sentido horário a partir do superior esquerdo.
     pub radius: Corners,
+    /// O que o canto faz com o raio: arco, ou corte reto. Ver `Frame::corner`.
+    pub corner: super::frame::CornerStyle,
     /// Espaço entre a moldura e o conteúdo.
     pub inset: Insets,
 
