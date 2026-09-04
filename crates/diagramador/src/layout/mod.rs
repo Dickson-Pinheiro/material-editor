@@ -28,8 +28,8 @@ use crate::fonts::FontRegistry;
 use crate::images::ImageStore;
 use crate::spec::{
     PanelBlock,
-    Block, Border, Document, Frame, FrameContent, ImageFit, ImageFrame, Origin, Overflow, Page,
-    ResolvedStyle, ShapeKind, Style, TextFrame, VerticalAlign,
+    Block, Border, CornerStyle, Document, Frame, FrameContent, ImageFit, ImageFrame, Origin,
+    Overflow, Page, ResolvedStyle, ShapeKind, Sides, Style, TextFrame, VerticalAlign,
 };
 use crate::units::{Corners, PT_PER_PX, Rect};
 
@@ -450,13 +450,29 @@ impl<'a> LayoutEngine<'a> {
         if let Some(fill) = frame.fill
             && !matches!(frame.content, FrameContent::Shape(_))
         {
-            painted.push(DisplayItem::Rect(RectItem {
-                rect: grown,
-                radius: frame.radius,
-                fill: Some(fill),
-                stroke: None,
-                source: Some(source.clone()),
-            }));
+            let cortado = frame.corner == CornerStyle::Cut && !frame.radius.is_zero();
+            let commands = if cortado {
+                cut_outline(grown, frame.radius)
+            } else {
+                Vec::new()
+            };
+            painted.push(if commands.is_empty() {
+                DisplayItem::Rect(RectItem {
+                    rect: grown,
+                    radius: frame.radius,
+                    fill: Some(fill),
+                    stroke: None,
+                    source: Some(source.clone()),
+                })
+            } else {
+                DisplayItem::Path(PathItem {
+                    commands,
+                    fill: Some(fill),
+                    stroke: None,
+                    fill_rule: FillRule::NonZero,
+                    source: Some(source.clone()),
+                })
+            });
         }
 
         let needs_clip = frame.clip
@@ -480,7 +496,13 @@ impl<'a> LayoutEngine<'a> {
         if !matches!(frame.content, FrameContent::Shape(_))
             && let Some(border) = &frame.border
         {
-            painted.extend(border_items(border, grown, frame.radius, &source));
+            painted.extend(border_items(
+                border,
+                grown,
+                frame.radius,
+                frame.corner,
+                &source,
+            ));
         }
 
         let group = DisplayGroup {
@@ -1085,7 +1107,13 @@ impl<'a> LayoutEngine<'a> {
                     // lados estão ligados, uma linha por aresta quando não —
                     // caso em que o arco do canto não tem o que juntar e cai.
                     if let Some(border) = &panel.border {
-                        items.extend(border_items(border, box_rect, panel.radius, source));
+                        items.extend(border_items(
+                            border,
+                            box_rect,
+                            panel.radius,
+                            CornerStyle::Round,
+                            source,
+                        ));
                     }
 
                     items.extend(inner.items);
@@ -1538,6 +1566,7 @@ fn border_items(
     border: &Border,
     rect: Rect,
     radius: Corners,
+    corner: CornerStyle,
     source: &SourceRef,
 ) -> Vec<DisplayItem> {
     if border.width.get() <= 0.0 || border.sides.none() {
@@ -1546,7 +1575,10 @@ fn border_items(
 
     let stroke = stroke_of(border);
 
-    if border.is_uniform() {
+    // O retângulo do display list só sabe arredondar. Um canto cortado sai
+    // como contorno — o mesmo caminho que a borda parcial já usa, e que a tela
+    // e o PDF já sabem pintar.
+    if border.is_uniform() && corner == CornerStyle::Round {
         return vec![DisplayItem::Rect(RectItem {
             rect,
             radius,
@@ -1556,7 +1588,16 @@ fn border_items(
         })];
     }
 
-    partial_border_items(border, rect, radius, &stroke, source)
+    partial_border_items(border, rect, radius, corner, &stroke, source)
+}
+
+/// O contorno fechado da caixa, para preencher um canto que o retângulo não faz.
+fn cut_outline(rect: Rect, radius: Corners) -> Vec<PathCommand> {
+    let mut commands = outline_commands(rect, radius, &Sides::default(), CornerStyle::Cut);
+    if !commands.is_empty() {
+        commands.push(PathCommand::Close);
+    }
+    commands
 }
 
 /// Control-point ratio for a quarter circle drawn as a cubic Bézier.
@@ -1569,9 +1610,11 @@ const KAPPA: f64 = 0.552_284_749_830_793_4;
 /// joins and print a darker pixel there.
 enum Segment {
     Edge { to: (f64, f64) },
-    /// `r` is the corner's radius: at zero the arc is a point, and the two
-    /// edges meet there without a command of their own.
-    Arc { r: f64, c1: (f64, f64), c2: (f64, f64), to: (f64, f64) },
+    /// `r` is the corner's radius: at zero the corner is a point, and the two
+    /// edges meet there without a command of their own. `cut` turns the arc
+    /// into the straight line across the corner — same two tangent points, so
+    /// every edge around it keeps the length it already had.
+    Corner { r: f64, cut: bool, c1: (f64, f64), c2: (f64, f64), to: (f64, f64) },
 }
 
 /// The outline of a border that covers some of the sides, following the radius.
@@ -1579,9 +1622,36 @@ fn partial_border_items(
     border: &Border,
     rect: Rect,
     radius: Corners,
+    corner: CornerStyle,
     stroke: &Stroke,
     source: &SourceRef,
 ) -> Vec<DisplayItem> {
+    let commands = outline_commands(rect, radius, &border.sides, corner);
+    if commands.is_empty() {
+        return Vec::new();
+    }
+    vec![DisplayItem::Path(PathItem {
+        commands,
+        fill: None,
+        stroke: Some(stroke.clone()),
+        fill_rule: FillRule::NonZero,
+        source: Some(source.clone()),
+    })]
+}
+
+/// Os comandos que percorrem o contorno da caixa, no sentido horário.
+///
+/// Um lado entra quando ele próprio está ligado; um canto, quando qualquer um
+/// dos dois lados que ele une está. Preencher pede o anel inteiro; contornar
+/// parcialmente pede só os lados pedidos, e o caminho abre um subcaminho novo a
+/// cada corte.
+fn outline_commands(
+    rect: Rect,
+    radius: Corners,
+    sides: &Sides,
+    corner: CornerStyle,
+) -> Vec<PathCommand> {
+    let cut = corner == CornerStyle::Cut;
     let (x, y) = (rect.x, rect.y);
     let (r, b) = (rect.right(), rect.bottom());
 
@@ -1593,7 +1663,7 @@ fn partial_border_items(
     let br = radius.bottom_right.max(0.0).min(cap);
     let bl = radius.bottom_left.max(0.0).min(cap);
 
-    let s = &border.sides;
+    let s = sides;
 
     // Clockwise from the top edge's left tangent. An edge is drawn when its own
     // side is on; an arc when either of the sides it joins is on.
@@ -1602,8 +1672,9 @@ fn partial_border_items(
         (
             s.top || s.right,
             (r - tr, y),
-            Segment::Arc {
+            Segment::Corner {
                 r: tr,
+                cut,
                 c1: (r - tr + KAPPA * tr, y),
                 c2: (r, y + tr - KAPPA * tr),
                 to: (r, y + tr),
@@ -1613,8 +1684,9 @@ fn partial_border_items(
         (
             s.right || s.bottom,
             (r, b - br),
-            Segment::Arc {
+            Segment::Corner {
                 r: br,
+                cut,
                 c1: (r, b - br + KAPPA * br),
                 c2: (r - br + KAPPA * br, b),
                 to: (r - br, b),
@@ -1624,8 +1696,9 @@ fn partial_border_items(
         (
             s.bottom || s.left,
             (x + bl, b),
-            Segment::Arc {
+            Segment::Corner {
                 r: bl,
+                cut,
                 c1: (x + bl - KAPPA * bl, b),
                 c2: (x, b - bl + KAPPA * bl),
                 to: (x, b - bl),
@@ -1635,8 +1708,9 @@ fn partial_border_items(
         (
             s.left || s.top,
             (x, y + tl),
-            Segment::Arc {
+            Segment::Corner {
                 r: tl,
+                cut,
                 c1: (x, y + tl - KAPPA * tl),
                 c2: (x + tl - KAPPA * tl, y),
                 to: (x + tl, y),
@@ -1656,7 +1730,7 @@ fn partial_border_items(
         // Um arco de raio zero não abre subcaminho por conta própria: ele não
         // desenha, e um `MoveTo` solto antes de um lado que talvez não venha
         // deixaria um comando sem uso.
-        let draws = !matches!(segment, Segment::Arc { r, .. } if r <= 1e-9);
+        let draws = !matches!(segment, Segment::Corner { r, .. } if r <= 1e-9);
 
         // A new subpath whenever the previous segment was off, or ended
         // somewhere else.
@@ -1673,19 +1747,26 @@ fn partial_border_items(
                 commands.push(PathCommand::LineTo { x: to.0, y: to.1 });
                 cursor = Some(to);
             }
-            Segment::Arc { r, c1, c2, to } => {
+            Segment::Corner { r, cut, c1, c2, to } => {
                 // Um canto sem raio não desenha nada: os dois lados se
                 // encontram no ponto, e uma curva degenerada só acrescentaria
                 // um comando que o emissor de PDF teria de escrever à toa.
                 if r > 1e-9 {
-                    commands.push(PathCommand::CurveTo {
-                        x1: c1.0,
-                        y1: c1.1,
-                        x2: c2.0,
-                        y2: c2.1,
-                        x: to.0,
-                        y: to.1,
-                    });
+                    if cut {
+                        // O chanfro liga os mesmos dois pontos de tangência do
+                        // arco. É o que mantém os lados com o comprimento que
+                        // já tinham: trocar de canto não remexe a aresta.
+                        commands.push(PathCommand::LineTo { x: to.0, y: to.1 });
+                    } else {
+                        commands.push(PathCommand::CurveTo {
+                            x1: c1.0,
+                            y1: c1.1,
+                            x2: c2.0,
+                            y2: c2.1,
+                            x: to.0,
+                            y: to.1,
+                        });
+                    }
                     cursor = Some(to);
                 } else if cursor.is_some() {
                     // Só encaminha uma continuidade que já existia. Criá-la do
@@ -1697,17 +1778,7 @@ fn partial_border_items(
         }
     }
 
-    if commands.is_empty() {
-        return Vec::new();
-    }
-
-    vec![DisplayItem::Path(PathItem {
-        commands,
-        fill: None,
-        stroke: Some(stroke.clone()),
-        fill_rule: FillRule::NonZero,
-        source: Some(source.clone()),
-    })]
+    commands
 }
 
 /// Clockwise rotation about the centre of `rect`, as an affine matrix.
@@ -3864,6 +3935,124 @@ texto disponível aqui."
         for rect in &rects {
             assert_eq!(rect.radius, wanted, "every painted box keeps the corners");
         }
+    }
+
+    /// Every path painted on the first page, however deeply nested.
+    fn all_paths(list: &DisplayList) -> Vec<PathItem> {
+        fn walk(items: &[DisplayItem], out: &mut Vec<PathItem>) {
+            for item in items {
+                match item {
+                    DisplayItem::Path(path) => out.push(path.clone()),
+                    DisplayItem::Group(group) => walk(&group.items, out),
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(&list.pages[0].items, &mut out);
+        out
+    }
+
+    fn cut_box(radius: &str, extra: &str) -> Option<DisplayList> {
+        layout_json(&format!(
+            r##"{{
+                "style": {{"fontFamily": "body", "fontSize": 12}},
+                "pages": [{{"frames": [{{
+                    "type": "text", "rect": [0, 0, 200, 100], "blocks": [],
+                    "radius": {radius}, "corner": "cut"{extra}
+                }}]}}]
+            }}"##
+        ))
+    }
+
+    #[test]
+    fn a_cut_corner_fills_as_an_outline_not_a_rectangle() {
+        // O retângulo do display list só arredonda. Um canto cortado tem de
+        // sair como caminho, ou o chanfro some no preenchimento.
+        let Some(list) = cut_box("[0, 0, 12, 0]", r##", "fill": "#ffffff""##) else {
+            return;
+        };
+        assert!(
+            all_rects(&list).is_empty(),
+            "nenhum retângulo pinta a caixa cortada"
+        );
+        let paths = all_paths(&list);
+        assert_eq!(paths.len(), 1, "o fundo é um caminho só");
+        assert!(paths[0].fill.is_some(), "e ele é preenchido");
+    }
+
+    #[test]
+    fn the_cut_replaces_the_arc_and_keeps_the_tangents() {
+        // O chanfro liga os dois pontos de tangência do arco. Se ele mudasse os
+        // pontos, trocar de canto encurtaria as arestas vizinhas.
+        let Some(list) = cut_box("[0, 0, 12, 0]", r##", "fill": "#ffffff""##) else {
+            return;
+        };
+        let commands = &all_paths(&list)[0].commands;
+        assert!(
+            !commands
+                .iter()
+                .any(|c| matches!(c, PathCommand::CurveTo { .. })),
+            "um canto cortado não desenha curva"
+        );
+        // O canto inferior direito da caixa 200×100, com raio 12.
+        let tem = |x: f64, y: f64| {
+            commands.iter().any(|c| match c {
+                PathCommand::LineTo { x: cx, y: cy } | PathCommand::MoveTo { x: cx, y: cy } => {
+                    (cx - x).abs() < 1e-6 && (cy - y).abs() < 1e-6
+                }
+                _ => false,
+            })
+        };
+        assert!(tem(200.0, 88.0), "a tangente de cima do chanfro");
+        assert!(tem(188.0, 100.0), "a tangente de baixo do chanfro");
+    }
+
+    #[test]
+    fn a_cut_corner_without_radius_stays_a_rectangle() {
+        // Sem raio não há canto para cortar, e o caminho custaria mais do que o
+        // retângulo sem mudar um pixel.
+        let Some(list) = cut_box("0", r##", "fill": "#ffffff""##) else {
+            return;
+        };
+        assert_eq!(all_rects(&list).len(), 1, "volta a ser retângulo");
+        assert!(all_paths(&list).is_empty());
+    }
+
+    #[test]
+    fn the_border_follows_the_cut() {
+        let Some(list) = cut_box("[0, 0, 12, 0]", r#", "border": {"width": 1}"#) else {
+            return;
+        };
+        let paths = all_paths(&list);
+        assert_eq!(paths.len(), 1, "a borda inteira sai como um contorno");
+        assert!(paths[0].stroke.is_some());
+        assert!(
+            !paths[0]
+                .commands
+                .iter()
+                .any(|c| matches!(c, PathCommand::CurveTo { .. })),
+            "a borda corta o mesmo canto que o fundo"
+        );
+    }
+
+    #[test]
+    fn round_stays_the_default() {
+        // O documento que não fala de canto tem de sair exatamente como saía.
+        let Some(list) = layout_json(
+            r##"{
+                "style": {"fontFamily": "body", "fontSize": 12},
+                "pages": [{"frames": [{
+                    "type": "text", "rect": [0, 0, 200, 100], "blocks": [],
+                    "radius": 12, "fill": "#ffffff"
+                }]}]
+            }"##,
+        ) else {
+            return;
+        };
+        let rects = all_rects(&list);
+        assert_eq!(rects.len(), 1);
+        assert_eq!(rects[0].radius, Corners::all(12.0));
     }
 
     #[test]

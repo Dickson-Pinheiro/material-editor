@@ -6,8 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::content::Block;
 use super::chart::ChartFrame;
+use super::content::Block;
 use super::style::{Overflow, Style, VerticalAlign};
 use crate::color::Color;
 use crate::units::{Corners, Insets, Len, Rect};
@@ -44,6 +44,19 @@ pub struct Frame {
     /// want and what every document written before corners were separable
     /// says.
     pub radius: Corners,
+    /// How a corner with a radius turns: an arc, or a straight cut.
+    ///
+    /// One flag for the four corners, not four: which corners turn is already
+    /// said by the radius, so a per-corner style would be a second way of
+    /// saying the same thing. A box that cuts only its bottom-right corner —
+    /// the shape didactic concept boxes use — is a radius on that corner alone
+    /// plus `corner: "cut"`.
+    ///
+    /// The cut reaches the fill and the border, which are outlines. It does
+    /// **not** reach `clip`: a clip is a rect plus radii in the display list,
+    /// and giving it an arbitrary outline is a wider change than a chamfer
+    /// justifies. A frame that both clips and cuts clips to the rounded shape.
+    pub corner: CornerStyle,
 
     /// Clip content to the frame box.
     pub clip: bool,
@@ -67,6 +80,7 @@ impl Default for Frame {
             fill: None,
             border: None,
             radius: Corners::ZERO,
+            corner: CornerStyle::default(),
             clip: false,
             visible: true,
             locked: false,
@@ -328,6 +342,17 @@ pub enum ShapeKind {
     Line,
 }
 
+/// What a corner does with its radius.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CornerStyle {
+    /// A quarter-circle arc. What every box did before this existed.
+    #[default]
+    Round,
+    /// A straight line across the corner, consuming the radius on both edges.
+    Cut,
+}
+
 /// A frame whose children are positioned relative to its own origin.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -439,9 +464,8 @@ mod tests {
         assert_eq!(f.as_text().unwrap().columns, 1);
     }
 
-#[test]
+    #[test]
     fn image_frame_parses() {
-
         let json = r#"{"type":"image","rect":[0,0,100,100],"src":"foto.png","fit":"cover"}"#;
         let f: Frame = serde_json::from_str(json).unwrap();
         match &f.content {
@@ -536,7 +560,9 @@ mod tests {
                 assert_eq!(g.children.len(), 1);
                 assert!(matches!(
                     g.children[0].content,
-                    FrameContent::Shape(ShapeFrame { shape: ShapeKind::Ellipse })
+                    FrameContent::Shape(ShapeFrame {
+                        shape: ShapeKind::Ellipse
+                    })
                 ));
             }
             other => panic!("expected group, got {other:?}"),

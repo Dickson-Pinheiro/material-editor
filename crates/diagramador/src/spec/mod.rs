@@ -25,8 +25,8 @@ pub use document::{
     Document, Master, Meta, Page, PageDefaults, PageGeometry, Resources, SCHEMA_VERSION,
 };
 pub use frame::{
-    Border, BorderStyle, Frame, FrameContent, GroupFrame, ImageAlign, ImageFit, ImageFrame,
-    ShapeFrame, ShapeKind, Sides, TextFrame,
+    Border, BorderStyle, CornerStyle, Frame, FrameContent, GroupFrame, ImageAlign, ImageFit,
+    ImageFrame, ShapeFrame, ShapeKind, Sides, TextFrame,
 };
 pub use style::{
     FontStyle, FontWeight, LineHeight, Overflow, ResolvedStyle, Style, TextAlign, TextTransform,
