@@ -18,6 +18,7 @@ use crate::units::Len;
 
 /// A partial style. `None` means "inherit".
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Style {
     /// Name of a style declared in `resources.styles` to inherit from.
@@ -175,6 +176,7 @@ impl<'de> Deserialize<'de> for FontWeight {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum FontStyle {
     #[default]
@@ -192,6 +194,7 @@ impl FontStyle {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum TextAlign {
     #[default]
@@ -202,6 +205,7 @@ pub enum TextAlign {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum TextTransform {
     #[default]
@@ -238,6 +242,7 @@ fn capitalize_words(text: &str) -> String {
 
 /// Vertical placement of content inside a frame.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum VerticalAlign {
     #[default]
@@ -250,6 +255,7 @@ pub enum VerticalAlign {
 
 /// What to do with content that does not fit in its frame.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum Overflow {
     /// Drop it, and report the frame as overset (InDesign's red `+`).

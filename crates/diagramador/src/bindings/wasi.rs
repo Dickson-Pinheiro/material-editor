@@ -229,9 +229,9 @@ pub unsafe extern "C" fn dgm_layout(json_ptr: *const u8, json_len: u32) -> i32 {
         return fail(ERR_INVALID_ARGUMENT, "o JSON do documento não é UTF-8");
     };
 
-    let document: Document = match serde_json::from_str(json) {
+    let document: Document = match crate::spec::parse_document(json) {
         Ok(document) => document,
-        Err(error) => return fail(ERR_PARSE, format!("documento inválido: {error}")),
+        Err(error) => return fail(ERR_PARSE, error),
     };
 
     let list = ENGINE.with(|engine| engine.borrow().layout(&document));
@@ -252,9 +252,9 @@ pub unsafe extern "C" fn dgm_render_pdf(json_ptr: *const u8, json_len: u32) -> i
         return fail(ERR_INVALID_ARGUMENT, "o JSON do documento não é UTF-8");
     };
 
-    let document: Document = match serde_json::from_str(json) {
+    let document: Document = match crate::spec::parse_document(json) {
         Ok(document) => document,
-        Err(error) => return fail(ERR_PARSE, format!("documento inválido: {error}")),
+        Err(error) => return fail(ERR_PARSE, error),
     };
 
     ENGINE.with(|engine| match engine.borrow().render_pdf(&document) {

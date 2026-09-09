@@ -29,7 +29,7 @@ thread_local! {
 }
 
 fn parse(json: &str) -> Result<Document, JsError> {
-    serde_json::from_str(json).map_err(|e| JsError::new(&format!("documento inválido: {e}")))
+    crate::spec::parse_document(json).map_err(|e| JsError::new(&e))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -30,6 +30,7 @@ pub const DISPLAY_VERSION: u32 = 1;
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct DisplayList {
     pub version: u32,
@@ -70,6 +71,7 @@ impl DisplayList {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayFont {
     /// Matches [`crate::fonts::FontId`].
@@ -86,6 +88,7 @@ pub struct DisplayFont {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct DisplayPage {
     pub index: u32,
@@ -103,6 +106,7 @@ pub struct DisplayPage {
 
 /// A frame as the editor sees it: a selectable, draggable box.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayFrame {
     pub id: String,
@@ -124,6 +128,7 @@ pub struct DisplayFrame {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum DisplayItem {
     /// A nested coordinate space: transform, clip and opacity applied together.
@@ -137,6 +142,7 @@ pub enum DisplayItem {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct DisplayGroup {
     pub source: Option<SourceRef>,
@@ -162,6 +168,7 @@ impl DisplayGroup {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ClipShape {
     pub rect: Rect,
@@ -170,6 +177,7 @@ pub struct ClipShape {
 
 /// A sequence of positioned glyphs sharing one font, size and colour.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct GlyphRun {
     /// Index into [`DisplayList::fonts`].
@@ -189,6 +197,7 @@ pub struct GlyphRun {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Glyph {
     /// Glyph id in the original (un-subsetted) face.
@@ -204,6 +213,7 @@ pub struct Glyph {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct RectItem {
     pub rect: Rect,
@@ -223,6 +233,7 @@ pub struct RectItem {
 /// the same space as every other item. The PDF emitter flips once, at the
 /// boundary, exactly as it does for rectangles.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct PathItem {
     pub commands: Vec<PathCommand>,
@@ -240,6 +251,7 @@ pub struct PathItem {
 /// get right in the PDF emitter and one in the canvas renderer, rather than a
 /// family of them to keep in agreement.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum PathCommand {
     MoveTo { x: f64, y: f64 },
@@ -271,6 +283,7 @@ impl PathCommand {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum FillRule {
     #[default]
@@ -279,6 +292,7 @@ pub enum FillRule {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct EllipseItem {
     pub rect: Rect,
@@ -288,6 +302,7 @@ pub struct EllipseItem {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct LineItem {
     pub x1: f64,
@@ -299,6 +314,7 @@ pub struct LineItem {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ImageItem {
     /// Key registered through `add_image`.
@@ -310,6 +326,7 @@ pub struct ImageItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct Stroke {
     pub color: Color,
@@ -339,6 +356,7 @@ impl Default for Stroke {
 /// A's block and inline indices, with `offset` advanced accordingly — so the
 /// editor writes back to the right place no matter which frame was clicked.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct SourceRef {
     pub page: u32,
@@ -369,6 +387,7 @@ pub struct SourceRef {
 
 /// One step down into a table.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct CellStep {
     /// Index of the table block in the list that holds it.
@@ -404,6 +423,7 @@ impl SourceRef {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct Diagnostic {
     pub severity: Severity,
@@ -439,6 +459,7 @@ impl Diagnostic {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum Severity {
     Info,

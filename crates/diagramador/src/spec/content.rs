@@ -114,6 +114,7 @@ impl<'de> Deserialize<'de> for TrackSize {
 /// around it: it follows the paragraph before it, and when the page runs out
 /// it continues on the next one.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct TableBlock {
     /// One entry per column. An empty list means the columns are inferred
@@ -157,6 +158,7 @@ pub struct TableBlock {
 
 /// Rows that repeat when the table breaks across pages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct RepeatRows {
     /// How many rows from the top — or, for a footer, from the bottom.
@@ -179,6 +181,7 @@ pub struct RepeatRows {
 
 /// One cell.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Cell {
     /// Explicit column. Absent means the next free slot, filling row by row.
@@ -250,6 +253,7 @@ impl Default for Stripe {
 
 /// A rule drawn along a grid line, independent of the cells.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct GridLine {
     /// `horizontal` runs along a row boundary, `vertical` along a column one.
@@ -271,6 +275,7 @@ pub struct GridLine {
 /// while a cell is the other way round. Sharing one enum would mean two
 /// values that are meaningless wherever they are read.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum CellAlign {
     #[default]
@@ -284,6 +289,7 @@ pub enum CellAlign {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum GridAxis {
     #[default]
@@ -293,6 +299,7 @@ pub enum GridAxis {
 
 /// Alternating row fills.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Stripe {
     /// Fill one row in every `every`.
@@ -319,6 +326,7 @@ pub struct Stripe {
 /// borda tinha de ser escrita como quatro linhas de grade, que duas caixas
 /// vizinhas então compartilhavam.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct PanelBlock {
     pub blocks: Vec<Block>,
@@ -411,6 +419,7 @@ impl Block {
 impl<'de> Deserialize<'de> for Block {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         #[serde(tag = "type", rename_all = "camelCase")]
         enum Tagged {
             Paragraph(Paragraph),
@@ -424,6 +433,7 @@ impl<'de> Deserialize<'de> for Block {
         }
 
         #[derive(Deserialize)]
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         #[serde(untagged)]
         enum Repr {
             Shorthand(String),
@@ -446,6 +456,7 @@ impl<'de> Deserialize<'de> for Block {
 
 /// A run of inline content laid out as a sequence of lines.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Paragraph {
     /// Stable identity, echoed into the display list so the editor can map a
@@ -504,6 +515,7 @@ impl Paragraph {
 
 /// A label placed before a paragraph — bullet, number, letter, anything.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Marker {
     pub text: String,
@@ -529,6 +541,7 @@ impl Default for Marker {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct RuleBlock {
     pub thickness: Option<Len>,
@@ -539,6 +552,7 @@ pub struct RuleBlock {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct SpacerBlock {
     pub height: Len,
@@ -583,6 +597,7 @@ impl Inline {
 impl<'de> Deserialize<'de> for Inline {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         #[serde(tag = "type", rename_all = "camelCase")]
         enum Tagged {
             Text(TextRun),
@@ -594,6 +609,7 @@ impl<'de> Deserialize<'de> for Inline {
         }
 
         #[derive(Deserialize)]
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         #[serde(untagged)]
         enum Repr {
             Shorthand(String),
@@ -613,6 +629,7 @@ impl<'de> Deserialize<'de> for Inline {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct TextRun {
     pub text: String,
@@ -625,6 +642,7 @@ pub struct TextRun {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Tab {
     /// Absolute x position within the column to advance to. When absent, the
@@ -634,12 +652,14 @@ pub struct Tab {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct SpaceRun {
     pub width: Len,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct InlineImage {
     /// Key registered through `add_image`.
@@ -651,6 +671,7 @@ pub struct InlineImage {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct InlineRule {
     /// Absent means "fill the rest of the line".

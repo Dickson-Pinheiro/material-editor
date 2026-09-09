@@ -1,0 +1,16 @@
+{
+  "note": "As faces que o lize registra no motor, sob os nomes de família que os documentos usam. Uma tabela só: o frontend, o backend e o crate leem daqui.",
+  "families": {
+    "corpo": "leitura (Roboto)",
+    "titulo": "exibição (IBM Plex Sans)"
+  },
+  "faces": [
+    { "family": "corpo",  "file": "Roboto-Regular.ttf",    "weight": 400, "italic": false },
+    { "family": "corpo",  "file": "Roboto-Medium.ttf",     "weight": 500, "italic": false },
+    { "family": "corpo",  "file": "Roboto-Bold.ttf",       "weight": 700, "italic": false },
+    { "family": "corpo",  "file": "Roboto-Italic.ttf",     "weight": 400, "italic": true },
+    { "family": "corpo",  "file": "Roboto-BoldItalic.ttf", "weight": 700, "italic": true },
+    { "family": "titulo", "file": "IBMPlexSans-Regular.ttf", "weight": 400, "italic": false },
+    { "family": "titulo", "file": "IBMPlexSans-Bold.ttf",    "weight": 700, "italic": false }
+  ]
+}

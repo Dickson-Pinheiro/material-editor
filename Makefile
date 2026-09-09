@@ -1,4 +1,4 @@
-.PHONY: help build build-browser build-wasi test test-all example clean size fmt lint editor demo demo-serve
+.PHONY: help build build-browser build-wasi schema dist test test-all example clean size fmt lint editor demo demo-serve
 
 CRATE      := diagramador
 WASM_NAME  := diagramador
@@ -6,6 +6,8 @@ BROWSER_FEATURES := browser,images
 WASI_FEATURES    := wasi-lib,images
 PKG        := packages/editor/src/wasm
 DIST       := packages/editor/dist
+## Everything a consumer copies: both wasm targets, the schemas, the fonts.
+OUT        := dist
 ## Subpath the demo will be served from. GitHub Pages uses /<repo>/.
 BASE_PATH  ?= /
 
@@ -13,6 +15,8 @@ help:
 	@echo "make build          — both wasm targets"
 	@echo "make build-browser  — wasm-bindgen bundle for the editor  → $(PKG)/"
 	@echo "make build-wasi     — C-ABI module for Python/Go          → wasm/"
+	@echo "make schema         — JSON Schema of the formats          → schema/"
+	@echo "make dist           — wasm + schema + fonts + PIN         → $(OUT)/"
 	@echo "make test           — rust unit tests"
 	@echo "make example        — render examples/material.json to out.pdf"
 	@echo "make editor         — run the browser editor (needs make build-browser first)"
@@ -51,6 +55,24 @@ build-wasi:
 	    wasm/$(WASM_NAME).wasm -o wasm/$(WASM_NAME).wasm; \
 	fi
 	@echo "→ wasm/$(WASM_NAME).wasm"
+
+## JSON Schema of the document and of the display list, generated from the
+## Rust types. The consumers generate their TypeScript and Pydantic from it.
+schema:
+	cargo run --quiet --example schema --features schema
+
+## The package a consumer syncs from. `PIN.txt` records which commit built it.
+dist: build-browser build-wasi schema
+	rm -rf $(OUT)
+	mkdir -p $(OUT)/browser $(OUT)/wasi $(OUT)/schema $(OUT)/fonts
+	cp $(PKG)/$(WASM_NAME).js $(PKG)/$(WASM_NAME).d.ts $(PKG)/$(WASM_NAME)_bg.wasm $(PKG)/$(WASM_NAME)_bg.wasm.d.ts $(OUT)/browser/
+	cp wasm/$(WASM_NAME).wasm $(OUT)/wasi/
+	cp schema/*.json $(OUT)/schema/
+	cp fonts/lize/*.ttf fonts/lize/fonts.json $(OUT)/fonts/
+	@{ printf "%s%s\n" "$$(git rev-parse HEAD)" "$$(git diff --quiet HEAD -- crates fonts schema Makefile || echo -dirty)"; echo "built $$(date -Iseconds)"; \
+	   echo "schema $$(sha256sum schema/document.schema.json | cut -c1-16)"; } > $(OUT)/PIN.txt
+	@cat $(OUT)/PIN.txt
+	@echo "→ $(OUT)/"
 
 # ─── Test ─────────────────────────────────────────────────────────────────────
 
@@ -113,4 +135,4 @@ size:
 
 clean:
 	cargo clean
-	rm -rf $(PKG) wasm out.pdf
+	rm -rf $(PKG) wasm out.pdf $(OUT)

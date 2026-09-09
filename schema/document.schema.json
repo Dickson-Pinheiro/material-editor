@@ -1,0 +1,3383 @@
+{
+  "$defs": {
+    "Axes": {
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/Axis",
+          "default": {
+            "grid": false,
+            "ticks": null,
+            "title": null,
+            "visible": true
+          }
+        },
+        "y": {
+          "$ref": "#/$defs/Axis",
+          "default": {
+            "grid": false,
+            "ticks": null,
+            "title": null,
+            "visible": true
+          }
+        }
+      },
+      "type": "object"
+    },
+    "Axis": {
+      "description": "One axis.",
+      "properties": {
+        "grid": {
+          "default": false,
+          "description": "Rules across the plot at every mark.",
+          "type": "boolean"
+        },
+        "ticks": {
+          "default": null,
+          "description": "Roughly how many marks to aim for. The real count is whatever lands on\nround numbers near it.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "default": null,
+          "description": "Overrides the channel's title.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "Block": {
+      "anyOf": [
+        {
+          "description": "Shorthand for a paragraph holding this text.",
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/BlockObject"
+        }
+      ]
+    },
+    "BlockObject": {
+      "description": "The object form of [`Block`]. The string form is a paragraph of that text.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Paragraph"
+        },
+        {
+          "$ref": "#/$defs/RuleBlock"
+        },
+        {
+          "$ref": "#/$defs/SpacerBlock"
+        },
+        {
+          "$ref": "#/$defs/FrameBreak"
+        },
+        {
+          "$ref": "#/$defs/ColumnBreak"
+        },
+        {
+          "$ref": "#/$defs/PageBreak"
+        },
+        {
+          "$ref": "#/$defs/TableBlock"
+        },
+        {
+          "$ref": "#/$defs/PanelBlock"
+        }
+      ]
+    },
+    "Border": {
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/Color",
+          "default": "#000000"
+        },
+        "sides": {
+          "$ref": "#/$defs/Sides",
+          "default": {
+            "bottom": true,
+            "left": true,
+            "right": true,
+            "top": true
+          },
+          "description": "Which edges to draw. All four by default."
+        },
+        "style": {
+          "$ref": "#/$defs/BorderStyle",
+          "default": "solid"
+        },
+        "width": {
+          "$ref": "#/$defs/Len",
+          "default": 1.0
+        }
+      },
+      "type": "object"
+    },
+    "BorderStyle": {
+      "enum": [
+        "solid",
+        "dashed",
+        "dotted"
+      ],
+      "type": "string"
+    },
+    "Box": {
+      "description": "The frame's own box blocks the text.",
+      "properties": {
+        "kind": {
+          "const": "box",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "Break": {
+      "properties": {
+        "type": {
+          "const": "break",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Cell": {
+      "description": "One cell.",
+      "properties": {
+        "blocks": {
+          "default": [],
+          "description": "A cell holds blocks, not a string: two paragraphs and a rule inside one\ncell is ordinary in teaching material, and this way the whole of\n`flow_blocks` is reused rather than a second text path invented.",
+          "items": {
+            "$ref": "#/$defs/Block"
+          },
+          "type": "array"
+        },
+        "colspan": {
+          "default": 1,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "inset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Insets"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rowspan": {
+          "default": 1,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "use": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verticalAlign": {
+          "$ref": "#/$defs/CellAlign",
+          "default": "top"
+        },
+        "x": {
+          "default": null,
+          "description": "Explicit column. Absent means the next free slot, filling row by row.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "y": {
+          "default": null,
+          "description": "Explicit row.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "CellAlign": {
+      "description": "Where a cell's content sits in the space its row gives it.\n\nA vocabulary of its own rather than the frame's `VerticalAlign`: a frame\ncan justify its paragraphs and has nothing to align a baseline *with*,\nwhile a cell is the other way round. Sharing one enum would mean two\nvalues that are meaningless wherever they are read.",
+      "oneOf": [
+        {
+          "enum": [
+            "top",
+            "middle",
+            "bottom"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "baseline",
+          "description": "The cell's first line sits on the same baseline as the other cells in\nits row that ask for the same. The CSS rule, and the one that makes a\ntable of headings and numbers read straight when the type sizes differ.",
+          "type": "string"
+        }
+      ]
+    },
+    "Channel": {
+      "description": "A field, and what it drives.",
+      "properties": {
+        "field": {
+          "default": "",
+          "description": "Name of the field in the data.",
+          "type": "string"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FieldKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the field means. Absent means \"read it off the data\", which is\nonly ever asked when the answer is not in doubt: a field holding no\nnumbers at all cannot go on a continuous scale, so it is categorical.\n\nOptional rather than defaulting to quantitative, because the default\nwas wrong in the commonest case there is. `{\"field\": \"mes\"}` over\nmonths is what anyone writes first, and reading it as a quantity gave\na numeric axis over text and a bar chart with nothing to stand on."
+        },
+        "scale": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScaleSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "default": null,
+          "description": "Shown beside the axis. Absent means the field's own name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ChartFrame": {
+      "description": "A chart.",
+      "properties": {
+        "axes": {
+          "$ref": "#/$defs/Axes",
+          "default": {
+            "x": {
+              "grid": false,
+              "ticks": null,
+              "title": null,
+              "visible": true
+            },
+            "y": {
+              "grid": false,
+              "ticks": null,
+              "title": null,
+              "visible": true
+            }
+          }
+        },
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clip": {
+          "default": false,
+          "description": "Clip content to the frame box.",
+          "type": "boolean"
+        },
+        "corner": {
+          "$ref": "#/$defs/CornerStyle",
+          "default": "round",
+          "description": "How a corner with a radius turns: an arc, or a straight cut.\n\nOne flag for the four corners, not four: which corners turn is already\nsaid by the radius, so a per-corner style would be a second way of\nsaying the same thing. A box that cuts only its bottom-right corner —\nthe shape didactic concept boxes use — is a radius on that corner alone\nplus `corner: \"cut\"`.\n\nThe cut reaches the fill and the border, which are outlines. It does\n**not** reach `clip`: a clip is a rect plus radii in the display list,\nand giving it an arbitrary outline is a wider change than a chamfer\njustifies. A frame that both clips and cuts clips to the rounded shape."
+        },
+        "data": {
+          "default": [],
+          "description": "Inline observations. Ignored when `dataset` is set.",
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/$defs/Value"
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "dataset": {
+          "default": null,
+          "description": "Sugar: pull the rows from `resources.data` instead of `data`.\n\nThe same pair `blocks` and `story` already are on a text frame, and for\nthe same reason: two charts of the same numbers should not be two\ncopies of the numbers. Called `dataset` and not `series`, because a\nseries is one line inside a chart and confusing the two would cost an\nexplanation every time.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "encoding": {
+          "$ref": "#/$defs/Encoding",
+          "default": {
+            "color": null,
+            "x": {
+              "field": "",
+              "kind": null,
+              "scale": null,
+              "title": null
+            },
+            "y": {
+              "field": "",
+              "kind": null,
+              "scale": null,
+              "title": null
+            }
+          }
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "follow": {
+          "$ref": "#/$defs/Follow",
+          "default": {
+            "h": false,
+            "w": false,
+            "x": false,
+            "y": false
+          },
+          "description": "Inside a component: how this frame follows an instance drawn at a\nsize other than the one the component was designed at."
+        },
+        "id": {
+          "default": null,
+          "description": "Stable identity. Auto-assigned during validation when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "legend": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Legend"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "locked": {
+          "default": false,
+          "description": "Not selectable in the editor.",
+          "type": "boolean"
+        },
+        "mark": {
+          "$ref": "#/$defs/Mark",
+          "default": "bar"
+        },
+        "name": {
+          "default": null,
+          "description": "Human-facing label shown in the editor's layer list.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "padding": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0,
+            "top": 0.0
+          },
+          "description": "Inner spacing between the frame box and its content."
+        },
+        "palette": {
+          "default": [],
+          "description": "Colours for the series, in order. Absent means the built-in palette.",
+          "items": {
+            "$ref": "#/$defs/Color"
+          },
+          "type": "array"
+        },
+        "radius": {
+          "$ref": "#/$defs/Corners",
+          "default": 0.0,
+          "description": "Corner radii in points, clockwise from the top-left.\n\nA bare number still rounds all four the same, which is what most boxes\nwant and what every document written before corners were separable\nsays."
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "rotation": {
+          "default": 0.0,
+          "description": "Clockwise rotation in degrees, about the frame's centre.",
+          "format": "double",
+          "type": "number"
+        },
+        "slot": {
+          "default": null,
+          "description": "Inside a component: the slot this frame receives. An instance's slot\nof that name replaces a text frame's `blocks` or an image frame's\n`src`. Meaningless outside `resources.components`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "chart",
+          "type": "string"
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Color": {
+      "description": "A CSS colour: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb()/rgba(), a named colour, or \"@name\" for an entry of resources.colors.",
+      "type": "string"
+    },
+    "ColumnBreak": {
+      "properties": {
+        "type": {
+          "const": "columnBreak",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Component": {
+      "description": "A reusable group of frames with named slots.\n\nThe frames are positioned from the component's own top-left corner, at\nthe `size` the component was designed at. An instance may be drawn at\nanother size; each frame's [`Follow`](super::frame::Follow) says how it\nmoves or stretches with the difference.",
+      "properties": {
+        "description": {
+          "default": null,
+          "description": "What this block is for, in the author's words — the writer model reads it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "frames": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Frame"
+          },
+          "type": "array"
+        },
+        "label": {
+          "default": null,
+          "description": "Human-facing label shown in the editor's component list.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size": {
+          "default": [
+            0.0,
+            0.0
+          ],
+          "description": "`[width, height]` the frames were designed at.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "Contour": {
+      "description": "A silhouette blocks the text.\n\n`points` is a closed ring in `0..1` coordinates relative to the\nframe's rect, so it survives resizing the frame. It is stored as a\nring rather than a pixel mask because a document is authored, edited\nand diffed by people.",
+      "properties": {
+        "kind": {
+          "const": "contour",
+          "type": "string"
+        },
+        "points": {
+          "items": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "points"
+      ],
+      "type": "object"
+    },
+    "CornerStyle": {
+      "description": "What a corner does with its radius.",
+      "oneOf": [
+        {
+          "const": "round",
+          "description": "A quarter-circle arc. What every box did before this existed.",
+          "type": "string"
+        },
+        {
+          "const": "cut",
+          "description": "A straight line across the corner, consuming the radius on both edges.",
+          "type": "string"
+        }
+      ]
+    },
+    "Corners": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/Len"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/Len"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bottomLeft": {
+              "$ref": "#/$defs/Len"
+            },
+            "bottomRight": {
+              "$ref": "#/$defs/Len"
+            },
+            "topLeft": {
+              "$ref": "#/$defs/Len"
+            },
+            "topRight": {
+              "$ref": "#/$defs/Len"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "description": "Corner radii clockwise from the top-left: one value, [tl, tr], [tl, tr, br, bl], or a map. Nothing means square corners."
+    },
+    "Encoding": {
+      "description": "Which field drives which visual channel.",
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Channel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Splits the data into series, one colour each."
+        },
+        "x": {
+          "$ref": "#/$defs/Channel",
+          "default": {
+            "field": "",
+            "kind": null,
+            "scale": null,
+            "title": null
+          }
+        },
+        "y": {
+          "$ref": "#/$defs/Channel",
+          "default": {
+            "field": "",
+            "kind": null,
+            "scale": null,
+            "title": null
+          }
+        }
+      },
+      "type": "object"
+    },
+    "FieldKind": {
+      "description": "What a field means, which is what decides its scale.",
+      "oneOf": [
+        {
+          "const": "quantitative",
+          "description": "A number, on a continuous scale.",
+          "type": "string"
+        },
+        {
+          "const": "categorical",
+          "description": "A name, one band or one position each.",
+          "type": "string"
+        }
+      ]
+    },
+    "Follow": {
+      "description": "How a component's frame tracks the instance's size.\n\nThe difference between the instance rect and the component's `size` is\n`dw × dh`. A frame with `x` shifts right by `dw`; with `w` it grows by\n`dw`; likewise `y` and `h`. A title band therefore says `{ \"w\": true }`,\nthe body says `{ \"w\": true, \"h\": true }`, and a badge pinned to the\nbottom-right says `{ \"x\": true, \"y\": true }`.",
+      "properties": {
+        "h": {
+          "default": false,
+          "type": "boolean"
+        },
+        "w": {
+          "default": false,
+          "type": "boolean"
+        },
+        "x": {
+          "default": false,
+          "type": "boolean"
+        },
+        "y": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "FontStyle": {
+      "oneOf": [
+        {
+          "enum": [
+            "normal",
+            "italic"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "oblique",
+          "description": "Treated as italic when the family has no separate oblique face.",
+          "type": "string"
+        }
+      ]
+    },
+    "FontWeight": {
+      "anyOf": [
+        {
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "enum": [
+            "thin",
+            "extralight",
+            "ultralight",
+            "light",
+            "normal",
+            "regular",
+            "book",
+            "medium",
+            "semibold",
+            "demibold",
+            "bold",
+            "extrabold",
+            "ultrabold",
+            "black",
+            "heavy"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "Frame": {
+      "description": "A positioned box on a page.\n\n`rect` is in points, measured from the top-left corner of the **page**\n(not the margin box), with `y` growing downward. Inside a group, it is\nmeasured from the group's own top-left corner.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextFrame"
+        },
+        {
+          "$ref": "#/$defs/ImageFrame"
+        },
+        {
+          "$ref": "#/$defs/ShapeFrame"
+        },
+        {
+          "$ref": "#/$defs/GroupFrame"
+        },
+        {
+          "$ref": "#/$defs/ChartFrame"
+        },
+        {
+          "$ref": "#/$defs/InstanceFrame"
+        }
+      ]
+    },
+    "FrameBreak": {
+      "properties": {
+        "type": {
+          "const": "frameBreak",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "GridAxis": {
+      "enum": [
+        "horizontal",
+        "vertical"
+      ],
+      "type": "string"
+    },
+    "GridLine": {
+      "description": "A rule drawn along a grid line, independent of the cells.",
+      "properties": {
+        "at": {
+          "default": 0,
+          "description": "Which boundary: 0 is before the first track, `n` is after the last.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "axis": {
+          "$ref": "#/$defs/GridAxis",
+          "default": "horizontal",
+          "description": "`horizontal` runs along a row boundary, `vertical` along a column one."
+        },
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "from": {
+          "default": null,
+          "description": "Track index the rule starts at; absent means the first.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "default": null,
+          "description": "Track index the rule stops before; absent means past the last.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "width": {
+          "$ref": "#/$defs/Len",
+          "default": 0.0
+        }
+      },
+      "type": "object"
+    },
+    "GroupFrame": {
+      "description": "A frame whose children are positioned relative to its own origin.",
+      "properties": {
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Frame"
+          },
+          "type": "array"
+        },
+        "clip": {
+          "default": false,
+          "description": "Clip content to the frame box.",
+          "type": "boolean"
+        },
+        "corner": {
+          "$ref": "#/$defs/CornerStyle",
+          "default": "round",
+          "description": "How a corner with a radius turns: an arc, or a straight cut.\n\nOne flag for the four corners, not four: which corners turn is already\nsaid by the radius, so a per-corner style would be a second way of\nsaying the same thing. A box that cuts only its bottom-right corner —\nthe shape didactic concept boxes use — is a radius on that corner alone\nplus `corner: \"cut\"`.\n\nThe cut reaches the fill and the border, which are outlines. It does\n**not** reach `clip`: a clip is a rect plus radii in the display list,\nand giving it an arbitrary outline is a wider change than a chamfer\njustifies. A frame that both clips and cuts clips to the rounded shape."
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "follow": {
+          "$ref": "#/$defs/Follow",
+          "default": {
+            "h": false,
+            "w": false,
+            "x": false,
+            "y": false
+          },
+          "description": "Inside a component: how this frame follows an instance drawn at a\nsize other than the one the component was designed at."
+        },
+        "id": {
+          "default": null,
+          "description": "Stable identity. Auto-assigned during validation when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "locked": {
+          "default": false,
+          "description": "Not selectable in the editor.",
+          "type": "boolean"
+        },
+        "name": {
+          "default": null,
+          "description": "Human-facing label shown in the editor's layer list.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "padding": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0,
+            "top": 0.0
+          },
+          "description": "Inner spacing between the frame box and its content."
+        },
+        "radius": {
+          "$ref": "#/$defs/Corners",
+          "default": 0.0,
+          "description": "Corner radii in points, clockwise from the top-left.\n\nA bare number still rounds all four the same, which is what most boxes\nwant and what every document written before corners were separable\nsays."
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "rotation": {
+          "default": 0.0,
+          "description": "Clockwise rotation in degrees, about the frame's centre.",
+          "format": "double",
+          "type": "number"
+        },
+        "slot": {
+          "default": null,
+          "description": "Inside a component: the slot this frame receives. An instance's slot\nof that name replaces a text frame's `blocks` or an image frame's\n`src`. Meaningless outside `resources.components`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "const": "group",
+          "type": "string"
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "ImageAlign": {
+      "enum": [
+        "topLeft",
+        "top",
+        "topRight",
+        "left",
+        "center",
+        "right",
+        "bottomLeft",
+        "bottom",
+        "bottomRight"
+      ],
+      "type": "string"
+    },
+    "ImageFit": {
+      "oneOf": [
+        {
+          "const": "contain",
+          "description": "Scale to fit entirely inside, preserving the aspect ratio.",
+          "type": "string"
+        },
+        {
+          "const": "cover",
+          "description": "Scale to cover the whole frame, preserving the ratio, cropping the rest.",
+          "type": "string"
+        },
+        {
+          "const": "stretch",
+          "description": "Ignore the aspect ratio and fill the frame exactly.",
+          "type": "string"
+        },
+        {
+          "const": "none",
+          "description": "Draw at natural size.",
+          "type": "string"
+        }
+      ]
+    },
+    "ImageFrame": {
+      "description": "A frame that draws a raster image.",
+      "properties": {
+        "align": {
+          "$ref": "#/$defs/ImageAlign",
+          "default": "center",
+          "description": "Placement of the image inside the frame when `fit` leaves slack."
+        },
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clip": {
+          "default": false,
+          "description": "Clip content to the frame box.",
+          "type": "boolean"
+        },
+        "corner": {
+          "$ref": "#/$defs/CornerStyle",
+          "default": "round",
+          "description": "How a corner with a radius turns: an arc, or a straight cut.\n\nOne flag for the four corners, not four: which corners turn is already\nsaid by the radius, so a per-corner style would be a second way of\nsaying the same thing. A box that cuts only its bottom-right corner —\nthe shape didactic concept boxes use — is a radius on that corner alone\nplus `corner: \"cut\"`.\n\nThe cut reaches the fill and the border, which are outlines. It does\n**not** reach `clip`: a clip is a rect plus radii in the display list,\nand giving it an arbitrary outline is a wider change than a chamfer\njustifies. A frame that both clips and cuts clips to the rounded shape."
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fit": {
+          "$ref": "#/$defs/ImageFit",
+          "default": "contain"
+        },
+        "follow": {
+          "$ref": "#/$defs/Follow",
+          "default": {
+            "h": false,
+            "w": false,
+            "x": false,
+            "y": false
+          },
+          "description": "Inside a component: how this frame follows an instance drawn at a\nsize other than the one the component was designed at."
+        },
+        "id": {
+          "default": null,
+          "description": "Stable identity. Auto-assigned during validation when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "locked": {
+          "default": false,
+          "description": "Not selectable in the editor.",
+          "type": "boolean"
+        },
+        "name": {
+          "default": null,
+          "description": "Human-facing label shown in the editor's layer list.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "padding": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0,
+            "top": 0.0
+          },
+          "description": "Inner spacing between the frame box and its content."
+        },
+        "radius": {
+          "$ref": "#/$defs/Corners",
+          "default": 0.0,
+          "description": "Corner radii in points, clockwise from the top-left.\n\nA bare number still rounds all four the same, which is what most boxes\nwant and what every document written before corners were separable\nsays."
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "rotation": {
+          "default": 0.0,
+          "description": "Clockwise rotation in degrees, about the frame's centre.",
+          "format": "double",
+          "type": "number"
+        },
+        "slot": {
+          "default": null,
+          "description": "Inside a component: the slot this frame receives. An instance's slot\nof that name replaces a text frame's `blocks` or an image frame's\n`src`. Meaningless outside `resources.components`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "src": {
+          "default": "",
+          "description": "Key registered through `add_image`.",
+          "type": "string"
+        },
+        "type": {
+          "const": "image",
+          "type": "string"
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        },
+        "wrap": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Wrap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How this frame pushes text aside. Absent means it does not."
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Inline": {
+      "anyOf": [
+        {
+          "description": "Shorthand for a text run.",
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/InlineObject"
+        }
+      ]
+    },
+    "InlineImage": {
+      "properties": {
+        "baseline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Offset of the image bottom from the text baseline."
+        },
+        "height": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "src": {
+          "default": "",
+          "description": "Key registered through `add_image`.",
+          "type": "string"
+        },
+        "type": {
+          "const": "image",
+          "type": "string"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "InlineObject": {
+      "description": "The object form of [`Inline`]. The string form is a text run.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextRun"
+        },
+        {
+          "$ref": "#/$defs/Break"
+        },
+        {
+          "$ref": "#/$defs/Tab"
+        },
+        {
+          "$ref": "#/$defs/SpaceRun"
+        },
+        {
+          "$ref": "#/$defs/InlineImage"
+        },
+        {
+          "$ref": "#/$defs/InlineRule"
+        }
+      ]
+    },
+    "InlineRule": {
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Distance below the baseline. Defaults to the font's underline position."
+        },
+        "thickness": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "rule",
+          "type": "string"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Absent means \"fill the rest of the line\"."
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Insets": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Len"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/Len"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bottom": {
+              "$ref": "#/$defs/Len"
+            },
+            "left": {
+              "$ref": "#/$defs/Len"
+            },
+            "right": {
+              "$ref": "#/$defs/Len"
+            },
+            "top": {
+              "$ref": "#/$defs/Len"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "description": "CSS shorthand: one value, [vertical, horizontal], [top, right, bottom, left], or { top, right, bottom, left }."
+    },
+    "InstanceFrame": {
+      "description": "A placed copy of a component.",
+      "properties": {
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clip": {
+          "default": false,
+          "description": "Clip content to the frame box.",
+          "type": "boolean"
+        },
+        "component": {
+          "default": "",
+          "description": "Key of `resources.components`.",
+          "type": "string"
+        },
+        "corner": {
+          "$ref": "#/$defs/CornerStyle",
+          "default": "round",
+          "description": "How a corner with a radius turns: an arc, or a straight cut.\n\nOne flag for the four corners, not four: which corners turn is already\nsaid by the radius, so a per-corner style would be a second way of\nsaying the same thing. A box that cuts only its bottom-right corner —\nthe shape didactic concept boxes use — is a radius on that corner alone\nplus `corner: \"cut\"`.\n\nThe cut reaches the fill and the border, which are outlines. It does\n**not** reach `clip`: a clip is a rect plus radii in the display list,\nand giving it an arbitrary outline is a wider change than a chamfer\njustifies. A frame that both clips and cuts clips to the rounded shape."
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "follow": {
+          "$ref": "#/$defs/Follow",
+          "default": {
+            "h": false,
+            "w": false,
+            "x": false,
+            "y": false
+          },
+          "description": "Inside a component: how this frame follows an instance drawn at a\nsize other than the one the component was designed at."
+        },
+        "id": {
+          "default": null,
+          "description": "Stable identity. Auto-assigned during validation when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "locked": {
+          "default": false,
+          "description": "Not selectable in the editor.",
+          "type": "boolean"
+        },
+        "name": {
+          "default": null,
+          "description": "Human-facing label shown in the editor's layer list.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "padding": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0,
+            "top": 0.0
+          },
+          "description": "Inner spacing between the frame box and its content."
+        },
+        "radius": {
+          "$ref": "#/$defs/Corners",
+          "default": 0.0,
+          "description": "Corner radii in points, clockwise from the top-left.\n\nA bare number still rounds all four the same, which is what most boxes\nwant and what every document written before corners were separable\nsays."
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "rotation": {
+          "default": 0.0,
+          "description": "Clockwise rotation in degrees, about the frame's centre.",
+          "format": "double",
+          "type": "number"
+        },
+        "slot": {
+          "default": null,
+          "description": "Inside a component: the slot this frame receives. An instance's slot\nof that name replaces a text frame's `blocks` or an image frame's\n`src`. Meaningless outside `resources.components`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SlotValue"
+          },
+          "default": {},
+          "description": "Content for the component's slots, by slot name.",
+          "type": "object"
+        },
+        "type": {
+          "const": "instance",
+          "type": "string"
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Legend": {
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/LegendPosition",
+          "default": "right"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "LegendPosition": {
+      "enum": [
+        "right",
+        "bottom",
+        "top",
+        "left"
+      ],
+      "type": "string"
+    },
+    "Len": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^\\s*-?\\d*\\.?\\d+\\s*(pt|mm|cm|in|px)?\\s*$",
+          "type": "string"
+        }
+      ],
+      "description": "A length: a number of points, or a string with a unit (\"18mm\", \"1cm\", \"12pt\", \"16px\", \"0.5in\")."
+    },
+    "LineHeight": {
+      "anyOf": [
+        {
+          "description": "A multiple of the font size.",
+          "type": "number"
+        },
+        {
+          "description": "An absolute length.",
+          "pattern": "^\\s*-?\\d*\\.?\\d+\\s*(pt|mm|cm|in|px)?\\s*$",
+          "type": "string"
+        }
+      ]
+    },
+    "Mark": {
+      "description": "How the data are drawn.",
+      "enum": [
+        "bar",
+        "line",
+        "area",
+        "point"
+      ],
+      "type": "string"
+    },
+    "Marker": {
+      "description": "A label placed before a paragraph — bullet, number, letter, anything.",
+      "properties": {
+        "gap": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Gap between the marker and the text. Ignored when `width` is set."
+        },
+        "hanging": {
+          "default": true,
+          "description": "When true, wrapped lines align with the text, not with the marker.",
+          "type": "boolean"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "default": "",
+          "type": "string"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fixed width of the marker column."
+        }
+      },
+      "type": "object"
+    },
+    "Master": {
+      "description": "A page template: frames stamped onto every page that references it, plus\noptional geometry.",
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "frames": {
+          "default": [],
+          "description": "Painted beneath the page's own frames.",
+          "items": {
+            "$ref": "#/$defs/Frame"
+          },
+          "type": "array"
+        },
+        "margins": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Insets"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PageSize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object"
+    },
+    "Meta": {
+      "properties": {
+        "author": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "keywords": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "language": {
+          "default": null,
+          "description": "BCP-47 tag, e.g. `\"pt-BR\"`. Emitted into the PDF catalog.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Overflow": {
+      "description": "What to do with content that does not fit in its frame.",
+      "oneOf": [
+        {
+          "const": "clip",
+          "description": "Drop it, and report the frame as overset (InDesign's red `+`).",
+          "type": "string"
+        },
+        {
+          "const": "visible",
+          "description": "Render past the frame bounds.",
+          "type": "string"
+        },
+        {
+          "const": "grow",
+          "description": "Grow the frame downward to fit.",
+          "type": "string"
+        }
+      ]
+    },
+    "Page": {
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "frames": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Frame"
+          },
+          "type": "array"
+        },
+        "id": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "margins": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Insets"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "master": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PageSize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Style scope for every frame on this page."
+        }
+      },
+      "type": "object"
+    },
+    "PageBreak": {
+      "properties": {
+        "type": {
+          "const": "pageBreak",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "PageDefaults": {
+      "properties": {
+        "bleed": {
+          "default": 0.0,
+          "description": "Extra area beyond the trim, for print bleed.",
+          "format": "double",
+          "type": "number"
+        },
+        "facing": {
+          "default": false,
+          "description": "Treat pages as left/right spreads, mirroring inner/outer margins.",
+          "type": "boolean"
+        },
+        "margins": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 56.7,
+            "left": 56.7,
+            "right": 56.7,
+            "top": 56.7
+          }
+        },
+        "size": {
+          "$ref": "#/$defs/PageSize",
+          "default": {
+            "height": 841.8897637795277,
+            "width": 595.2755905511812
+          }
+        }
+      },
+      "type": "object"
+    },
+    "PageSize": {
+      "anyOf": [
+        {
+          "description": "A named size (\"A4\", \"A5\", \"letter\", \"livro-didatico\", …), optionally suffixed \" landscape\".",
+          "type": "string"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/Len"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "$ref": "#/$defs/Len"
+            },
+            "width": {
+              "$ref": "#/$defs/Len"
+            }
+          },
+          "required": [
+            "width",
+            "height"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PanelBlock": {
+      "description": "Blocos dentro de uma moldura, que flui com o texto.\n\nA moldura de um frame não serve aqui: um frame é posicionado em coordenada\nabsoluta, e por isso não desce junto com o parágrafo que o antecede nem\nquebra quando a página acaba. Um destaque, um quadro de atividade ou uma\ncitação recuada precisam das duas coisas ao mesmo tempo — pintura própria e\nfluxo — e é essa a lacuna que este bloco fecha.\n\nAntes dele, a única forma de ter moldura no fluxo era uma tabela de uma\ncélula. Funcionava, mas custava caro: tabela não tem raio de canto, e a\nborda tinha de ser escrita como quatro linhas de grade, que duas caixas\nvizinhas então compartilhavam.",
+      "properties": {
+        "blocks": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Block"
+          },
+          "type": "array"
+        },
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "corner": {
+          "$ref": "#/$defs/CornerStyle",
+          "default": "round",
+          "description": "O que o canto faz com o raio: arco, ou corte reto. Ver `Frame::corner`."
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "inset": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0,
+            "top": 0.0
+          },
+          "description": "Espaço entre a moldura e o conteúdo."
+        },
+        "minHeight": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Altura mínima da moldura, borda inclusa.\n\nA moldura cresce com o conteúdo; isto lhe dá um piso. É o que permite a\num editor deixar um quadro de atividade com espaço de sobra para o\naluno escrever, sem encher o painel de blocos vazios para empurrá-lo.\n\nNão é altura fixa: conteúdo que passe do piso continua crescendo, e um\npiso maior do que o que resta na coluna é limitado ao que resta — uma\nmoldura que passasse da mancha empurraria para fora o que vem depois,\nsem que nada na página dissesse por quê."
+        },
+        "origin": {
+          "description": "Onde o autor escreveu este painel na lista de blocos.\n\nUm painel que continua na página seguinte é refluído numa lista nova,\ncujos índices recomeçam; sem isto o editor perderia de vista de qual\npainel a continuação veio. Mesma razão que `TableBlock::origin`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "radius": {
+          "$ref": "#/$defs/Corners",
+          "default": 0.0,
+          "description": "Os quatro cantos, no sentido horário a partir do superior esquerdo."
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "`spaceBefore` e `spaceAfter` valem para a moldura inteira, e\n`keepWithNext` prende o painel ao bloco seguinte."
+        },
+        "type": {
+          "const": "panel",
+          "type": "string"
+        },
+        "use": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Paragraph": {
+      "description": "A run of inline content laid out as a sequence of lines.",
+      "properties": {
+        "content": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Inline"
+          },
+          "type": "array"
+        },
+        "id": {
+          "default": null,
+          "description": "Stable identity, echoed into the display list so the editor can map a\npainted glyph back to its source.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "marker": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Marker"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bullet, number or label placed before the first line."
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "paragraph",
+          "type": "string"
+        },
+        "use": {
+          "default": null,
+          "description": "Name of a style from `resources.styles`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Rect": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Len"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "h": {
+              "$ref": "#/$defs/Len"
+            },
+            "height": {
+              "$ref": "#/$defs/Len"
+            },
+            "w": {
+              "$ref": "#/$defs/Len"
+            },
+            "width": {
+              "$ref": "#/$defs/Len"
+            },
+            "x": {
+              "$ref": "#/$defs/Len"
+            },
+            "y": {
+              "$ref": "#/$defs/Len"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "description": "[x, y, w, h] in points from the page's top-left corner, or { x, y, w, h }."
+    },
+    "RepeatRows": {
+      "description": "Rows that repeat when the table breaks across pages.",
+      "properties": {
+        "continued": {
+          "default": null,
+          "description": "Shown in place of `rows` on the pages where the table is *continuing*\n— not on the page it begins, for a header, nor the page it ends on,\nfor a footer.\n\nNamed for the continuation rather than for the exception, which is what\nmakes one field serve both ends. `rows` are real rows of the table and\nappear where they were written: a header at the top of the first page,\na total at the foot of the last. This is the other thing — the smaller\nheading a reader meets halfway down a table, the \"(continua)\" under a\npage that has not finished. Called `first` it would have meant the\nopposite thing at each end of the table.",
+          "items": {
+            "$ref": "#/$defs/Cell"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "repeat": {
+          "default": true,
+          "description": "Off when the rows should appear once and not again.",
+          "type": "boolean"
+        },
+        "rows": {
+          "default": 1,
+          "description": "How many rows from the top — or, for a footer, from the bottom.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "Resources": {
+      "description": "Reusable definitions referenced by name from the raw core.\n\nEverything here is optional: a document that inlines all its styles and\ncontent never needs a `resources` object at all.",
+      "properties": {
+        "colors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Color"
+          },
+          "default": {},
+          "description": "Named colours, so a palette change is a one-line edit.\n\nAny colour field may say `\"@name\"` to take the entry of that name; the\nreference is resolved before the document is parsed, so the engine\nonly ever sees a literal colour.",
+          "type": "object"
+        },
+        "components": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Component"
+          },
+          "default": {},
+          "description": "Named groups of frames with slots — the didactic boxes of a collection.\n\nA frame `{\"type\": \"instance\", \"component\": name, \"slots\": {…}}` is\nreplaced by the component's frames before layout, with each slot's\ncontent placed in the frame that declares that slot.",
+          "type": "object"
+        },
+        "data": {
+          "additionalProperties": {
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/$defs/Value"
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "description": "Named tables of observations, so two charts of the same numbers are not\ntwo copies of the numbers.",
+          "type": "object"
+        },
+        "masters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Master"
+          },
+          "default": {},
+          "description": "Named page templates.",
+          "type": "object"
+        },
+        "stories": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/Block"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "description": "Named text flows that can be threaded across frames.",
+          "type": "object"
+        },
+        "styles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Style"
+          },
+          "default": {},
+          "description": "Named paragraph/character styles, referenced with `\"use\": \"h1\"` or\n`{\"extends\": \"h1\"}`. Sorted for reproducible output.",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "RuleBlock": {
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "thickness": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "rule",
+          "type": "string"
+        },
+        "width": {
+          "default": null,
+          "description": "Fraction of the column width, 0–1. Defaults to the full column.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "ScaleKind": {
+      "description": "Which scale to build, when the field's kind is not the answer wanted.",
+      "enum": [
+        "linear",
+        "log",
+        "band",
+        "point"
+      ],
+      "type": "string"
+    },
+    "ScaleSpec": {
+      "description": "The author overriding what the field's kind would have chosen.\n\nEvery field optional, and an absent one means \"decide for me\". A chart that\nhas to state its scale to draw at all would be a chart nobody writes twice.",
+      "properties": {
+        "base": {
+          "default": null,
+          "description": "Base of a logarithmic scale.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "categories": {
+          "default": null,
+          "description": "The categories, in the order they should appear. Absent means the order\nthey are met in the data, which is the order the author typed them.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "domain": {
+          "default": null,
+          "description": "Lower and upper bound, for a continuous scale.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScaleKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "nice": {
+          "default": null,
+          "description": "Widen the domain to round numbers. On by default for a continuous axis.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "paddingInner": {
+          "default": null,
+          "description": "Gap between neighbouring bands, as a share of the step.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "paddingOuter": {
+          "default": null,
+          "description": "Gap before the first band and after the last.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "zero": {
+          "default": null,
+          "description": "Whether the scale must reach zero.\n\nAbsent means the mark decides, and a bar decides yes: a bar chart that\ndoes not start at zero lies about the proportions, and teaching\nmaterial is the worst place for that.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ShapeFrame": {
+      "description": "A frame that draws a vector primitive using the frame's own fill and border.",
+      "properties": {
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clip": {
+          "default": false,
+          "description": "Clip content to the frame box.",
+          "type": "boolean"
+        },
+        "corner": {
+          "$ref": "#/$defs/CornerStyle",
+          "default": "round",
+          "description": "How a corner with a radius turns: an arc, or a straight cut.\n\nOne flag for the four corners, not four: which corners turn is already\nsaid by the radius, so a per-corner style would be a second way of\nsaying the same thing. A box that cuts only its bottom-right corner —\nthe shape didactic concept boxes use — is a radius on that corner alone\nplus `corner: \"cut\"`.\n\nThe cut reaches the fill and the border, which are outlines. It does\n**not** reach `clip`: a clip is a rect plus radii in the display list,\nand giving it an arbitrary outline is a wider change than a chamfer\njustifies. A frame that both clips and cuts clips to the rounded shape."
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "follow": {
+          "$ref": "#/$defs/Follow",
+          "default": {
+            "h": false,
+            "w": false,
+            "x": false,
+            "y": false
+          },
+          "description": "Inside a component: how this frame follows an instance drawn at a\nsize other than the one the component was designed at."
+        },
+        "id": {
+          "default": null,
+          "description": "Stable identity. Auto-assigned during validation when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "locked": {
+          "default": false,
+          "description": "Not selectable in the editor.",
+          "type": "boolean"
+        },
+        "name": {
+          "default": null,
+          "description": "Human-facing label shown in the editor's layer list.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "padding": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0,
+            "top": 0.0
+          },
+          "description": "Inner spacing between the frame box and its content."
+        },
+        "radius": {
+          "$ref": "#/$defs/Corners",
+          "default": 0.0,
+          "description": "Corner radii in points, clockwise from the top-left.\n\nA bare number still rounds all four the same, which is what most boxes\nwant and what every document written before corners were separable\nsays."
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "rotation": {
+          "default": 0.0,
+          "description": "Clockwise rotation in degrees, about the frame's centre.",
+          "format": "double",
+          "type": "number"
+        },
+        "shape": {
+          "$ref": "#/$defs/ShapeKind",
+          "default": "rect"
+        },
+        "slot": {
+          "default": null,
+          "description": "Inside a component: the slot this frame receives. An instance's slot\nof that name replaces a text frame's `blocks` or an image frame's\n`src`. Meaningless outside `resources.components`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "const": "shape",
+          "type": "string"
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "ShapeKind": {
+      "oneOf": [
+        {
+          "enum": [
+            "rect",
+            "ellipse"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "line",
+          "description": "A straight line from the top-left to the bottom-right of the frame box.",
+          "type": "string"
+        }
+      ]
+    },
+    "Sides": {
+      "properties": {
+        "bottom": {
+          "default": true,
+          "type": "boolean"
+        },
+        "left": {
+          "default": true,
+          "type": "boolean"
+        },
+        "right": {
+          "default": true,
+          "type": "boolean"
+        },
+        "top": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "SlotValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "properties": {
+            "src": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "src"
+          ],
+          "type": "object"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/Block"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "What fills a slot.\n\nA bare string is a paragraph of that text; a list is the blocks of a text\nframe; `{\"src\": …}` is the image of an image frame."
+    },
+    "SpaceRun": {
+      "properties": {
+        "type": {
+          "const": "space",
+          "type": "string"
+        },
+        "width": {
+          "$ref": "#/$defs/Len",
+          "default": 0.0
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "SpacerBlock": {
+      "properties": {
+        "height": {
+          "$ref": "#/$defs/Len",
+          "default": 0.0
+        },
+        "type": {
+          "const": "spacer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Stripe": {
+      "description": "Alternating row fills.",
+      "properties": {
+        "every": {
+          "default": 2,
+          "description": "Fill one row in every `every`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "offset": {
+          "default": 1,
+          "description": "Which row of each group is filled.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "Style": {
+      "description": "A partial style. `None` means \"inherit\".",
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Painted behind the text run itself (highlighting), not behind the frame."
+        },
+        "baselineShift": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raises (positive) or lowers (negative) the run relative to the baseline."
+        },
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "extends": {
+          "default": null,
+          "description": "Name of a style declared in `resources.styles` to inherit from.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fontFamily": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fontScale": {
+          "default": null,
+          "description": "Scales the font size for this run — used for sub/superscripts.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fontSize": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fontStyle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FontStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fontWeight": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FontWeight"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "indentFirst": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "indentLeft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "indentRight": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "keepWithNext": {
+          "default": null,
+          "description": "Keep this paragraph on the same fragment as the next one.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "letterSpacing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lineHeight": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LineHeight"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A number is a multiple of the font size; a string is an absolute length."
+        },
+        "spaceAfter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "spaceBefore": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "strikethrough": {
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "textAlign": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TextAlign"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "textTransform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TextTransform"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "underline": {
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "wordSpacing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object"
+    },
+    "Tab": {
+      "properties": {
+        "leader": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Len"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Absolute x position within the column to advance to. When absent, the\nnext multiple of `defaultStop` is used."
+        },
+        "type": {
+          "const": "tab",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "TableBlock": {
+      "description": "A grid of cells.\n\nA block rather than a frame, because a table has to flow with the text\naround it: it follows the paragraph before it, and when the page runs out\nit continues on the next one.",
+      "properties": {
+        "cells": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Cell"
+          },
+          "type": "array"
+        },
+        "columnGap": {
+          "$ref": "#/$defs/Len",
+          "default": 0.0
+        },
+        "columns": {
+          "default": [],
+          "description": "One entry per column. An empty list means the columns are inferred\nfrom the widest row, all of them automatic.",
+          "items": {
+            "$ref": "#/$defs/TrackSize"
+          },
+          "type": "array"
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "footer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RepeatRows"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rows repeated at the foot of every page the table continues past."
+        },
+        "header": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RepeatRows"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rows repeated when the table continues on another page."
+        },
+        "inset": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0,
+            "top": 0.0
+          },
+          "description": "Padding inside every cell, unless the cell says otherwise."
+        },
+        "lines": {
+          "default": [],
+          "description": "Rules drawn between tracks, independent of any cell.\n\nA rule under the heading is one declaration here, not a border\nrepeated in eight cells — the `booktabs` model, and the reason its\ntables read.",
+          "items": {
+            "$ref": "#/$defs/GridLine"
+          },
+          "type": "array"
+        },
+        "rowGap": {
+          "$ref": "#/$defs/Len",
+          "default": 0.0
+        },
+        "rows": {
+          "default": [],
+          "description": "One entry per row; missing entries are automatic.",
+          "items": {
+            "$ref": "#/$defs/TrackSize"
+          },
+          "type": "array"
+        },
+        "stripe": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Stripe"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alternating row fills, so striping is not written into every row."
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "table",
+          "type": "string"
+        },
+        "use": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "TextAlign": {
+      "enum": [
+        "left",
+        "center",
+        "right",
+        "justify"
+      ],
+      "type": "string"
+    },
+    "TextFrame": {
+      "description": "A frame that lays out blocks of text.",
+      "properties": {
+        "autoFlow": {
+          "default": false,
+          "description": "Keep generating pages until the content runs out.\n\nWhen this frame overflows and no `threadNext` is set, the engine appends\na page modelled on the one this frame sits on — same size, margins and\nmaster — carrying a copy of this frame, and continues the flow there.\nThis is what turns a story plus one page into a book.\n\nIgnored when `threadNext` is set: an explicit chain wins.",
+          "type": "boolean"
+        },
+        "blocks": {
+          "default": [],
+          "description": "Inline content. Ignored when `story` is set.",
+          "items": {
+            "$ref": "#/$defs/Block"
+          },
+          "type": "array"
+        },
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clip": {
+          "default": false,
+          "description": "Clip content to the frame box.",
+          "type": "boolean"
+        },
+        "columnGap": {
+          "$ref": "#/$defs/Len",
+          "default": 14.0
+        },
+        "columns": {
+          "default": 1,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "corner": {
+          "$ref": "#/$defs/CornerStyle",
+          "default": "round",
+          "description": "How a corner with a radius turns: an arc, or a straight cut.\n\nOne flag for the four corners, not four: which corners turn is already\nsaid by the radius, so a per-corner style would be a second way of\nsaying the same thing. A box that cuts only its bottom-right corner —\nthe shape didactic concept boxes use — is a radius on that corner alone\nplus `corner: \"cut\"`.\n\nThe cut reaches the fill and the border, which are outlines. It does\n**not** reach `clip`: a clip is a rect plus radii in the display list,\nand giving it an arbitrary outline is a wider change than a chamfer\njustifies. A frame that both clips and cuts clips to the rounded shape."
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "follow": {
+          "$ref": "#/$defs/Follow",
+          "default": {
+            "h": false,
+            "w": false,
+            "x": false,
+            "y": false
+          },
+          "description": "Inside a component: how this frame follows an instance drawn at a\nsize other than the one the component was designed at."
+        },
+        "id": {
+          "default": null,
+          "description": "Stable identity. Auto-assigned during validation when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ignoreWrap": {
+          "default": false,
+          "description": "Lay this text out as if no frame on the page carried a wrap.\n\nThe escape hatch every wrap needs: a caption sitting on top of its own\nphotograph would otherwise be shoved off it by the very picture it\ndescribes. InDesign spells this \"ignore text wrap\", and it is a\nproperty of the text, not of the picture — one frame opts out without\nchanging what the picture does to everything else.",
+          "type": "boolean"
+        },
+        "locked": {
+          "default": false,
+          "description": "Not selectable in the editor.",
+          "type": "boolean"
+        },
+        "name": {
+          "default": null,
+          "description": "Human-facing label shown in the editor's layer list.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "overflow": {
+          "$ref": "#/$defs/Overflow",
+          "default": "clip"
+        },
+        "padding": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0,
+            "top": 0.0
+          },
+          "description": "Inner spacing between the frame box and its content."
+        },
+        "radius": {
+          "$ref": "#/$defs/Corners",
+          "default": 0.0,
+          "description": "Corner radii in points, clockwise from the top-left.\n\nA bare number still rounds all four the same, which is what most boxes\nwant and what every document written before corners were separable\nsays."
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "rotation": {
+          "default": 0.0,
+          "description": "Clockwise rotation in degrees, about the frame's centre.",
+          "format": "double",
+          "type": "number"
+        },
+        "slot": {
+          "default": null,
+          "description": "Inside a component: the slot this frame receives. An instance's slot\nof that name replaces a text frame's `blocks` or an image frame's\n`src`. Meaningless outside `resources.components`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "story": {
+          "default": null,
+          "description": "Sugar: pull content from `resources.stories` instead of `blocks`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "threadNext": {
+          "default": null,
+          "description": "Sugar: id of the frame that receives content overflowing this one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "const": "text",
+          "type": "string"
+        },
+        "use": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verticalAlign": {
+          "$ref": "#/$defs/VerticalAlign",
+          "default": "top"
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "TextRun": {
+      "properties": {
+        "id": {
+          "default": null,
+          "description": "Stable identity for editor round-tripping.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Style"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "const": "text",
+          "type": "string"
+        },
+        "use": {
+          "default": null,
+          "description": "Name of a style from `resources.styles`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "TextTransform": {
+      "enum": [
+        "none",
+        "uppercase",
+        "lowercase",
+        "capitalize"
+      ],
+      "type": "string"
+    },
+    "TrackSize": {
+      "anyOf": [
+        {
+          "const": "auto",
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^\\s*-?\\d*\\.?\\d+\\s*(pt|mm|cm|in|px|fr|%)\\s*$",
+          "type": "string"
+        }
+      ],
+      "description": "\"auto\", a fixed length, \"1fr\" (a share of the leftover) or \"25%\" (a share of the whole)."
+    },
+    "Value": {
+      "anyOf": [
+        {
+          "format": "double",
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "One cell of data.\n\nUntagged, so a row is written the way anyone would write it: `120` is a\nnumber, `\"jan\"` is text, `null` is a hole. Holes are kept rather than\nrejected — real data has them, and a chart that refuses to load because one\nmonth is missing is less useful than one that draws the other eleven."
+    },
+    "VerticalAlign": {
+      "description": "Vertical placement of content inside a frame.",
+      "oneOf": [
+        {
+          "enum": [
+            "top",
+            "middle",
+            "bottom"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "justify",
+          "description": "Stretch inter-paragraph spacing so the content fills the frame.",
+          "type": "string"
+        }
+      ]
+    },
+    "Wrap": {
+      "description": "Text wrap: the space a frame denies to the text around it.\n\nThe shape lives in the document rather than being read back from the\nimage's pixels at layout time. Tracing a silhouette is authoring work — it\nbelongs to the editor, where a person can see and correct it. An engine\nthat decoded pixels would stop being deterministic across platforms, and\nthe PDF would stop matching the canvas.",
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/WrapMode",
+          "default": {
+            "kind": "box"
+          }
+        },
+        "padding": {
+          "$ref": "#/$defs/Insets",
+          "default": {
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0,
+            "top": 0.0
+          },
+          "description": "Clearance in points, held between the text and the shape."
+        }
+      },
+      "type": "object"
+    },
+    "WrapMode": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Box"
+        },
+        {
+          "$ref": "#/$defs/Contour"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A whole document: the single input to both the PDF emitter and the browser\npainter.",
+  "properties": {
+    "meta": {
+      "$ref": "#/$defs/Meta",
+      "default": {
+        "author": null,
+        "keywords": [],
+        "language": null,
+        "subject": null,
+        "title": null
+      }
+    },
+    "page": {
+      "$ref": "#/$defs/PageDefaults",
+      "default": {
+        "bleed": 0.0,
+        "facing": false,
+        "margins": {
+          "bottom": 56.7,
+          "left": 56.7,
+          "right": 56.7,
+          "top": 56.7
+        },
+        "size": {
+          "height": 841.8897637795277,
+          "width": 595.2755905511812
+        }
+      },
+      "description": "Geometry applied to pages that do not override it."
+    },
+    "pages": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Page"
+      },
+      "type": "array"
+    },
+    "resources": {
+      "$ref": "#/$defs/Resources",
+      "default": {
+        "colors": {},
+        "components": {},
+        "data": {},
+        "masters": {},
+        "stories": {},
+        "styles": {}
+      }
+    },
+    "style": {
+      "$ref": "#/$defs/Style",
+      "default": {
+        "background": null,
+        "baselineShift": null,
+        "color": null,
+        "extends": null,
+        "fontFamily": null,
+        "fontScale": null,
+        "fontSize": null,
+        "fontStyle": null,
+        "fontWeight": null,
+        "indentFirst": null,
+        "indentLeft": null,
+        "indentRight": null,
+        "keepWithNext": null,
+        "letterSpacing": null,
+        "lineHeight": null,
+        "spaceAfter": null,
+        "spaceBefore": null,
+        "strikethrough": null,
+        "textAlign": null,
+        "textTransform": null,
+        "underline": null,
+        "wordSpacing": null
+      },
+      "description": "Root of the style cascade."
+    },
+    "version": {
+      "default": 2,
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "title": "Document",
+  "type": "object"
+}

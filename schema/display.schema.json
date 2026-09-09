@@ -1,0 +1,1047 @@
+{
+  "$defs": {
+    "CellStep": {
+      "description": "One step down into a table.",
+      "properties": {
+        "block": {
+          "default": 0,
+          "description": "Index of the table block in the list that holds it.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cell": {
+          "default": 0,
+          "description": "Index of the cell in that table's `cells`.\n\nOf the table as the author wrote it, not as it was drawn: a table that\nruns onto a second page is redrawn there as a new block with its rows\nrenumbered and its header copied in, and an index into *that* would\naddress a cell the document does not have.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ClipShape": {
+      "properties": {
+        "radius": {
+          "$ref": "#/$defs/Corners",
+          "default": 0.0
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      },
+      "type": "object"
+    },
+    "Close": {
+      "properties": {
+        "op": {
+          "const": "close",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "type": "object"
+    },
+    "Color": {
+      "description": "A CSS colour: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb()/rgba(), a named colour, or \"@name\" for an entry of resources.colors.",
+      "type": "string"
+    },
+    "Corners": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/Len"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/Len"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bottomLeft": {
+              "$ref": "#/$defs/Len"
+            },
+            "bottomRight": {
+              "$ref": "#/$defs/Len"
+            },
+            "topLeft": {
+              "$ref": "#/$defs/Len"
+            },
+            "topRight": {
+              "$ref": "#/$defs/Len"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "description": "Corner radii clockwise from the top-left: one value, [tl, tr], [tl, tr, br, bl], or a map. Nothing means square corners."
+    },
+    "CurveTo": {
+      "properties": {
+        "op": {
+          "const": "curveTo",
+          "type": "string"
+        },
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "x1": {
+          "format": "double",
+          "type": "number"
+        },
+        "x2": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        },
+        "y1": {
+          "format": "double",
+          "type": "number"
+        },
+        "y2": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "op",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "Diagnostic": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "frame": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "page": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        }
+      },
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "DisplayFont": {
+      "properties": {
+        "ascender": {
+          "description": "Em-relative, positive.",
+          "format": "double",
+          "type": "number"
+        },
+        "descender": {
+          "description": "Em-relative, negative.",
+          "format": "double",
+          "type": "number"
+        },
+        "family": {
+          "type": "string"
+        },
+        "id": {
+          "description": "Matches [`crate::fonts::FontId`].",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "italic": {
+          "type": "boolean"
+        },
+        "postScriptName": {
+          "type": "string"
+        },
+        "unitsPerEm": {
+          "format": "double",
+          "type": "number"
+        },
+        "weight": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "family",
+        "weight",
+        "italic",
+        "postScriptName",
+        "unitsPerEm",
+        "ascender",
+        "descender"
+      ],
+      "type": "object"
+    },
+    "DisplayFrame": {
+      "description": "A frame as the editor sees it: a selectable, draggable box.",
+      "properties": {
+        "ancestors": {
+          "description": "Ancestor frame ids, outermost first. Empty for top-level frames.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "`\"text\"`, `\"image\"`, `\"shape\"` or `\"group\"`.",
+          "type": "string"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overset": {
+          "description": "Content that did not fit. InDesign's red overset marker.",
+          "type": "boolean"
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "description": "In page coordinates, after any group transforms have been applied."
+        },
+        "rotation": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "rect",
+        "rotation",
+        "kind",
+        "locked",
+        "overset",
+        "ancestors"
+      ],
+      "type": "object"
+    },
+    "DisplayGroup": {
+      "properties": {
+        "clip": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClipShape"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "items": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DisplayItem"
+          },
+          "type": "array"
+        },
+        "opacity": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "transform": {
+          "default": null,
+          "description": "Affine matrix `[a, b, c, d, e, f]`, applied before painting children.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "type": {
+          "const": "group",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "DisplayItem": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/DisplayGroup"
+        },
+        {
+          "$ref": "#/$defs/GlyphRun"
+        },
+        {
+          "$ref": "#/$defs/RectItem"
+        },
+        {
+          "$ref": "#/$defs/EllipseItem"
+        },
+        {
+          "$ref": "#/$defs/LineItem"
+        },
+        {
+          "$ref": "#/$defs/PathItem"
+        },
+        {
+          "$ref": "#/$defs/ImageItem"
+        }
+      ]
+    },
+    "DisplayPage": {
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "frames": {
+          "default": [],
+          "description": "Flat index of every frame on the page, for hit-testing and handles.",
+          "items": {
+            "$ref": "#/$defs/DisplayFrame"
+          },
+          "type": "array"
+        },
+        "height": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "index": {
+          "default": 0,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "items": {
+          "default": [],
+          "description": "The paint tree, in back-to-front order.",
+          "items": {
+            "$ref": "#/$defs/DisplayItem"
+          },
+          "type": "array"
+        },
+        "marginBox": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "description": "The margin box, so the editor can draw guides."
+        },
+        "width": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "EllipseItem": {
+      "properties": {
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stroke": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Stroke"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "ellipse",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "FillRule": {
+      "enum": [
+        "nonZero",
+        "evenOdd"
+      ],
+      "type": "string"
+    },
+    "Glyph": {
+      "properties": {
+        "advance": {
+          "default": 0.0,
+          "description": "How far the pen moves after this glyph, in points.",
+          "format": "double",
+          "type": "number"
+        },
+        "cluster": {
+          "default": 0,
+          "description": "Byte offset into [`GlyphRun::text`] of the character this glyph renders.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "default": 0,
+          "description": "Glyph id in the original (un-subsetted) face.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "default": 0.0,
+          "description": "Offset from the run origin along the baseline, in points.",
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "description": "Offset from the baseline, positive downward.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "GlyphRun": {
+      "description": "A sequence of positioned glyphs sharing one font, size and colour.",
+      "properties": {
+        "fill": {
+          "$ref": "#/$defs/Color",
+          "default": "#000000"
+        },
+        "font": {
+          "default": 0,
+          "description": "Index into [`DisplayList::fonts`].",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "glyphs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Glyph"
+          },
+          "type": "array"
+        },
+        "size": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "default": "",
+          "description": "The characters this run rendered, so the editor and the PDF's\n`ToUnicode` map agree on what the glyphs mean.",
+          "type": "string"
+        },
+        "type": {
+          "const": "glyphs",
+          "type": "string"
+        },
+        "width": {
+          "default": 0.0,
+          "description": "Sum of the glyph advances.",
+          "format": "double",
+          "type": "number"
+        },
+        "x": {
+          "default": 0.0,
+          "description": "Origin of the run's baseline.",
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "ImageItem": {
+      "properties": {
+        "crop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rect"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Portion of the source image to draw, in 0–1 units. `None` = all of it."
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "src": {
+          "default": "",
+          "description": "Key registered through `add_image`.",
+          "type": "string"
+        },
+        "type": {
+          "const": "image",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Len": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^\\s*-?\\d*\\.?\\d+\\s*(pt|mm|cm|in|px)?\\s*$",
+          "type": "string"
+        }
+      ],
+      "description": "A length: a number of points, or a string with a unit (\"18mm\", \"1cm\", \"12pt\", \"16px\", \"0.5in\")."
+    },
+    "LineItem": {
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stroke": {
+          "$ref": "#/$defs/Stroke",
+          "default": {
+            "color": "#000000",
+            "dash": null,
+            "width": 1.0
+          }
+        },
+        "type": {
+          "const": "line",
+          "type": "string"
+        },
+        "x1": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "x2": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "y1": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "y2": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "LineTo": {
+      "properties": {
+        "op": {
+          "const": "lineTo",
+          "type": "string"
+        },
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "op",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "MoveTo": {
+      "properties": {
+        "op": {
+          "const": "moveTo",
+          "type": "string"
+        },
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "op",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "PathCommand": {
+      "description": "One step of an outline.\n\nCubic is the only curve. Every quadratic is a cubic, and an arc is a few\ncubics within a fraction of a point — so there is exactly one curve case to\nget right in the PDF emitter and one in the canvas renderer, rather than a\nfamily of them to keep in agreement.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/MoveTo"
+        },
+        {
+          "$ref": "#/$defs/LineTo"
+        },
+        {
+          "$ref": "#/$defs/CurveTo"
+        },
+        {
+          "$ref": "#/$defs/Close"
+        }
+      ]
+    },
+    "PathItem": {
+      "description": "An arbitrary filled or stroked outline.\n\nThe one primitive a rectangle, an ellipse and a line cannot express: a\nclosed region of any shape. Areas under a curve, doughnut holes and smooth\nseries all reduce to this.\n\nCoordinates are points from the top-left of the page, `y` growing down —\nthe same space as every other item. The PDF emitter flips once, at the\nboundary, exactly as it does for rectangles.",
+      "properties": {
+        "commands": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PathCommand"
+          },
+          "type": "array"
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fillRule": {
+          "$ref": "#/$defs/FillRule",
+          "default": "nonZero",
+          "description": "How overlapping subpaths combine. Even-odd is what leaves a hole."
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stroke": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Stroke"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Rect": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Len"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "h": {
+              "$ref": "#/$defs/Len"
+            },
+            "height": {
+              "$ref": "#/$defs/Len"
+            },
+            "w": {
+              "$ref": "#/$defs/Len"
+            },
+            "width": {
+              "$ref": "#/$defs/Len"
+            },
+            "x": {
+              "$ref": "#/$defs/Len"
+            },
+            "y": {
+              "$ref": "#/$defs/Len"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "description": "[x, y, w, h] in points from the page's top-left corner, or { x, y, w, h }."
+    },
+    "RectItem": {
+      "properties": {
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "radius": {
+          "$ref": "#/$defs/Corners",
+          "default": 0.0
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect",
+          "default": {
+            "h": 0.0,
+            "w": 0.0,
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stroke": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Stroke"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "rect",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ],
+      "type": "string"
+    },
+    "SourceRef": {
+      "description": "Where a painted item came from in the source document.\n\nThe indices always address the **origin** of the content, not wherever it\nhappened to land. Text that overflowed frame A into frame B still reports\nA's block and inline indices, with `offset` advanced accordingly — so the\neditor writes back to the right place no matter which frame was clicked.",
+      "properties": {
+        "block": {
+          "default": null,
+          "description": "Index of the block in its owning list.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cells": {
+          "description": "The table cells this content is nested inside, outermost first.\n\nEmpty for everything that is not in a table, which is nearly\neverything — hence left out of the JSON when it is, so no document's\ndisplay list grows a field it never uses.\n\n`block`, `inline` and `offset` are read relative to the innermost\ncell's own blocks. Without this trail they read as indices into the\nframe, and a click on a cell would edit whatever paragraph happened to\nsit at that index.",
+          "items": {
+            "$ref": "#/$defs/CellStep"
+          },
+          "type": "array"
+        },
+        "frame": {
+          "default": "",
+          "description": "Id of the frame that painted this, auto-assigned when the JSON omits it.",
+          "type": "string"
+        },
+        "inline": {
+          "default": null,
+          "description": "Index of the inline within that block's content.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "offset": {
+          "default": null,
+          "description": "Byte offset into that inline's text where this run starts.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "page": {
+          "default": 0,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "story": {
+          "default": null,
+          "description": "Name of the story the content lives in, when it came from one. The\neditor edits `resources.stories[story]` instead of the frame's blocks.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Stroke": {
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/Color"
+        },
+        "dash": {
+          "description": "`[on, off]` in points. `None` = solid.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "color",
+        "width"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "diagnostics": {
+      "default": [],
+      "description": "Non-fatal problems: overset text, missing images, unknown styles.",
+      "items": {
+        "$ref": "#/$defs/Diagnostic"
+      },
+      "type": "array"
+    },
+    "fonts": {
+      "default": [],
+      "description": "Font table. `GlyphRun::font` indexes into this.",
+      "items": {
+        "$ref": "#/$defs/DisplayFont"
+      },
+      "type": "array"
+    },
+    "pages": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DisplayPage"
+      },
+      "type": "array"
+    },
+    "version": {
+      "default": 0,
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "title": "DisplayList",
+  "type": "object"
+}

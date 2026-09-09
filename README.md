@@ -101,6 +101,54 @@ continuação enquanto houver conteúdo, modelando cada uma na anterior.
 - `{"type": "pageBreak"}` no meio da story força a continuação numa página nova.
   `frameBreak` e `columnBreak` fazem o equivalente para frames e colunas.
 
+### Componentes
+
+Um bloco didático — o boxe "Amplie", a caixa de conceito com canto cortado —
+é um grupo de frames que se repete com conteúdo diferente. `resources.components`
+guarda o desenho uma vez; um frame `instance` o coloca na página com os slots
+preenchidos:
+
+```json
+{
+  "resources": {
+    "colors": { "acento": "#1e555c", "claro": "#e3edee" },
+    "components": {
+      "amplie": {
+        "label": "Ampliar", "size": [120, 80],
+        "frames": [
+          { "type": "shape", "shape": "rect", "rect": [0, 0, 120, 80],
+            "fill": "@claro", "follow": { "w": true, "h": true } },
+          { "type": "shape", "shape": "rect", "rect": [0, 0, 120, 16],
+            "fill": "@acento", "follow": { "w": true } },
+          { "type": "text", "slot": "titulo", "rect": [4, 1, 112, 14],
+            "style": { "color": "#fff" }, "follow": { "w": true } },
+          { "type": "text", "slot": "texto", "rect": [4, 20, 112, 56],
+            "follow": { "w": true, "h": true } }
+        ]
+      }
+    }
+  },
+  "pages": [{ "frames": [
+    { "type": "instance", "component": "amplie", "rect": [400, 120, 140, 160],
+      "slots": { "titulo": "AMPLIAR", "texto": ["Um parágrafo.", "Outro."] } }
+  ] }]
+}
+```
+
+- A instância vira um `group` antes do layout. O display list a reporta como
+  `kind: "instance"`, com os filhos nomeados `{id}.{slot}`.
+- `follow` diz como cada frame acompanha a diferença entre `size` e o `rect` da
+  instância: `x`/`y` deslocam, `w`/`h` esticam.
+- Um slot de texto aceita uma string, uma lista de blocos ou `{"src": …}` para
+  um frame de imagem.
+- Cores podem dizer `"@nome"` em qualquer `fill`, `color`, `background` ou
+  `palette`; o nome vem de `resources.colors` e é resolvido antes do parse.
+- Componente ou slot desconhecido vira diagnóstico, não erro.
+
+O JSON Schema dos dois formatos sai de `make schema` (`schema/*.json`); os
+espelhos TypeScript e Pydantic dos consumidores são gerados dele, e `make dist`
+reúne wasm, schema e fontes num pacote com `PIN.txt`.
+
 ### O exemplo
 
 `examples/material.json` é o documento que o editor abre por padrão: uma

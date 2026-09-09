@@ -5,6 +5,7 @@
 //! a layout decision — this module is the sole authority.
 
 pub mod cascade;
+pub mod resolve;
 pub(crate) mod chart;
 pub(crate) mod grid;
 pub mod shape;
@@ -111,10 +112,14 @@ impl<'a> LayoutEngine<'a> {
 
     fn layout_once(&self, document: &Document) -> DisplayList {
         let mut doc = document.clone();
-        assign_frame_ids(&mut doc);
-
         let mut list = DisplayList::new();
         list.fonts = self.font_table();
+
+        // Instances need their own id before their children can be named
+        // after it, and the children need ids after they exist.
+        assign_frame_ids(&mut doc);
+        resolve::instances(&mut doc, &mut list.diagnostics);
+        assign_frame_ids(&mut doc);
 
         if self.registry.is_empty() {
             list.diagnostics.push(Diagnostic::error(
@@ -438,6 +443,17 @@ impl<'a> LayoutEngine<'a> {
                 items.extend(inner.items);
                 out.frames.extend(inner.frames);
             }
+            FrameContent::Instance(instance) => {
+                // Resolved away before layout; reaching here means the resolve
+                // pass was skipped, which is a bug worth seeing, not hiding.
+                diagnostics.push(
+                    Diagnostic::warning(
+                        "unresolvedInstance",
+                        format!("instância de `{}` chegou ao layout", instance.component),
+                    )
+                    .on(page, id.clone()),
+                );
+            }
         }
 
         // ── Assemble ──────────────────────────────────────────────────────────
@@ -528,8 +544,10 @@ impl<'a> LayoutEngine<'a> {
                 FrameContent::Text(_) => "text",
                 FrameContent::Image(_) => "image",
                 FrameContent::Shape(_) => "shape",
+                FrameContent::Group(group) if group.instance.is_some() => "instance",
                 FrameContent::Group(_) => "group",
                 FrameContent::Chart(_) => "chart",
+                FrameContent::Instance(_) => "instance",
             }
             .to_string(),
             locked: frame.locked,

@@ -4,6 +4,8 @@
 //! frame: a paragraph of text, a photo, a coloured rectangle, a group. This is
 //! the "boxes and runs" layer the sugar layer compiles down to.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use super::chart::ChartFrame;
@@ -22,6 +24,7 @@ use crate::units::{Corners, Insets, Len, Rect};
 /// (not the margin box), with `y` growing downward. Inside a group, it is
 /// measured from the group's own top-left corner.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Frame {
     /// Stable identity. Auto-assigned during validation when absent.
@@ -64,8 +67,37 @@ pub struct Frame {
     /// Not selectable in the editor.
     pub locked: bool,
 
+    /// Inside a component: the slot this frame receives. An instance's slot
+    /// of that name replaces a text frame's `blocks` or an image frame's
+    /// `src`. Meaningless outside `resources.components`.
+    pub slot: Option<String>,
+    /// Inside a component: how this frame follows an instance drawn at a
+    /// size other than the one the component was designed at.
+    pub follow: Follow,
+
     #[serde(flatten)]
     pub content: FrameContent,
+}
+
+/// How a component's frame tracks the instance's size.
+///
+/// The difference between the instance rect and the component's `size` is
+/// `dw × dh`. A frame with `x` shifts right by `dw`; with `w` it grows by
+/// `dw`; likewise `y` and `h`. A title band therefore says `{ "w": true }`,
+/// the body says `{ "w": true, "h": true }`, and a badge pinned to the
+/// bottom-right says `{ "x": true, "y": true }`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", default)]
+pub struct Follow {
+    pub x: bool,
+    pub y: bool,
+    pub w: bool,
+    pub h: bool,
+}
+
+impl Follow {
+    pub const NONE: Follow = Follow { x: false, y: false, w: false, h: false };
 }
 
 impl Default for Frame {
@@ -84,6 +116,8 @@ impl Default for Frame {
             clip: false,
             visible: true,
             locked: false,
+            slot: None,
+            follow: Follow::NONE,
             content: FrameContent::default(),
         }
     }
@@ -134,6 +168,7 @@ impl Frame {
 /// hundreds, so the trade favours directness.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum FrameContent {
     Text(TextFrame),
@@ -141,6 +176,9 @@ pub enum FrameContent {
     Shape(ShapeFrame),
     Group(GroupFrame),
     Chart(ChartFrame),
+    /// A component from `resources.components`, drawn here. Becomes a group
+    /// before layout; the engine never lays an instance out as such.
+    Instance(InstanceFrame),
 }
 
 impl Default for FrameContent {
@@ -151,6 +189,7 @@ impl Default for FrameContent {
 
 /// A frame that lays out blocks of text.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct TextFrame {
     /// Inline content. Ignored when `story` is set.
@@ -210,6 +249,7 @@ impl Default for TextFrame {
 
 /// A frame that draws a raster image.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ImageFrame {
     /// Key registered through `add_image`.
@@ -240,6 +280,7 @@ impl Default for ImageFrame {
 /// that decoded pixels would stop being deterministic across platforms, and
 /// the PDF would stop matching the canvas.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Wrap {
     pub mode: WrapMode,
@@ -248,6 +289,7 @@ pub struct Wrap {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum WrapMode {
     /// The frame's own box blocks the text.
@@ -280,6 +322,7 @@ impl WrapMode {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum ImageFit {
     /// Scale to fit entirely inside, preserving the aspect ratio.
@@ -294,6 +337,7 @@ pub enum ImageFit {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum ImageAlign {
     TopLeft,
@@ -327,12 +371,14 @@ impl ImageAlign {
 
 /// A frame that draws a vector primitive using the frame's own fill and border.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ShapeFrame {
     pub shape: ShapeKind,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum ShapeKind {
     #[default]
@@ -344,6 +390,7 @@ pub enum ShapeKind {
 
 /// What a corner does with its radius.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum CornerStyle {
     /// A quarter-circle arc. What every box did before this existed.
@@ -355,9 +402,39 @@ pub enum CornerStyle {
 
 /// A frame whose children are positioned relative to its own origin.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct GroupFrame {
     pub children: Vec<Frame>,
+    /// Set when this group came from resolving an instance: the component's
+    /// name. Never written by an author; the display list reports the frame
+    /// as `"instance"` so the editor selects the whole and not the parts.
+    #[serde(skip)]
+    pub instance: Option<String>,
+}
+
+/// A placed copy of a component.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", default)]
+pub struct InstanceFrame {
+    /// Key of `resources.components`.
+    pub component: String,
+    /// Content for the component's slots, by slot name.
+    pub slots: BTreeMap<String, SlotValue>,
+}
+
+/// What fills a slot.
+///
+/// A bare string is a paragraph of that text; a list is the blocks of a text
+/// frame; `{"src": …}` is the image of an image frame.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum SlotValue {
+    Text(String),
+    Image { src: String },
+    Blocks(Vec<Block>),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -365,6 +442,7 @@ pub struct GroupFrame {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Border {
     pub width: Len,
@@ -403,6 +481,7 @@ impl Border {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum BorderStyle {
     #[default]
@@ -412,6 +491,7 @@ pub enum BorderStyle {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Sides {
     pub top: bool,

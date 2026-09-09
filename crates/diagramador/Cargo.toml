@@ -11,20 +11,24 @@ repository.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["images", "browser"]
+default = ["images", "browser", "schema"]
 
 # Browser target via wasm-bindgen (editor + PDF in the page)
-browser = ["dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:js-sys", "dep:serde_json"]
+browser = ["dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:js-sys"]
 
 # WASI C-ABI target for Python / Go / any wasm runtime
-wasi-lib = ["dep:serde_json"]
+wasi-lib = []
+
+# JSON Schema export (`cargo run --example schema`). Off in the wasm builds.
+schema = ["dep:schemars"]
 
 # Raster image embedding (PNG + JPEG)
 images = ["dep:image"]
 
 [dependencies]
 serde      = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1", optional = true }
+serde_json = "1"
+schemars   = { version = "1", optional = true }
 
 # Pinned: the crate version must match the installed `wasm-bindgen` CLI, which
 # is what generates the JS glue. Bump both together.
@@ -45,4 +49,4 @@ unicode-linebreak = "0.1"
 image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg"] }
 
 [dev-dependencies]
-serde_json = "1"
+jsonschema = { version = "0.30", default-features = false }

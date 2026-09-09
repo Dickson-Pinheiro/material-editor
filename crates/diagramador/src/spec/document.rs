@@ -11,7 +11,7 @@ use crate::color::Color;
 use crate::units::{Insets, PageSize, Rect};
 
 /// Current schema version. Bumped on breaking changes to the JSON shape.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Document
@@ -20,6 +20,7 @@ pub const SCHEMA_VERSION: u32 = 1;
 /// A whole document: the single input to both the PDF emitter and the browser
 /// painter.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Document {
     pub version: u32,
@@ -80,6 +81,7 @@ impl Document {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Meta {
     pub title: Option<String>,
@@ -95,6 +97,7 @@ pub struct Meta {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct PageDefaults {
     pub size: PageSize,
@@ -146,6 +149,7 @@ impl PageGeometry {
 /// Everything here is optional: a document that inlines all its styles and
 /// content never needs a `resources` object at all.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Resources {
     /// Named paragraph/character styles, referenced with `"use": "h1"` or
@@ -159,12 +163,42 @@ pub struct Resources {
     /// two copies of the numbers.
     pub data: BTreeMap<String, Vec<crate::spec::chart::Row>>,
     /// Named colours, so a palette change is a one-line edit.
+    ///
+    /// Any colour field may say `"@name"` to take the entry of that name; the
+    /// reference is resolved before the document is parsed, so the engine
+    /// only ever sees a literal colour.
     pub colors: BTreeMap<String, Color>,
+    /// Named groups of frames with slots — the didactic boxes of a collection.
+    ///
+    /// A frame `{"type": "instance", "component": name, "slots": {…}}` is
+    /// replaced by the component's frames before layout, with each slot's
+    /// content placed in the frame that declares that slot.
+    pub components: BTreeMap<String, Component>,
+}
+
+/// A reusable group of frames with named slots.
+///
+/// The frames are positioned from the component's own top-left corner, at
+/// the `size` the component was designed at. An instance may be drawn at
+/// another size; each frame's [`Follow`](super::frame::Follow) says how it
+/// moves or stretches with the difference.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", default)]
+pub struct Component {
+    /// Human-facing label shown in the editor's component list.
+    pub label: Option<String>,
+    /// What this block is for, in the author's words — the writer model reads it.
+    pub description: Option<String>,
+    /// `[width, height]` the frames were designed at.
+    pub size: [f64; 2],
+    pub frames: Vec<Frame>,
 }
 
 /// A page template: frames stamped onto every page that references it, plus
 /// optional geometry.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Master {
     pub size: Option<PageSize>,
@@ -179,6 +213,7 @@ pub struct Master {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Page {
     pub id: Option<String>,
