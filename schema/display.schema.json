@@ -135,6 +135,14 @@
     },
     "Diagnostic": {
       "properties": {
+        "amount": {
+          "description": "How big the problem is, in points: how far a line or a cell overflows.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "code": {
           "type": "string"
         },
@@ -155,8 +163,30 @@
             "null"
           ]
         },
+        "rect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rect"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where on the page the problem is, when narrower than the frame — a\ntable cell, say. Page coordinates."
+        },
         "severity": {
           "$ref": "#/$defs/Severity"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The content the problem is about, addressed like a painted item."
         }
       },
       "required": [
@@ -226,6 +256,17 @@
           },
           "type": "array"
         },
+        "fit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How the content measured against the box. Text frames only."
+        },
         "id": {
           "type": "string"
         },
@@ -248,7 +289,7 @@
         },
         "rect": {
           "$ref": "#/$defs/Rect",
-          "description": "In page coordinates, after any group transforms have been applied."
+          "description": "In page coordinates: the frame's own rect offset by its ancestor\ngroups' corners, grown when `overflow: grow` asked for it. Rotation is\nnot applied — that is what `rotation` is for."
         },
         "rotation": {
           "format": "double",
@@ -476,6 +517,43 @@
         "evenOdd"
       ],
       "type": "string"
+    },
+    "Fit": {
+      "description": "How a text frame's content measured against the room it was given.\n\nReport only: nothing here moved a glyph. It says what `overset` cannot —\nby how much, in which direction, and whether the clip hid it.",
+      "properties": {
+        "boxH": {
+          "description": "Height the flow had: the frame's height (grown, if it grew) less its\nvertical padding.",
+          "format": "double",
+          "type": "number"
+        },
+        "clipped": {
+          "description": "The frame clips, and something drawn crosses the clip.",
+          "type": "boolean"
+        },
+        "contentH": {
+          "description": "Height the flow actually used, tallest column, padding excluded.",
+          "format": "double",
+          "type": "number"
+        },
+        "overflowX": {
+          "description": "How far the widest line runs past its measure. `0` when every line fits.",
+          "format": "double",
+          "type": "number"
+        },
+        "overflowY": {
+          "description": "How much taller the content is than the box: what was drawn past the\nbottom, plus what was not placed at all (measured at column width).\n`0` when everything fits, or when the rest went on down a thread.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "contentH",
+        "boxH",
+        "overflowX",
+        "overflowY",
+        "clipped"
+      ],
+      "type": "object"
     },
     "Glyph": {
       "properties": {

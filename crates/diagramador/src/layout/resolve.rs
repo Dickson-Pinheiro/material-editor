@@ -25,8 +25,48 @@ pub fn instances(doc: &mut Document, diagnostics: &mut Vec<Diagnostic>) {
         let page_no = index as u32;
         resolve_frames(&mut page.frames, &components, page_no, 0, diagnostics);
     }
-    for master in doc.resources.masters.values_mut() {
-        resolve_frames(&mut master.frames, &components, 0, 0, diagnostics);
+    resolve_masters(doc, &components, diagnostics);
+}
+
+/// Masters are resolved once, for every page that uses them.
+///
+/// What goes wrong in one is reported on the first page it is applied to —
+/// the first place the author can see it — and with no page at all when no
+/// page applies it. Page `0` used to stand in for both, which sent the author
+/// to a cover that may not even use the master.
+fn resolve_masters(
+    doc: &mut Document,
+    components: &BTreeMap<String, Component>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let first_use: BTreeMap<String, Option<u32>> = doc
+        .resources
+        .masters
+        .keys()
+        .map(|name| {
+            let page = doc
+                .pages
+                .iter()
+                .position(|page| page.master.as_deref() == Some(name.as_str()))
+                .map(|index| index as u32);
+            (name.clone(), page)
+        })
+        .collect();
+
+    for (name, master) in doc.resources.masters.iter_mut() {
+        let page = first_use.get(name).copied().flatten();
+        let mut said = Vec::new();
+        resolve_frames(
+            &mut master.frames,
+            components,
+            page.unwrap_or(0),
+            0,
+            &mut said,
+        );
+        for mut diagnostic in said {
+            diagnostic.page = page;
+            diagnostics.push(diagnostic);
+        }
     }
 }
 
@@ -36,9 +76,7 @@ fn strip_instances(doc: &mut Document, diagnostics: &mut Vec<Diagnostic>) {
     for (index, page) in doc.pages.iter_mut().enumerate() {
         resolve_frames(&mut page.frames, &empty, index as u32, 0, diagnostics);
     }
-    for master in doc.resources.masters.values_mut() {
-        resolve_frames(&mut master.frames, &empty, 0, 0, diagnostics);
-    }
+    resolve_masters(doc, &empty, diagnostics);
 }
 
 fn resolve_frames(
@@ -89,7 +127,10 @@ fn resolve_one(
         diagnostics.push(
             Diagnostic::warning(
                 "unknownComponent",
-                format!("componente `{}` não existe em resources.components", instance.component),
+                format!(
+                    "componente `{}` não existe em resources.components",
+                    instance.component
+                ),
             )
             .on(page, id),
         );
@@ -129,11 +170,10 @@ fn resolve_one(
             if child.follow.h {
                 child.rect.h += dh;
             }
-            if let Some(slot) = child.slot.take() {
-                match slots.remove(&slot) {
-                    Some(value) => fill(&mut child, value),
-                    None => {}
-                }
+            if let Some(slot) = child.slot.take()
+                && let Some(value) = slots.remove(&slot)
+            {
+                fill(&mut child, value);
             }
             child
         })

@@ -5,32 +5,28 @@
 //! a layout decision — this module is the sole authority.
 
 pub mod cascade;
-pub mod resolve;
 pub(crate) mod chart;
 pub(crate) mod grid;
-pub mod shape;
+pub mod resolve;
 pub(crate) mod scale;
+pub mod shape;
 pub(crate) mod table;
-pub(crate) mod ticks;
 mod text;
+pub(crate) mod ticks;
 pub mod wrap;
 
 use std::collections::{BTreeMap, HashMap};
 
 use crate::display::{
-    PathItem,
-    PathCommand,
-    FillRule,
-    CellStep,
-    ClipShape, Diagnostic, DisplayFont, DisplayFrame, DisplayGroup, DisplayItem, DisplayList,
-    DisplayPage, EllipseItem, ImageItem, LineItem, RectItem, SourceRef, Stroke,
+    CellStep, ClipShape, Diagnostic, DisplayFont, DisplayFrame, DisplayGroup, DisplayItem,
+    DisplayList, DisplayPage, EllipseItem, FillRule, Fit, ImageItem, LineItem, PathCommand,
+    PathItem, RectItem, SourceRef, Stroke,
 };
 use crate::fonts::FontRegistry;
 use crate::images::ImageStore;
 use crate::spec::{
-    PanelBlock,
     Block, Border, CornerStyle, Document, Frame, FrameContent, ImageFit, ImageFrame, Origin,
-    Overflow, Page, ResolvedStyle, ShapeKind, Sides, Style, TextFrame, VerticalAlign,
+    Overflow, Page, PanelBlock, ResolvedStyle, ShapeKind, Sides, Style, TextFrame, VerticalAlign,
 };
 use crate::units::{Corners, PT_PER_PX, Rect};
 
@@ -196,14 +192,20 @@ impl<'a> LayoutEngine<'a> {
         }
 
         // Anything still queued had nowhere to go.
+        //
+        // Named by the frame it was waiting for, and placed on that frame's
+        // page when it has one: a thread that points backwards, or at a frame
+        // on a page a break skipped, still has a frame the author can go to.
+        // A frame that exists nowhere, or only on a master, has no one page.
         for (frame, flow) in pending {
             if !flow.blocks.is_empty() {
-                list.diagnostics.push(
-                    Diagnostic::warning(
-                        "overset",
-                        format!("conteúdo destinado ao frame `{frame}` não foi colocado"),
-                    ),
+                let mut said = Diagnostic::warning(
+                    "overset",
+                    format!("conteúdo destinado ao frame `{frame}` não foi colocado"),
                 );
+                said.page = page_of_frame(&doc, &frame);
+                said.frame = Some(frame);
+                list.diagnostics.push(said);
             }
         }
 
@@ -249,8 +251,11 @@ impl<'a> LayoutEngine<'a> {
 
         if let (Some(name), None) = (page.master.as_ref(), master) {
             diagnostics.push(
-                Diagnostic::warning("unknownMaster", format!("página mestre `{name}` não existe"))
-                    .on(index, ""),
+                Diagnostic::warning(
+                    "unknownMaster",
+                    format!("página mestre `{name}` não existe"),
+                )
+                .on(index, ""),
             );
         }
 
@@ -261,7 +266,9 @@ impl<'a> LayoutEngine<'a> {
             id: page.id.clone(),
             width: geometry.size.width,
             height: geometry.size.height,
-            background: page.background.or_else(|| master.and_then(|m| m.background)),
+            background: page
+                .background
+                .or_else(|| master.and_then(|m| m.background)),
             margin_box: geometry.margin_box(),
             frames: Vec::new(),
             items: Vec::new(),
@@ -322,6 +329,7 @@ impl<'a> LayoutEngine<'a> {
 
         let mut items: Vec<DisplayItem> = Vec::new();
         let mut overset = false;
+        let mut fit: Option<Fit> = None;
         let mut grown = rect;
 
         // ── Content ───────────────────────────────────────────────────────────
@@ -329,19 +337,55 @@ impl<'a> LayoutEngine<'a> {
 
         match &frame.content {
             FrameContent::Text(tf) => {
-                let (content, used_height, is_overset) = self.layout_text_frame(
-                    doc, frame, tf, &id, page, content_box, styles, parent_style, obstacles,
-                    pending, auto, diagnostics,
+                let laid = self.layout_text_frame(
+                    doc,
+                    frame,
+                    tf,
+                    &id,
+                    page,
+                    content_box,
+                    styles,
+                    parent_style,
+                    obstacles,
+                    pending,
+                    auto,
+                    diagnostics,
                 );
-                items.extend(content);
-                overset = is_overset;
+                items.extend(laid.items);
+                overset = laid.overset;
+                let used_height = laid.used;
 
                 if tf.overflow == Overflow::Grow && used_height > content_box.h {
                     grown.h = used_height + frame.padding.vertical();
                 }
+
+                // Measured after the frame has grown, so a frame that grew to
+                // hold its text is not reported as overflowing it.
+                let box_h = (grown.h - frame.padding.vertical()).max(0.0);
+                let past = laid.reach - box_h;
+                let drawn_past = if past > FIT { past } else { 0.0 };
+                let overflow_x = if laid.overflow_x > FIT {
+                    laid.overflow_x
+                } else {
+                    0.0
+                };
+                fit = Some(Fit {
+                    content_h: used_height,
+                    box_h,
+                    overflow_x,
+                    overflow_y: drawn_past + laid.unplaced,
+                    clipped: text_clips(frame, tf) && (overflow_x > 0.0 || drawn_past > 0.0),
+                });
             }
             FrameContent::Image(image) => {
-                items.extend(self.layout_image_frame(image, content_box, &source, diagnostics, page, &id));
+                items.extend(self.layout_image_frame(
+                    image,
+                    content_box,
+                    &source,
+                    diagnostics,
+                    page,
+                    &id,
+                ));
             }
             FrameContent::Chart(spec) => {
                 // A chart that cannot find its numbers gets an empty frame and
@@ -358,13 +402,17 @@ impl<'a> LayoutEngine<'a> {
                         .on(page, id.clone()),
                     ),
                     Some(rows) => {
-                        let style = cascade::resolve(parent_style, styles, None, spec.style.as_ref());
+                        let style =
+                            cascade::resolve(parent_style, styles, None, spec.style.as_ref());
                         let text = ChartText {
                             text: &TextLayouter {
                                 registry: self.registry,
                                 images: self.images,
                                 styles,
-                                variables: Variables { page: page + 1, pages: self.page_count },
+                                variables: Variables {
+                                    page: page + 1,
+                                    pages: self.page_count,
+                                },
                             },
                             source: source.clone(),
                         };
@@ -426,8 +474,7 @@ impl<'a> LayoutEngine<'a> {
             FrameContent::Group(group) => {
                 let mut nested = ancestors.to_vec();
                 nested.push(id.clone());
-                let group_style =
-                    cascade::resolve(parent_style, styles, None, None);
+                let group_style = cascade::resolve(parent_style, styles, None, None);
 
                 // Children are positioned relative to the group's own corner.
                 let mut inner = DisplayPage {
@@ -436,8 +483,19 @@ impl<'a> LayoutEngine<'a> {
                 };
                 for child in &group.children {
                     self.layout_frame(
-                        doc, child, page, rect.x, rect.y, styles, &group_style, &nested, obstacles,
-                        pending, auto, &mut inner, diagnostics,
+                        doc,
+                        child,
+                        page,
+                        rect.x,
+                        rect.y,
+                        styles,
+                        &group_style,
+                        &nested,
+                        obstacles,
+                        pending,
+                        auto,
+                        &mut inner,
+                        diagnostics,
                     );
                 }
                 items.extend(inner.items);
@@ -492,7 +550,7 @@ impl<'a> LayoutEngine<'a> {
         }
 
         let needs_clip = frame.clip
-            || matches!(&frame.content, FrameContent::Text(t) if t.overflow == Overflow::Clip)
+            || matches!(&frame.content, FrameContent::Text(t) if text_clips(frame, t))
             || matches!(&frame.content, FrameContent::Image(i) if i.fit == ImageFit::Cover);
 
         if needs_clip && !items.is_empty() {
@@ -553,6 +611,7 @@ impl<'a> LayoutEngine<'a> {
             locked: frame.locked,
             overset,
             ancestors: ancestors.to_vec(),
+            fit,
         });
     }
 
@@ -573,7 +632,7 @@ impl<'a> LayoutEngine<'a> {
         pending: &mut HashMap<String, PendingFlow>,
         auto: &mut AutoFlow,
         diagnostics: &mut Vec<Diagnostic>,
-    ) -> (Vec<DisplayItem>, f64, bool) {
+    ) -> LaidText {
         // Threaded content wins over the frame's own; that is what makes a
         // chain of frames behave as one continuous story.
         let PendingFlow {
@@ -613,7 +672,12 @@ impl<'a> LayoutEngine<'a> {
         // frame is too early, so it paints nothing and hands it straight on.
         let deferred = min_page.is_some_and(|earliest| page < earliest);
 
-        let style = cascade::resolve(parent_style, styles, tf.use_style.as_deref(), tf.style.as_ref());
+        let style = cascade::resolve(
+            parent_style,
+            styles,
+            tf.use_style.as_deref(),
+            tf.style.as_ref(),
+        );
         let layouter = TextLayouter {
             registry: self.registry,
             images: self.images,
@@ -626,8 +690,7 @@ impl<'a> LayoutEngine<'a> {
 
         let columns = tf.columns.max(1);
         let gap = tf.column_gap.get();
-        let column_width =
-            ((content_box.w - gap * (columns - 1) as f64) / columns as f64).max(1.0);
+        let column_width = ((content_box.w - gap * (columns - 1) as f64) / columns as f64).max(1.0);
         let unbounded = tf.overflow != Overflow::Clip;
 
         let mut items = Vec::new();
@@ -640,6 +703,13 @@ impl<'a> LayoutEngine<'a> {
         // Set when a break sends the rest past this frame entirely.
         let mut forced: Option<BreakKind> = None;
         let mut reported_wrap = false;
+        let mut reach = 0.0f64;
+        let mut overflow_x = 0.0f64;
+        // Paragraphs already reported as overfull here, by where they live. A
+        // paragraph that runs down two columns is one problem in this frame.
+        let mut reported_overfull: Vec<(Vec<CellStep>, Option<u32>)> = Vec::new();
+        // How tall each column's content ran, for the rule between columns.
+        let mut column_heights: Vec<f64> = Vec::new();
 
         for column in 0..columns {
             if blocks.is_empty() || deferred {
@@ -659,6 +729,9 @@ impl<'a> LayoutEngine<'a> {
                 stopped,
                 walled_in,
                 diagnostics: said,
+                overfull,
+                overflow_x: column_overflow_x,
+                reach: column_reach,
             } = self.flow_blocks(
                 &layouter,
                 &blocks,
@@ -679,9 +752,21 @@ impl<'a> LayoutEngine<'a> {
             }
 
             items.extend(column_items);
+            column_heights.push(used + offset);
             max_used = max_used.max(used);
+            reach = reach.max(column_reach + offset);
+            overflow_x = overflow_x.max(column_overflow_x);
             blocks = leftover;
             diagnostics.extend(said);
+
+            for worst in overfull {
+                let key = (worst.source.cells.clone(), worst.source.block);
+                if reported_overfull.contains(&key) {
+                    continue;
+                }
+                reported_overfull.push(key);
+                diagnostics.push(overfull_diagnostic(worst, offset).on(page, id));
+            }
 
             // Once per frame: ten paragraphs behind the same photograph are
             // one problem, not ten.
@@ -703,8 +788,34 @@ impl<'a> LayoutEngine<'a> {
             }
         }
 
+        // ── The rule between columns ─────────────────────────────────────────
+        // Only between two columns that both hold something: a rule beside an
+        // empty column separates nothing.
+        if let Some(rule) = &tf.column_rule {
+            for pair in 1..column_heights.len() {
+                let (left, right) = (column_heights[pair - 1], column_heights[pair]);
+                if left <= 0.0 || right <= 0.0 {
+                    continue;
+                }
+                let x = content_box.x + column_width * pair as f64 + gap * pair as f64 - gap / 2.0;
+                items.push(DisplayItem::Line(LineItem {
+                    x1: x,
+                    y1: content_box.y,
+                    x2: x,
+                    y2: content_box.y + left.max(right),
+                    stroke: Stroke {
+                        color: rule.color,
+                        width: rule.width.get(),
+                        dash: rule.dash(),
+                    },
+                    source: Some(source.clone()),
+                }));
+            }
+        }
+
         // ── Where the rest goes ───────────────────────────────────────────────
         let mut overset = false;
+        let mut unplaced = 0.0f64;
 
         if !blocks.is_empty() {
             // A page break parks the content until after this page; a deferral
@@ -763,18 +874,41 @@ impl<'a> LayoutEngine<'a> {
                 }
                 _ => {
                     overset = true;
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            "overset",
-                            "o conteúdo não cabe no frame e não há threadNext nem autoFlow",
+                    // How much did not go in, laid out at the column's width
+                    // with no ceiling. Only here, where nothing else will ever
+                    // place it, so a document that fits pays nothing for it.
+                    unplaced = self
+                        .flow_blocks(
+                            &layouter,
+                            &blocks,
+                            &style,
+                            Rect::new(content_box.x, content_box.y, column_width, 0.0),
+                            None,
+                            &source,
+                            &[],
                         )
-                        .on(page, id),
-                    );
+                        .used;
+                    let mut said = Diagnostic::warning(
+                        "overset",
+                        "o conteúdo não cabe no frame e não há threadNext nem autoFlow",
+                    )
+                    .on(page, id);
+                    if unplaced > FIT {
+                        said = said.with_amount(unplaced);
+                    }
+                    diagnostics.push(said);
                 }
             }
         }
 
-        (items, max_used, overset)
+        LaidText {
+            items,
+            used: max_used,
+            reach,
+            overflow_x,
+            overset,
+            unplaced,
+        }
     }
 
     /// Stack blocks down a column, splitting the first one that does not fit.
@@ -793,9 +927,62 @@ impl<'a> LayoutEngine<'a> {
         source: &SourceRef,
         obstacles: &[wrap::Obstacle],
     ) -> FlowResult {
+        let flowed = self.flow_blocks_once(
+            layouter, blocks, style, column, max_height, source, obstacles,
+        );
+
+        // `keepWithNext`: a block that did not get a single line into this
+        // column takes the blocks chained to it along. The chain goes back
+        // while the block before keeps with the next one; if it reaches the top
+        // of the column, nothing is moved — it would not fit anywhere else
+        // either, and the column would stay empty.
+        let placed = blocks.len().saturating_sub(flowed.leftover.len());
+        let untouched = flowed.stopped.is_none()
+            && placed < blocks.len()
+            && flowed.leftover.first() == blocks.get(placed);
+        if !untouched || placed == 0 {
+            return flowed;
+        }
+        let mut start = placed;
+        while start > 0 && keeps_with_next(&blocks[start - 1], style, layouter.styles) {
+            start -= 1;
+        }
+        if start == placed || start == 0 {
+            return flowed;
+        }
+        let mut kept = self.flow_blocks_once(
+            layouter,
+            &blocks[..start],
+            style,
+            column,
+            max_height,
+            source,
+            obstacles,
+        );
+        if !kept.leftover.is_empty() {
+            return flowed;
+        }
+        kept.leftover = blocks[start..].to_vec();
+        kept
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn flow_blocks_once(
+        &self,
+        layouter: &TextLayouter<'_>,
+        blocks: &[Block],
+        style: &ResolvedStyle,
+        column: Rect,
+        max_height: Option<f64>,
+        source: &SourceRef,
+        obstacles: &[wrap::Obstacle],
+    ) -> FlowResult {
         let mut items = Vec::new();
         let mut walled_in = false;
         let mut diagnostics = Vec::new();
+        let mut overfull: Vec<text::Overfull> = Vec::new();
+        let mut overflow_x = 0.0f64;
+        let mut reach = 0.0f64;
         let mut y = 0.0f64;
         let budget = max_height.unwrap_or(f64::INFINITY);
 
@@ -814,8 +1001,11 @@ impl<'a> LayoutEngine<'a> {
                         origin_y: column.y + y,
                         min_slot: (style.font_size * MIN_SLOT_EM).max(1.0),
                     };
-                    let space: &dyn wrap::LineSpace =
-                        if obstacles.is_empty() { &whole } else { &carved };
+                    let space: &dyn wrap::LineSpace = if obstacles.is_empty() {
+                        &whole
+                    } else {
+                        &carved
+                    };
 
                     let layout = layouter.layout_paragraph(
                         para,
@@ -827,6 +1017,16 @@ impl<'a> LayoutEngine<'a> {
                     );
 
                     walled_in |= layout.walled_in;
+                    // A paragraph that placed nothing reaches nowhere: `y`
+                    // already counts the spacing after the one before it.
+                    if layout.line_count > 0 {
+                        reach = reach.max(y + layout.height - layout.trailing);
+                    }
+                    if let Some(mut worst) = layout.overfull {
+                        worst.rect = worst.rect.translate(column.x, column.y + y);
+                        overflow_x = overflow_x.max(worst.excess);
+                        overfull.push(worst);
+                    }
 
                     let mut placed = layout.items;
                     translate_items(&mut placed, column.x, column.y + y);
@@ -869,7 +1069,17 @@ impl<'a> LayoutEngine<'a> {
                     if let Some(remainder) = layout.remainder {
                         let mut leftover = vec![Block::Paragraph(remainder)];
                         leftover.extend_from_slice(&blocks[index + 1..]);
-                        return FlowResult { items, used: y, leftover, stopped: None, walled_in, diagnostics };
+                        return FlowResult {
+                            items,
+                            used: y,
+                            leftover,
+                            stopped: None,
+                            walled_in,
+                            diagnostics,
+                            overfull,
+                            overflow_x,
+                            reach,
+                        };
                     }
                 }
 
@@ -883,17 +1093,22 @@ impl<'a> LayoutEngine<'a> {
                     // da outra — a espessura delas — em vez do espaço que o
                     // documento pedia. Parecia uma linha grossa só, e não havia
                     // onde escrever.
-                    let own = cascade::resolve(
-                        style,
-                        layouter.styles,
-                        None,
-                        rule.style.as_ref(),
-                    );
+                    let own = cascade::resolve(style, layouter.styles, None, rule.style.as_ref());
                     let before = if y > 0.0 { own.space_before } else { 0.0 };
                     let after = own.space_after;
 
                     if y + before + thickness > budget {
-                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in, diagnostics };
+                        return FlowResult {
+                            items,
+                            used: y,
+                            leftover: blocks[index..].to_vec(),
+                            stopped: None,
+                            walled_in,
+                            diagnostics,
+                            overfull,
+                            overflow_x,
+                            reach,
+                        };
                     }
 
                     let width = column.w * rule.width.unwrap_or(1.0).clamp(0.0, 1.0);
@@ -909,19 +1124,33 @@ impl<'a> LayoutEngine<'a> {
                         },
                         source: Some(source.clone()),
                     }));
+                    reach = reach.max(y + before + thickness);
                     y += before + thickness + after;
                 }
 
                 Block::Spacer(spacer) => {
                     let height = spacer.height.get();
                     if y + height > budget && y > 0.0 {
-                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in, diagnostics };
+                        return FlowResult {
+                            items,
+                            used: y,
+                            leftover: blocks[index..].to_vec(),
+                            stopped: None,
+                            walled_in,
+                            diagnostics,
+                            overfull,
+                            overflow_x,
+                            reach,
+                        };
                     }
                     y += height;
                 }
 
                 Block::Table(table_block) => {
-                    let cells = CellFlow { engine: self, text: layouter };
+                    let cells = CellFlow {
+                        engine: self,
+                        text: layouter,
+                    };
                     let mut here = source.clone();
                     // The index where the author wrote it. A continuation is
                     // re-flowed into a fresh list whose indices start again,
@@ -947,13 +1176,27 @@ impl<'a> LayoutEngine<'a> {
 
                     diagnostics.extend(diagnose(&laid, &here));
                     items.extend(laid.items);
+                    overflow_x = overflow_x.max(laid.sizes.overflow);
                     y += laid.height;
+                    if laid.height > 0.0 {
+                        reach = reach.max(y);
+                    }
 
                     if let Some(mut rest) = laid.leftover {
                         rest.origin = here.block;
                         let mut over = vec![Block::Table(rest)];
                         over.extend_from_slice(&blocks[index + 1..]);
-                        return FlowResult { items, used: y, leftover: over, stopped: None, walled_in, diagnostics };
+                        return FlowResult {
+                            items,
+                            used: y,
+                            leftover: over,
+                            stopped: None,
+                            walled_in,
+                            diagnostics,
+                            overfull,
+                            overflow_x,
+                            reach,
+                        };
                     }
                 }
 
@@ -994,7 +1237,11 @@ impl<'a> LayoutEngine<'a> {
                         column.h,
                     );
 
-                    let before = if y > 0.0 { inner_style.space_before } else { 0.0 };
+                    let before = if y > 0.0 {
+                        inner_style.space_before
+                    } else {
+                        0.0
+                    };
                     let inset = panel.inset;
                     // A borda é centrada na aresta: metade dela cai para fora
                     // da moldura, e é essa metade que o conteúdo não pode
@@ -1018,7 +1265,17 @@ impl<'a> LayoutEngine<'a> {
                         && room <= 0.0
                         && y > 0.0
                     {
-                        return FlowResult { items, used: y, leftover: blocks[index..].to_vec(), stopped: None, walled_in, diagnostics };
+                        return FlowResult {
+                            items,
+                            used: y,
+                            leftover: blocks[index..].to_vec(),
+                            stopped: None,
+                            walled_in,
+                            diagnostics,
+                            overfull,
+                            overflow_x,
+                            reach,
+                        };
                     }
 
                     // Um passo para dentro da moldura, como a célula de tabela
@@ -1075,8 +1332,29 @@ impl<'a> LayoutEngine<'a> {
                         obstacles,
                     );
 
+                    // Nada do conteúdo coube: a moldura desce inteira para a
+                    // coluna seguinte. Sem isto sobrava, no pé da coluna, uma
+                    // caixa vazia só com fundo e borda, e o texto começava
+                    // numa segunda caixa na coluna do lado. No topo da coluna
+                    // (`y == 0`) não há para onde descer, e segue como antes.
+                    if y > 0.0 && inner.used <= 0.0 && !inner.leftover.is_empty() {
+                        return FlowResult {
+                            items,
+                            used: y,
+                            leftover: blocks[index..].to_vec(),
+                            stopped: None,
+                            walled_in,
+                            diagnostics,
+                            overfull,
+                            overflow_x,
+                            reach,
+                        };
+                    }
+
                     diagnostics.extend(inner.diagnostics);
                     walled_in |= inner.walled_in;
+                    overflow_x = overflow_x.max(inner.overflow_x);
+                    overfull.extend(inner.overfull);
 
                     let natural = inner.used + inset.vertical() + edge * 2.0;
                     // O piso pedido, limitado ao que a coluna ainda tem. Uma
@@ -1111,10 +1389,12 @@ impl<'a> LayoutEngine<'a> {
                     // O preenchimento antes do conteúdo: pintado depois, ele
                     // cobriria o texto que deveria emoldurar.
                     if let Some(fill) = panel.fill {
-                        let cortado =
-                            panel.corner == CornerStyle::Cut && !panel.radius.is_zero();
-                        let commands =
-                            if cortado { cut_outline(box_rect, panel.radius) } else { Vec::new() };
+                        let cortado = panel.corner == CornerStyle::Cut && !panel.radius.is_zero();
+                        let commands = if cortado {
+                            cut_outline(box_rect, panel.radius)
+                        } else {
+                            Vec::new()
+                        };
                         items.push(if commands.is_empty() {
                             DisplayItem::Rect(RectItem {
                                 rect: box_rect,
@@ -1150,6 +1430,9 @@ impl<'a> LayoutEngine<'a> {
 
                     items.extend(inner.items);
                     y += before + height;
+                    if height > 0.0 {
+                        reach = reach.max(y);
+                    }
 
                     if !inner.leftover.is_empty() {
                         let mut over = vec![Block::Panel(PanelBlock {
@@ -1157,25 +1440,75 @@ impl<'a> LayoutEngine<'a> {
                             ..panel.continuing(inner.leftover)
                         })];
                         over.extend_from_slice(&blocks[index + 1..]);
-                        return FlowResult { items, used: y, leftover: over, stopped: inner.stopped, walled_in, diagnostics };
+                        return FlowResult {
+                            items,
+                            used: y,
+                            leftover: over,
+                            stopped: inner.stopped,
+                            walled_in,
+                            diagnostics,
+                            overfull,
+                            overflow_x,
+                            reach,
+                        };
                     }
 
                     y += inner_style.space_after;
                 }
 
                 Block::ColumnBreak => {
-                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Column), walled_in, diagnostics };
+                    return FlowResult {
+                        items,
+                        used: y,
+                        leftover: blocks[index + 1..].to_vec(),
+                        stopped: Some(BreakKind::Column),
+                        walled_in,
+                        diagnostics,
+                        overfull,
+                        overflow_x,
+                        reach,
+                    };
                 }
                 Block::FrameBreak => {
-                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Frame), walled_in, diagnostics };
+                    return FlowResult {
+                        items,
+                        used: y,
+                        leftover: blocks[index + 1..].to_vec(),
+                        stopped: Some(BreakKind::Frame),
+                        walled_in,
+                        diagnostics,
+                        overfull,
+                        overflow_x,
+                        reach,
+                    };
                 }
                 Block::PageBreak => {
-                    return FlowResult { items, used: y, leftover: blocks[index + 1..].to_vec(), stopped: Some(BreakKind::Page), walled_in, diagnostics };
+                    return FlowResult {
+                        items,
+                        used: y,
+                        leftover: blocks[index + 1..].to_vec(),
+                        stopped: Some(BreakKind::Page),
+                        walled_in,
+                        diagnostics,
+                        overfull,
+                        overflow_x,
+                        reach,
+                    };
                 }
             }
         }
 
-        FlowResult { items, used: y, leftover: Vec::new(), stopped: None, walled_in, diagnostics }
+        FlowResult {
+            items,
+            used: y,
+            leftover: Vec::new(),
+            stopped: None,
+            walled_in,
+            diagnostics,
+            overfull,
+            overflow_x,
+            reach,
+        }
     }
 
     // ── Image frames ─────────────────────────────────────────────────────────
@@ -1270,7 +1603,11 @@ fn diagnose(laid: &table::Layout, source: &SourceRef) -> Vec<Diagnostic> {
         )));
     }
 
-    if laid.issues.iter().any(|issue| matches!(issue, table::Issue::RowTooTall { .. })) {
+    if laid
+        .issues
+        .iter()
+        .any(|issue| matches!(issue, table::Issue::RowTooTall { .. }))
+    {
         out.push(here(Diagnostic::warning(
             "tableRowTooTall",
             "uma linha da tabela é mais alta que o espaço inteiro e transbordou",
@@ -1285,6 +1622,35 @@ fn diagnose(laid: &table::Layout, source: &SourceRef) -> Vec<Diagnostic> {
                 laid.sizes.overflow,
             ),
         )));
+    }
+
+    // Cells whose content is drawn past their box, one line per direction.
+    // The worst cell is the one named, since it is the one to fix first; the
+    // rest are counted in the message.
+    for (spill, message) in [
+        (
+            table::Spill::Down,
+            "o conteúdo de {n} célula(s) da tabela passa da altura da linha (até {amount} pt)",
+        ),
+        (
+            table::Spill::Across,
+            "uma palavra em {n} célula(s) da tabela é mais larga que a coluna (até {amount} pt)",
+        ),
+    ] {
+        let spilled: Vec<&table::CellOverflow> =
+            laid.overflows.iter().filter(|o| o.spill == spill).collect();
+        let Some(worst) = spilled.iter().max_by(|a, b| a.amount.total_cmp(&b.amount)) else {
+            continue;
+        };
+        let text = message
+            .replace("{n}", &spilled.len().to_string())
+            .replace("{amount}", &pt(worst.amount));
+        out.push(here(
+            Diagnostic::warning("cellOverflow", text)
+                .with_amount(worst.amount)
+                .with_rect(worst.rect)
+                .with_source(worst.source.clone()),
+        ));
     }
 
     out
@@ -1334,7 +1700,10 @@ impl chart::Labels for ChartText<'_, '_> {
         let (ascent, descent) = self.text.ink(&style);
         chart::Label {
             // The unwrapped width: a label that wrapped would not be a label.
-            width: self.text.measure_paragraph(&Self::paragraph(text), &style).max,
+            width: self
+                .text
+                .measure_paragraph(&Self::paragraph(text), &style)
+                .max,
             ascent,
             descent,
         }
@@ -1424,12 +1793,7 @@ impl table::Cells for CellFlow<'_, '_> {
     /// baseline is depends on the leading, on a first-line indent, on whether
     /// a rule or a spacer comes before the text. Asking the layout is the only
     /// answer that stays true when any of those change.
-    fn first_baseline(
-        &self,
-        blocks: &[Block],
-        style: &ResolvedStyle,
-        width: f64,
-    ) -> Option<f64> {
+    fn first_baseline(&self, blocks: &[Block], style: &ResolvedStyle, width: f64) -> Option<f64> {
         let laid = self.engine.flow_blocks(
             self.text,
             blocks,
@@ -1458,15 +1822,96 @@ impl table::Cells for CellFlow<'_, '_> {
         style: &ResolvedStyle,
         rect: Rect,
         source: &SourceRef,
-    ) -> Vec<DisplayItem> {
+    ) -> table::Rendered {
         // No height budget: the row was sized from `height` at this same
         // width, so anything that spills is a disagreement worth seeing rather
         // than content quietly dropped.
-        self.engine.flow_blocks(self.text, blocks, style, rect, None, source, &[]).items
+        let laid = self
+            .engine
+            .flow_blocks(self.text, blocks, style, rect, None, source, &[]);
+        let widest = laid
+            .overfull
+            .into_iter()
+            .max_by(|a, b| a.excess.total_cmp(&b.excess))
+            .map(|worst| worst.source);
+        table::Rendered {
+            items: laid.items,
+            // What was drawn, not what was reserved under it: a cell's last
+            // `spaceAfter` is room nobody sees, and counting it would call a
+            // row that holds its text an overflow.
+            height: laid.reach,
+            overflow_x: laid.overflow_x,
+            widest,
+        }
     }
 }
 
-/// Content queued for a frame further down a thread.
+/// A text frame's content, laid out, and how it measured.
+struct LaidText {
+    items: Vec<DisplayItem>,
+    /// Height the tallest column used, trailing spacing included.
+    used: f64,
+    /// The lowest point anything drawn reaches, below the content box's top.
+    reach: f64,
+    /// How far the widest line or table runs past its column.
+    overflow_x: f64,
+    overset: bool,
+    /// Height of what was left with nowhere to go, laid out at column width.
+    unplaced: f64,
+}
+
+/// Slack, in points, before a measurement counts as not fitting.
+///
+/// The same hundredth of a point the line breaker allows: a stack of line
+/// heights that should land on the box can miss it by a float's width, and
+/// calling that an overflow would be noise.
+const FIT: f64 = 0.01;
+
+/// Whether a text frame cuts off what is drawn past its edges.
+fn text_clips(frame: &Frame, text: &TextFrame) -> bool {
+    frame.clip || text.overflow == Overflow::Clip
+}
+
+/// A word wider than its line, told to the author.
+///
+/// `offset` is the vertical alignment shift the column received after the
+/// paragraph was laid out, so the rectangle lands where the line was drawn.
+fn overfull_diagnostic(worst: text::Overfull, offset: f64) -> Diagnostic {
+    let amount = pt(worst.excess);
+    let message = if worst.word.chars().all(|c| c == '\u{FFFC}') {
+        format!("um objeto é mais largo que a linha ({amount} pt)")
+    } else {
+        format!(
+            "a palavra \"{}\" é mais larga que a linha ({amount} pt)",
+            worst.word
+        )
+    };
+    Diagnostic::warning("overfullLine", message)
+        .with_amount(worst.excess)
+        .with_rect(worst.rect.translate(0.0, offset))
+        .with_source(worst.source)
+}
+
+/// Points the way a Portuguese reader writes them: one decimal, comma.
+fn pt(value: f64) -> String {
+    format!("{value:.1}").replace('.', ",")
+}
+
+/// The block asks to stay in the same column as the one after it.
+fn keeps_with_next(
+    block: &Block,
+    parent: &ResolvedStyle,
+    styles: &BTreeMap<String, Style>,
+) -> bool {
+    let (use_style, own) = match block {
+        Block::Paragraph(p) => (p.use_style.as_deref(), p.style.as_ref()),
+        Block::Panel(p) => (p.use_style.as_deref(), p.style.as_ref()),
+        Block::Rule(r) => (None, r.style.as_ref()),
+        _ => return false,
+    };
+    cascade::resolve(parent, styles, use_style, own).keep_with_next
+}
+
 #[derive(Debug, Default)]
 /// What one pass over a column produced.
 ///
@@ -1488,8 +1933,22 @@ struct FlowResult {
     /// last place that knows which block they came from — and the first that
     /// knows the page and the frame, both of which are in `source`.
     diagnostics: Vec<Diagnostic>,
+    /// Paragraphs holding a word wider than their line, worst line of each,
+    /// in page coordinates. Tables keep their own: a word too wide for a cell
+    /// is the cell's problem.
+    overfull: Vec<text::Overfull>,
+    /// How far the widest thing in the column runs past it — an overfull
+    /// line, or a table whose columns do not fit.
+    overflow_x: f64,
+    /// The lowest point anything drawn reaches, from the column's top.
+    ///
+    /// `used` counts the `spaceAfter` a last block reserves below itself,
+    /// which is room and not ink; a frame whose last paragraph fits but whose
+    /// spacing does not is not cutting anything off.
+    reach: f64,
 }
 
+/// Content queued for a frame further down a thread.
 struct PendingFlow {
     /// The story it came from, if any. Carried so provenance keeps pointing at
     /// the story rather than at whichever frame ended up painting the text.
@@ -1533,6 +1992,20 @@ fn wants_total_pages(doc: &Document) -> bool {
     doc.pages.iter().any(|page| in_frames(&page.frames))
         || doc.resources.masters.values().any(|m| in_frames(&m.frames))
         || doc.resources.stories.values().any(|s| uses_total_pages(s))
+}
+
+/// The page a frame sits on, by id, looking inside groups.
+fn page_of_frame(doc: &Document, id: &str) -> Option<u32> {
+    fn holds(frames: &[Frame], id: &str) -> bool {
+        frames.iter().any(|frame| {
+            frame.id.as_deref() == Some(id)
+                || matches!(&frame.content, FrameContent::Group(g) if holds(&g.children, id))
+        })
+    }
+    doc.pages
+        .iter()
+        .position(|page| holds(&page.frames, id))
+        .map(|index| index as u32)
 }
 
 /// Record each paragraph's index before any of them can be moved or split.
@@ -1641,12 +2114,20 @@ const KAPPA: f64 = 0.552_284_749_830_793_4;
 /// come out as a single path instead of disjoint pieces that overlap at the
 /// joins and print a darker pixel there.
 enum Segment {
-    Edge { to: (f64, f64) },
+    Edge {
+        to: (f64, f64),
+    },
     /// `r` is the corner's radius: at zero the corner is a point, and the two
     /// edges meet there without a command of their own. `cut` turns the arc
     /// into the straight line across the corner — same two tangent points, so
     /// every edge around it keeps the length it already had.
-    Corner { r: f64, cut: bool, c1: (f64, f64), c2: (f64, f64), to: (f64, f64) },
+    Corner {
+        r: f64,
+        cut: bool,
+        c1: (f64, f64),
+        c2: (f64, f64),
+        to: (f64, f64),
+    },
 }
 
 /// The outline of a border that covers some of the sides, following the radius.
@@ -1767,11 +2248,12 @@ fn outline_commands(
         // A new subpath whenever the previous segment was off, or ended
         // somewhere else.
         if draws
-            && cursor.map_or(true, |at| {
-                (at.0 - from.0).abs() > 1e-9 || (at.1 - from.1).abs() > 1e-9
-            })
+            && cursor.is_none_or(|at| (at.0 - from.0).abs() > 1e-9 || (at.1 - from.1).abs() > 1e-9)
         {
-            commands.push(PathCommand::MoveTo { x: from.0, y: from.1 });
+            commands.push(PathCommand::MoveTo {
+                x: from.0,
+                y: from.1,
+            });
         }
 
         match segment {
@@ -1880,7 +2362,9 @@ mod tests {
 
     fn engine_parts() -> Option<(FontRegistry, ImageStore)> {
         let mut registry = FontRegistry::new();
-        registry.add("body", test_fonts::dejavu()?.to_vec(), None, None).ok()?;
+        registry
+            .add("body", test_fonts::dejavu()?.to_vec(), None, None)
+            .ok()?;
         if let Some(bold) = test_fonts::dejavu_bold() {
             let _ = registry.add("body", bold.to_vec(), Some(FontWeight::BOLD), Some(false));
         }
@@ -1921,7 +2405,9 @@ mod tests {
 
     #[test]
     fn empty_document_produces_no_pages() {
-        let Some(list) = layout_json("{}") else { return };
+        let Some(list) = layout_json("{}") else {
+            return;
+        };
         assert!(list.pages.is_empty());
         assert!(!list.has_errors());
     }
@@ -1934,7 +2420,10 @@ mod tests {
         let page = &list.pages[0];
         assert!((page.width - 595.28).abs() < 0.1);
         assert!((page.height - 841.89).abs() < 0.1);
-        assert_eq!(page.margin_box, Rect::new(50.0, 50.0, page.width - 100.0, page.height - 100.0));
+        assert_eq!(
+            page.margin_box,
+            Rect::new(50.0, 50.0, page.width - 100.0, page.height - 100.0)
+        );
     }
 
     #[test]
@@ -1968,15 +2457,20 @@ mod tests {
         let Some(plain) = wrapped_page("", false) else {
             return;
         };
-        let Some(wrapped) = wrapped_page(r#", "wrap": {"mode": {"kind": "box"}, "padding": 8}"#, false)
-        else {
+        let Some(wrapped) = wrapped_page(
+            r#", "wrap": {"mode": {"kind": "box"}, "padding": 8}"#,
+            false,
+        ) else {
             return;
         };
 
         let before = all_runs(&plain)[0].x;
         let after = all_runs(&wrapped)[0].x;
 
-        assert!((before - 56.0).abs() < 0.01, "sem wrap o texto começa na borda");
+        assert!(
+            (before - 56.0).abs() < 0.01,
+            "sem wrap o texto começa na borda"
+        );
         assert!(
             (after - 214.0).abs() < 0.01,
             "com wrap o texto começa depois da foto mais a folga, veio {after}"
@@ -2000,16 +2494,28 @@ mod tests {
             ))
         };
 
-        let (Some(cheio), Some(recuado)) = (com(""), com(r#","style":{"indentLeft":100,"indentRight":40}"#))
-        else {
+        let (Some(cheio), Some(recuado)) = (
+            com(""),
+            com(r#","style":{"indentLeft":100,"indentRight":40}"#),
+        ) else {
             return;
         };
 
         let a = panel_fill(&cheio).expect("fundo cheio");
         let b = panel_fill(&recuado).expect("fundo recuado");
 
-        assert!((b.x - (a.x + 100.0)).abs() < 0.01, "a moldura devia andar 100: {} → {}", a.x, b.x);
-        assert!((b.w - (a.w - 140.0)).abs() < 0.01, "a moldura devia estreitar 140: {} → {}", a.w, b.w);
+        assert!(
+            (b.x - (a.x + 100.0)).abs() < 0.01,
+            "a moldura devia andar 100: {} → {}",
+            a.x,
+            b.x
+        );
+        assert!(
+            (b.w - (a.w - 140.0)).abs() < 0.01,
+            "a moldura devia estreitar 140: {} → {}",
+            a.w,
+            b.w
+        );
     }
 
     #[test]
@@ -2087,10 +2593,8 @@ mod tests {
         // razão "a moldura já o isolou" — que descrevia uma intenção que a
         // moldura não cumpre: ela não sai da frente de nada, e a imagem cobria
         // o texto em vez de conviver com ele.
-        let (Some(sem), Some(com)) = (
-            panel_beside_a_picture(false),
-            panel_beside_a_picture(true),
-        ) else {
+        let (Some(sem), Some(com)) = (panel_beside_a_picture(false), panel_beside_a_picture(true))
+        else {
             return;
         };
 
@@ -2116,16 +2620,19 @@ mod tests {
         // A outra metade da decisão, e a que se vê: o fundo e a borda ficam
         // onde estão. A imagem é pintada depois e passa por cima — o arranjo de
         // revista, em que a foto invade a caixa colorida.
-        let (Some(sem), Some(com)) = (
-            panel_beside_a_picture(false),
-            panel_beside_a_picture(true),
-        ) else {
+        let (Some(sem), Some(com)) = (panel_beside_a_picture(false), panel_beside_a_picture(true))
+        else {
             return;
         };
         let a = panel_fill(&sem).expect("fundo sem imagem");
         let b = panel_fill(&com).expect("fundo com imagem");
 
-        assert!((a.x - b.x).abs() < 0.01, "a moldura andou: {} → {}", a.x, b.x);
+        assert!(
+            (a.x - b.x).abs() < 0.01,
+            "a moldura andou: {} → {}",
+            a.x,
+            b.x
+        );
         assert!(
             (a.w - b.w).abs() < 0.01,
             "a moldura estreitou: {} → {}",
@@ -2139,10 +2646,8 @@ mod tests {
         // Desviar consome linhas: o mesmo texto ocupa mais altura ao lado da
         // imagem. A moldura tem de acompanhar, senão o texto vaza por baixo
         // dela.
-        let (Some(sem), Some(com)) = (
-            panel_beside_a_picture(false),
-            panel_beside_a_picture(true),
-        ) else {
+        let (Some(sem), Some(com)) = (panel_beside_a_picture(false), panel_beside_a_picture(true))
+        else {
             return;
         };
         let a = panel_fill(&sem).expect("fundo sem imagem");
@@ -2218,7 +2723,10 @@ mod tests {
     fn first_line_pair(list: &DisplayList) -> Vec<GlyphRun> {
         let runs = all_runs(list);
         let top = runs[0].y;
-        let pair: Vec<GlyphRun> = runs.into_iter().filter(|r| (r.y - top).abs() < 0.01).collect();
+        let pair: Vec<GlyphRun> = runs
+            .into_iter()
+            .filter(|r| (r.y - top).abs() < 0.01)
+            .collect();
         assert_eq!(pair.len(), 2, "esperava a linha partida em dois trechos");
         pair
     }
@@ -2369,7 +2877,11 @@ texto disponível aqui."
         };
 
         let runs = all_runs(&list);
-        assert!(runs.len() >= 3, "esperava várias linhas, veio {}", runs.len());
+        assert!(
+            runs.len() >= 3,
+            "esperava várias linhas, veio {}",
+            runs.len()
+        );
 
         let first = runs[0].x;
         let last = runs[runs.len() - 1].x;
@@ -2409,10 +2921,8 @@ texto disponível aqui."
 
     #[test]
     fn ignore_wrap_lets_a_caption_sit_on_its_own_photograph() {
-        let Some(list) = wrapped_page(
-            r#", "wrap": {"mode": {"kind": "box"}, "padding": 8}"#,
-            true,
-        ) else {
+        let Some(list) = wrapped_page(r#", "wrap": {"mode": {"kind": "box"}, "padding": 8}"#, true)
+        else {
             return;
         };
         let x = all_runs(&list)[0].x;
@@ -2441,7 +2951,10 @@ texto disponível aqui."
         let left: Vec<&GlyphRun> = runs.iter().filter(|r| r.x < 260.0).collect();
         let right: Vec<&GlyphRun> = runs.iter().filter(|r| r.x >= 260.0).collect();
 
-        assert!(!left.is_empty() && !right.is_empty(), "esperava as duas colunas");
+        assert!(
+            !left.is_empty() && !right.is_empty(),
+            "esperava as duas colunas"
+        );
         assert!(
             left.iter().all(|r| r.x >= 156.0 - 0.01),
             "a coluna da esquerda tem de contornar a foto"
@@ -2474,7 +2987,10 @@ texto disponível aqui."
         let first = page_runs(&list, 0);
         let second = page_runs(&list, 1);
 
-        assert!(!first.is_empty() && !second.is_empty(), "o texto tem de atravessar");
+        assert!(
+            !first.is_empty() && !second.is_empty(),
+            "o texto tem de atravessar"
+        );
         assert!(
             (first[0].x - 56.0).abs() < 0.01,
             "a primeira página não tem obstáculo"
@@ -2590,7 +3106,10 @@ texto disponível aqui."
             return;
         };
         assert!(
-            !list.diagnostics.iter().any(|d| d.code == "wrapLeavesNoRoom"),
+            !list
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "wrapLeavesNoRoom"),
             "contornar é o funcionamento normal, não um problema: {:?}",
             list.diagnostics
         );
@@ -2649,6 +3168,144 @@ texto disponível aqui."
         }
     }
 
+    fn all_lines(list: &DisplayList) -> Vec<LineItem> {
+        fn walk(items: &[DisplayItem], out: &mut Vec<LineItem>) {
+            for item in items {
+                match item {
+                    DisplayItem::Line(line) => out.push(line.clone()),
+                    DisplayItem::Group(group) => walk(&group.items, out),
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for page in &list.pages {
+            walk(&page.items, &mut out);
+        }
+        out
+    }
+
+    #[test]
+    fn a_right_tab_ends_the_page_number_at_the_edge_whatever_the_width() {
+        for width in [300.0, 450.0] {
+            let json = format!(
+                r#"{{"pages":[{{"frames":[{{"type":"text","rect":[0,0,{width},60],
+                    "blocks":[{{"type":"paragraph","content":[
+                        {{"type":"text","text":"Capítulo um"}},
+                        {{"type":"tab","align":"right","leader":"."}},
+                        {{"type":"text","text":"14"}}]}}]}}]}}]}}"#
+            );
+            let Some(list) = layout_json(&json) else {
+                return;
+            };
+            let runs = all_runs(&list);
+            let numero = runs
+                .iter()
+                .find(|r| r.text == "14")
+                .expect("the number is painted");
+            assert!(
+                (numero.x + numero.width - width).abs() < 1.0,
+                "number ends at {} in a {width} pt frame",
+                numero.x + numero.width
+            );
+            let leader = all_lines(&list);
+            assert_eq!(leader.len(), 1, "the leader is drawn");
+            assert!(leader[0].stroke.dash.is_some(), "dots, not a solid line");
+            assert!(leader[0].x2 < numero.x);
+        }
+    }
+
+    #[test]
+    fn a_column_rule_sits_in_the_middle_of_the_gap() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[{"type":"text","rect":[0,0,400,35],"columns":2,"columnGap":20,
+                "columnRule":{"width":0.5},
+                "blocks":["alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike"]}]}]}"#,
+        ) else {
+            return;
+        };
+        let rules = all_lines(&list);
+        assert_eq!(rules.len(), 1);
+        assert!((rules[0].x1 - 200.0).abs() < 0.01);
+        assert!(rules[0].y2 > rules[0].y1);
+    }
+
+    #[test]
+    fn without_a_column_rule_the_gap_has_no_line() {
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[{"type":"text","rect":[0,0,400,35],"columns":2,"columnGap":20,
+                "blocks":["alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike"]}]}]}"#,
+        ) else {
+            return;
+        };
+        assert!(all_lines(&list).is_empty());
+    }
+
+    #[test]
+    fn a_panel_with_no_room_for_a_line_goes_whole_to_the_next_column() {
+        // 40 pt columns: two lines of text leave 16 pt, and the panel's inset
+        // and border take 12 of them. No line of the panel fits in the 4 left.
+        // Before, the empty chrome was drawn at the foot of the first column
+        // and the text started the second one inside a second box.
+        let Some(list) = layout_json(
+            r##"{"pages":[{"frames":[{"type":"text","rect":[0,0,420,40],"columns":2,"columnGap":20,
+                "style":{"fontSize":10,"lineHeight":1.2,"spaceAfter":0},
+                "blocks":[
+                    {"type":"paragraph","content":["um",{"type":"break"},"dois"]},
+                    {"type":"panel","fill":"#eeeeee","inset":6,"blocks":["dentro da moldura"]}
+                ]}]}]}"##,
+        ) else {
+            return;
+        };
+        let mut fills = Vec::new();
+        fn walk(items: &[DisplayItem], out: &mut Vec<Rect>) {
+            for item in items {
+                match item {
+                    DisplayItem::Rect(r) if r.fill.is_some() => out.push(r.rect),
+                    DisplayItem::Group(g) => walk(&g.items, out),
+                    _ => {}
+                }
+            }
+        }
+        walk(&list.pages[0].items, &mut fills);
+        assert_eq!(fills.len(), 1, "one box, not a stub and a continuation: {fills:?}");
+        assert!(fills[0].x >= 219.9, "the box is in the second column: {fills:?}");
+    }
+
+    #[test]
+    fn keep_with_next_moves_the_question_and_its_lines_together() {
+        // A 60 pt column: the first paragraph fits, the question and its two
+        // answer lines do not all fit. Without keepWithNext the question stays
+        // and its lines move; with it, the three go to the next column.
+        let Some(list) = layout_json(
+            r#"{"pages":[{"frames":[{"type":"text","rect":[0,0,420,60],"columns":2,"columnGap":20,
+                "style":{"fontSize":10,"lineHeight":1.2},
+                "blocks":[
+                    {"type":"paragraph","content":[{"type":"text","text":"um dois tres"}]},
+                    {"type":"paragraph","style":{"keepWithNext":true},"content":[{"type":"text","text":"Pergunta?"}]},
+                    {"type":"paragraph","style":{"spaceBefore":20,"keepWithNext":true},"content":[{"type":"rule"}]},
+                    {"type":"paragraph","style":{"spaceBefore":20},"content":[{"type":"rule"}]}
+                ]}]}]}"#,
+        ) else {
+            return;
+        };
+        let runs = all_runs(&list);
+        let pergunta = runs
+            .iter()
+            .find(|r| r.text == "Pergunta?")
+            .expect("question painted");
+        assert!(
+            pergunta.x >= 220.0 - 0.01,
+            "the question moved with its lines: x = {}",
+            pergunta.x
+        );
+        let primeira = runs
+            .iter()
+            .find(|r| r.text.starts_with("um"))
+            .expect("first paragraph");
+        assert!(primeira.x < 200.0);
+    }
+
     #[test]
     fn overflowing_text_reports_overset() {
         let Some(list) = layout_json(
@@ -2674,10 +3331,19 @@ texto disponível aqui."
         };
 
         let runs = all_runs(&list);
-        assert!(runs.iter().any(|r| r.x < 120.0), "nothing in the first frame");
-        assert!(runs.iter().any(|r| r.x >= 200.0), "nothing flowed to the second");
+        assert!(
+            runs.iter().any(|r| r.x < 120.0),
+            "nothing in the first frame"
+        );
+        assert!(
+            runs.iter().any(|r| r.x >= 200.0),
+            "nothing flowed to the second"
+        );
 
-        assert!(!list.pages[0].frames[0].overset, "threaded frame must not be overset");
+        assert!(
+            !list.pages[0].frames[0].overset,
+            "threaded frame must not be overset"
+        );
         assert!(!list.diagnostics.iter().any(|d| d.code == "overset"));
     }
 
@@ -2712,7 +3378,8 @@ texto disponível aqui."
     /// The book case: one page plus a story, and the engine makes the rest.
     #[test]
     fn auto_flow_generates_as_many_pages_as_the_story_needs() {
-        let paragraph = "\"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima\"";
+        let paragraph =
+            "\"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima\"";
         let mut story: Vec<String> = (0..30).map(|_| paragraph.to_string()).collect();
         // A distinctive tail, so "nothing was lost" is a real assertion.
         story.push("\"ultimo paragrafo do livro\"".to_string());
@@ -2729,26 +3396,41 @@ texto disponível aqui."
             story.join(",")
         );
 
-        let Some(list) = layout_json(&json) else { return };
+        let Some(list) = layout_json(&json) else {
+            return;
+        };
 
-        assert!(list.pages.len() >= 4, "esperava várias páginas, veio {}", list.pages.len());
+        assert!(
+            list.pages.len() >= 4,
+            "esperava várias páginas, veio {}",
+            list.pages.len()
+        );
         // Nothing was left behind.
         assert!(!list.diagnostics.iter().any(|d| d.code == "overset"));
         assert!(list.pages.iter().all(|page| !page.frames[0].overset));
 
         // Every generated page carries content and keeps the geometry.
         for page in &list.pages {
-            assert_eq!(page.frames.len(), 1, "página {} tem frames demais", page.index);
+            assert_eq!(
+                page.frames.len(),
+                1,
+                "página {} tem frames demais",
+                page.index
+            );
             assert_eq!(page.frames[0].rect, Rect::new(20.0, 20.0, 258.0, 258.0));
         }
         let words: String = all_runs(&list).iter().map(|r| r.text.clone()).collect();
-        assert!(words.contains("ultimo paragrafo"), "o fim da story não foi colocado");
+        assert!(
+            words.contains("ultimo paragrafo"),
+            "o fim da story não foi colocado"
+        );
     }
 
     /// With facing pages on, the auto-flowed text block follows the gutter.
     #[test]
     fn auto_flow_mirrors_the_frame_on_facing_versos() {
-        let paragraph = "\"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima\"";
+        let paragraph =
+            "\"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima\"";
         let story: Vec<String> = (0..20).map(|_| paragraph.to_string()).collect();
 
         let json = format!(
@@ -2763,7 +3445,9 @@ texto disponível aqui."
             story.join(",")
         );
 
-        let Some(list) = layout_json(&json) else { return };
+        let Some(list) = layout_json(&json) else {
+            return;
+        };
         assert!(list.pages.len() >= 3, "esperava várias páginas");
 
         // Recto keeps the declared position; verso mirrors it about the centre.
@@ -2779,7 +3463,8 @@ texto disponível aqui."
     /// A running footer numbers every page, including generated ones.
     #[test]
     fn page_tokens_resolve_per_page() {
-        let paragraph = "\"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima\"";
+        let paragraph =
+            "\"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima\"";
         let story: Vec<String> = (0..20).map(|_| paragraph.to_string()).collect();
 
         let json = format!(
@@ -2802,7 +3487,9 @@ texto disponível aqui."
             story.join(",")
         );
 
-        let Some(list) = layout_json(&json) else { return };
+        let Some(list) = layout_json(&json) else {
+            return;
+        };
         let total = list.pages.len();
         assert!(total >= 4, "esperava várias páginas, veio {total}");
 
@@ -2929,7 +3616,11 @@ texto disponível aqui."
         let on_page = |index: usize, needle: &str| {
             all_runs(&list)
                 .iter()
-                .filter(|run| run.source.as_ref().is_some_and(|s| s.page as usize == index))
+                .filter(|run| {
+                    run.source
+                        .as_ref()
+                        .is_some_and(|s| s.page as usize == index)
+                })
                 .any(|run| run.text.contains(needle))
         };
 
@@ -2956,7 +3647,11 @@ texto disponível aqui."
             .into_iter()
             .find(|run| run.text.contains("depois"))
             .expect("o texto seguinte foi colocado");
-        assert!(after.y > 280.0, "deveria estar no frame b, veio em y={}", after.y);
+        assert!(
+            after.y > 280.0,
+            "deveria estar no frame b, veio em y={}",
+            after.y
+        );
     }
 
     #[test]
@@ -2978,8 +3673,7 @@ texto disponível aqui."
     /// *second* frame of a thread must still address the original story.
     #[test]
     fn threaded_runs_point_back_at_the_story_they_came_from() {
-        const TEXT: &str =
-            "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november";
+        const TEXT: &str = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november";
 
         let json = format!(
             r#"{{
@@ -2994,7 +3688,9 @@ texto disponível aqui."
             }}"#
         );
 
-        let Some(list) = layout_json(&json) else { return };
+        let Some(list) = layout_json(&json) else {
+            return;
+        };
 
         // Runs painted by the second frame of the chain.
         let carried: Vec<GlyphRun> = all_runs(&list)
@@ -3282,9 +3978,16 @@ texto disponível aqui."
             return;
         };
         let run = &all_runs(&list)[0];
-        assert!((run.x - 110.0).abs() < 0.01, "child not offset by the group");
+        assert!(
+            (run.x - 110.0).abs() < 0.01,
+            "child not offset by the group"
+        );
 
-        let child = list.pages[0].frames.iter().find(|f| f.id == "filho").unwrap();
+        let child = list.pages[0]
+            .frames
+            .iter()
+            .find(|f| f.id == "filho")
+            .unwrap();
         assert_eq!(child.rect, Rect::new(110.0, 60.0, 100.0, 50.0));
         assert_eq!(child.ancestors, vec!["g".to_string()]);
     }
@@ -3323,7 +4026,11 @@ texto disponível aqui."
             .expect("a série em falta é dita");
         assert_eq!(said.page, Some(0));
         assert_eq!(said.frame.as_deref(), Some("grafico"));
-        assert!(said.message.contains("vendas"), "e nomeada: {}", said.message);
+        assert!(
+            said.message.contains("vendas"),
+            "e nomeada: {}",
+            said.message
+        );
 
         // The frame is still there, still the right size, still filled: an
         // empty box on the page is something the author can see and fix.
@@ -3383,7 +4090,10 @@ texto disponível aqui."
         let doc: Document = serde_json::from_str(json).expect("lê");
         let written = serde_json::to_string(&doc).expect("escreve");
         let again: Document = serde_json::from_str(&written).expect("volta a ler");
-        assert_eq!(doc, again, "o documento gravado volta a ler-se igual:\n{written}");
+        assert_eq!(
+            doc, again,
+            "o documento gravado volta a ler-se igual:\n{written}"
+        );
     }
 
     // ── Chart geometry, through the real layouter ───────────────────────────
@@ -3514,7 +4224,10 @@ texto disponível aqui."
         ))
         .expect("motor");
 
-        assert!(vertical_axis(&com).is_some(), "com eixo y, há linha vertical");
+        assert!(
+            vertical_axis(&com).is_some(),
+            "com eixo y, há linha vertical"
+        );
         assert_eq!(
             vertical_axis(&sem),
             None,
@@ -3550,16 +4263,25 @@ texto disponível aqui."
             [0.0, -1.0, 1.0, 0.0],
             "um quarto de volta, a ler de baixo para cima",
         );
-        let inside: Vec<String> =
-            all_runs(&DisplayList { pages: vec![DisplayPage { items: turned.0.items.clone(), ..list.pages[0].clone() }], ..list.clone() })
-                .into_iter()
-                .map(|run| run.text)
-                .collect();
+        let inside: Vec<String> = all_runs(&DisplayList {
+            pages: vec![DisplayPage {
+                items: turned.0.items.clone(),
+                ..list.pages[0].clone()
+            }],
+            ..list.clone()
+        })
+        .into_iter()
+        .map(|run| run.text)
+        .collect();
         assert_eq!(inside, vec!["Vendas em reais".to_string()]);
 
         // Outside the numbers, not over them.
         let axis = vertical_axis(&list).expect("eixo y");
-        assert!(turned.1[4] < axis, "o título está à esquerda do eixo: {} vs {axis}", turned.1[4]);
+        assert!(
+            turned.1[4] < axis,
+            "o título está à esquerda do eixo: {} vs {axis}",
+            turned.1[4]
+        );
         assert!(turned.1[4] >= 0.0, "e dentro da moldura: {}", turned.1[4]);
     }
 
@@ -3604,7 +4326,10 @@ texto disponível aqui."
             let source = provenance(&list, text);
             assert_eq!(
                 source.cells,
-                vec![CellStep { block: 0, cell: index }],
+                vec![CellStep {
+                    block: 0,
+                    cell: index
+                }],
                 "`{text}` está na célula {index}",
             );
             assert_eq!(
@@ -3651,9 +4376,15 @@ texto disponível aqui."
             return;
         };
 
-        let cabecalhos: Vec<GlyphRun> =
-            all_runs(&list).into_iter().filter(|run| run.text == "Cabeçalho").collect();
-        assert!(cabecalhos.len() >= 2, "o cabeçalho repete-se: {}", cabecalhos.len());
+        let cabecalhos: Vec<GlyphRun> = all_runs(&list)
+            .into_iter()
+            .filter(|run| run.text == "Cabeçalho")
+            .collect();
+        assert!(
+            cabecalhos.len() >= 2,
+            "o cabeçalho repete-se: {}",
+            cabecalhos.len()
+        );
 
         for run in &cabecalhos {
             let source = run.source.clone().expect("proveniência");
@@ -3665,7 +4396,9 @@ texto disponível aqui."
             );
         }
         assert!(
-            cabecalhos.iter().any(|run| run.source.as_ref().unwrap().frame == "b"),
+            cabecalhos
+                .iter()
+                .any(|run| run.source.as_ref().unwrap().frame == "b"),
             "e uma delas foi desenhada no segundo frame",
         );
     }
@@ -3699,7 +4432,10 @@ texto disponível aqui."
         for (text, index) in [("um", 0), ("dois", 1), ("três", 2), ("quatro", 3)] {
             assert_eq!(
                 provenance(&list, text).cells,
-                vec![CellStep { block: 0, cell: index }],
+                vec![CellStep {
+                    block: 0,
+                    cell: index
+                }],
                 "`{text}` continua a ser a célula {index}, esteja em que página estiver",
             );
         }
@@ -3726,15 +4462,23 @@ texto disponível aqui."
         };
 
         let words = ["um", "dois", "tres", "quatro", "cinco", "seis"];
-        let frames: Vec<String> =
-            words.iter().map(|text| provenance(&list, text).frame).collect();
-        assert!(frames.contains(&"b".to_string()), "partiu uma vez: {frames:?}");
+        let frames: Vec<String> = words
+            .iter()
+            .map(|text| provenance(&list, text).frame)
+            .collect();
+        assert!(
+            frames.contains(&"b".to_string()),
+            "partiu uma vez: {frames:?}"
+        );
         assert!(frames.contains(&"c".to_string()), "e outra: {frames:?}");
 
         for (index, text) in words.iter().enumerate() {
             assert_eq!(
                 provenance(&list, text).cells,
-                vec![CellStep { block: 0, cell: index as u32 }],
+                vec![CellStep {
+                    block: 0,
+                    cell: index as u32
+                }],
                 "`{text}` é a célula {index} onde quer que tenha ido parar",
             );
         }
@@ -3778,7 +4522,11 @@ texto disponível aqui."
         )) else {
             return;
         };
-        assert!(codes(&list).is_empty(), "sem queixas: {:?}", list.diagnostics);
+        assert!(
+            codes(&list).is_empty(),
+            "sem queixas: {:?}",
+            list.diagnostics
+        );
     }
 
     #[test]
@@ -3797,8 +4545,16 @@ texto disponível aqui."
             .filter(|d| d.code == "tableCellOverlap")
             .collect();
         assert_eq!(said.len(), 1, "uma linha por causa: {:?}", codes(&list));
-        assert!(said[0].message.contains('2'), "com a conta: {}", said[0].message);
-        assert_eq!(said[0].page, Some(0), "página, contada de zero como as outras");
+        assert!(
+            said[0].message.contains('2'),
+            "com a conta: {}",
+            said[0].message
+        );
+        assert_eq!(
+            said[0].page,
+            Some(0),
+            "página, contada de zero como as outras"
+        );
         assert_eq!(said[0].frame.as_deref(), Some("quadro"));
     }
 
@@ -3831,7 +4587,11 @@ texto disponível aqui."
             .iter()
             .find(|d| d.code == "tableOverflows")
             .expect("transbordo reportado");
-        assert!(said.message.contains("pt"), "com a medida: {}", said.message);
+        assert!(
+            said.message.contains("pt"),
+            "com a medida: {}",
+            said.message
+        );
         assert_eq!(said.page, Some(0));
         assert_eq!(said.frame.as_deref(), Some("quadro"));
     }
@@ -3872,7 +4632,11 @@ texto disponível aqui."
             .iter()
             .filter(|d| d.code.starts_with("table"))
             .collect();
-        assert!(table_said.len() >= 2, "mais de um código: {:?}", codes(&list));
+        assert!(
+            table_said.len() >= 2,
+            "mais de um código: {:?}",
+            codes(&list)
+        );
         for said in table_said {
             assert!(said.page.is_some(), "{} sem página", said.code);
             assert!(said.frame.is_some(), "{} sem frame", said.code);
@@ -3887,7 +4651,12 @@ texto disponível aqui."
             return;
         };
         assert!(list.diagnostics.iter().any(|d| d.code == "missingImage"));
-        assert!(!list.pages[0].items.iter().any(|i| matches!(i, DisplayItem::Image(_))));
+        assert!(
+            !list.pages[0]
+                .items
+                .iter()
+                .any(|i| matches!(i, DisplayItem::Image(_)))
+        );
     }
 
     #[test]
@@ -4113,7 +4882,10 @@ texto disponível aqui."
         assert_eq!(paths.len(), 1, "o fundo do painel é um caminho");
         assert!(paths[0].fill.is_some());
         assert!(
-            !paths[0].commands.iter().any(|c| matches!(c, PathCommand::CurveTo { .. })),
+            !paths[0]
+                .commands
+                .iter()
+                .any(|c| matches!(c, PathCommand::CurveTo { .. })),
             "e ele corta em vez de arredondar"
         );
     }
@@ -4152,4 +4924,3 @@ texto disponível aqui."
         assert!(list.diagnostics.iter().any(|d| d.code == "noFont"));
     }
 }
-

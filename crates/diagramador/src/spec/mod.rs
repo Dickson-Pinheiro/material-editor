@@ -17,17 +17,16 @@ pub mod frame;
 pub mod style;
 
 pub use content::{
-    PanelBlock,
-    Block, Inline, InlineImage, InlineRule, Marker, Origin, Paragraph, RuleBlock, SpaceRun,
-    SpacerBlock, Tab, TextRun,
+    Block, Inline, InlineImage, InlineRule, Marker, Origin, PanelBlock, Paragraph, RuleBlock,
+    SpaceRun, SpacerBlock, Tab, TabAlign, TextRun,
 };
 pub use document::{
-    Component, Document, Master, Meta, Page, PageDefaults, PageGeometry, Resources,
-    SCHEMA_VERSION,
+    Component, Document, Master, Meta, Page, PageDefaults, PageGeometry, Resources, SCHEMA_VERSION,
 };
 pub use frame::{
-    Border, BorderStyle, CornerStyle, Follow, Frame, FrameContent, GroupFrame, ImageAlign,
-    ImageFit, ImageFrame, InstanceFrame, ShapeFrame, ShapeKind, Sides, SlotValue, TextFrame,
+    Border, BorderStyle, ColumnRule, CornerStyle, Follow, Frame, FrameContent, GroupFrame,
+    ImageAlign, ImageFit, ImageFrame, InstanceFrame, ShapeFrame, ShapeKind, Sides, SlotValue,
+    TextFrame,
 };
 
 /// Keys whose string value is a colour, and may therefore say `"@name"`.
@@ -153,7 +152,10 @@ mod tests {
         )
         .unwrap();
         let text = doc.pages[0].frames[0].as_text().unwrap();
-        assert_eq!(text.blocks[0].as_paragraph().unwrap().plain_text(), "@aluno, leia");
+        assert_eq!(
+            text.blocks[0].as_paragraph().unwrap().plain_text(),
+            "@aluno, leia"
+        );
     }
 }
 pub use style::{

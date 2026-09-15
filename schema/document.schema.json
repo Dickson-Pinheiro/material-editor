@@ -533,6 +533,23 @@
       ],
       "type": "object"
     },
+    "ColumnRule": {
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/Color",
+          "default": "#000000"
+        },
+        "style": {
+          "$ref": "#/$defs/BorderStyle",
+          "default": "solid"
+        },
+        "width": {
+          "$ref": "#/$defs/Len",
+          "default": 0.5
+        }
+      },
+      "type": "object"
+    },
     "Component": {
       "description": "A reusable group of frames with named slots.\n\nThe frames are positioned from the component's own top-left corner, at\nthe `size` the component was designed at. An instance may be drawn at\nanother size; each frame's [`Follow`](super::frame::Follow) says how it\nmoves or stretches with the difference.",
       "properties": {
@@ -2802,8 +2819,14 @@
     },
     "Tab": {
       "properties": {
+        "align": {
+          "$ref": "#/$defs/TabAlign",
+          "default": "left",
+          "description": "`right` ends the text that follows at the stop instead of starting it\nthere. With no `to`, the stop is the column's right edge, so a table of\ncontents keeps its page numbers flush however wide the frame becomes."
+        },
         "leader": {
           "default": null,
+          "description": "Drawn across the gap the tab opens: `.` dots, `-` dashes, `_` a solid\nline. Anything else is read as dots.",
           "type": [
             "string",
             "null"
@@ -2819,7 +2842,7 @@
             }
           ],
           "default": null,
-          "description": "Absolute x position within the column to advance to. When absent, the\nnext multiple of `defaultStop` is used."
+          "description": "Absolute x position within the column to advance to. When absent, the\nnext multiple of `defaultStop` is used — or, for a right tab, the\ncolumn's right edge."
         },
         "type": {
           "const": "tab",
@@ -2830,6 +2853,14 @@
         "type"
       ],
       "type": "object"
+    },
+    "TabAlign": {
+      "description": "Which side of the text after a tab lines up with the stop.",
+      "enum": [
+        "left",
+        "right"
+      ],
+      "type": "string"
     },
     "TableBlock": {
       "description": "A grid of cells.\n\nA block rather than a frame, because a table has to flow with the text\naround it: it follows the paragraph before it, and when the page runs out\nit continues on the next one.",
@@ -3002,6 +3033,18 @@
         "columnGap": {
           "$ref": "#/$defs/Len",
           "default": 14.0
+        },
+        "columnRule": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ColumnRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A vertical line in the middle of each gap, as tall as the taller of the\ntwo columns it separates. Absent: the gap alone separates them."
         },
         "columns": {
           "default": 1,

@@ -219,7 +219,11 @@ pub struct Cell {
 impl Default for RepeatRows {
     fn default() -> Self {
         // Repeating is the point of declaring a header at all.
-        RepeatRows { rows: 1, repeat: true, continued: None }
+        RepeatRows {
+            rows: 1,
+            repeat: true,
+            continued: None,
+        }
     }
 }
 
@@ -247,7 +251,11 @@ impl Default for Stripe {
     fn default() -> Self {
         // Every other row, starting with the second: the first is usually the
         // heading, and striping it would fight the heading's own fill.
-        Stripe { every: 2, offset: 1, fill: None }
+        Stripe {
+            every: 2,
+            offset: 1,
+            fill: None,
+        }
     }
 }
 
@@ -371,7 +379,10 @@ pub struct PanelBlock {
 impl PanelBlock {
     /// A moldura repetida numa continuação, sem o conteúdo.
     pub(crate) fn continuing(&self, blocks: Vec<Block>) -> PanelBlock {
-        PanelBlock { blocks, ..self.clone() }
+        PanelBlock {
+            blocks,
+            ..self.clone()
+        }
     }
 }
 
@@ -646,9 +657,26 @@ pub struct TextRun {
 #[serde(rename_all = "camelCase", default)]
 pub struct Tab {
     /// Absolute x position within the column to advance to. When absent, the
-    /// next multiple of `defaultStop` is used.
+    /// next multiple of `defaultStop` is used — or, for a right tab, the
+    /// column's right edge.
     pub to: Option<Len>,
+    /// Drawn across the gap the tab opens: `.` dots, `-` dashes, `_` a solid
+    /// line. Anything else is read as dots.
     pub leader: Option<String>,
+    /// `right` ends the text that follows at the stop instead of starting it
+    /// there. With no `to`, the stop is the column's right edge, so a table of
+    /// contents keeps its page numbers flush however wide the frame becomes.
+    pub align: TabAlign,
+}
+
+/// Which side of the text after a tab lines up with the stop.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub enum TabAlign {
+    #[default]
+    Left,
+    Right,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -691,7 +719,10 @@ mod tests {
         let parse = |json: &str| serde_json::from_str::<TrackSize>(json).unwrap();
         assert_eq!(parse(r#""auto""#), TrackSize::Auto);
         assert_eq!(parse("120"), TrackSize::Fixed(Len(120.0)));
-        assert_eq!(parse(r#""20mm""#), TrackSize::Fixed(Len(20.0 * 72.0 / 25.4)));
+        assert_eq!(
+            parse(r#""20mm""#),
+            TrackSize::Fixed(Len(20.0 * 72.0 / 25.4))
+        );
         assert_eq!(parse(r#""1fr""#), TrackSize::Fraction(1.0));
         assert_eq!(parse(r#""2.5fr""#), TrackSize::Fraction(2.5));
         assert_eq!(parse(r#""25%""#), TrackSize::Relative(0.25));
@@ -716,7 +747,9 @@ mod tests {
             ]
         }"##;
         let block: Block = serde_json::from_str(json).unwrap();
-        let Block::Table(table) = block else { panic!("não é tabela") };
+        let Block::Table(table) = block else {
+            panic!("não é tabela")
+        };
 
         assert_eq!(table.columns.len(), 3);
         assert_eq!(table.columns[1], TrackSize::Fraction(1.0));
@@ -724,8 +757,15 @@ mod tests {
         assert_eq!(table.cells[3].colspan, 2);
         assert_eq!(table.cells[0].colspan, 1, "sem declarar, um span é um");
         assert_eq!(table.cells[0].rowspan, 1);
-        assert!(table.header.as_ref().unwrap().repeat, "um cabeçalho repete por omissão");
-        assert_eq!(table.stripe.as_ref().unwrap().every, 2, "zebra de duas em duas");
+        assert!(
+            table.header.as_ref().unwrap().repeat,
+            "um cabeçalho repete por omissão"
+        );
+        assert_eq!(
+            table.stripe.as_ref().unwrap().every,
+            2,
+            "zebra de duas em duas"
+        );
         assert_eq!(table.lines.len(), 1);
         assert_eq!(table.lines[0].axis, GridAxis::Horizontal);
     }
@@ -739,7 +779,11 @@ mod tests {
         let Block::Table(table) = serde_json::from_str::<Block>(json).unwrap() else {
             panic!("não é tabela")
         };
-        assert_eq!(table.cells[0].blocks.len(), 3, "dois parágrafos e um espaçador");
+        assert_eq!(
+            table.cells[0].blocks.len(),
+            3,
+            "dois parágrafos e um espaçador"
+        );
         assert!(matches!(table.cells[0].blocks[1], Block::Spacer(_)));
     }
 
@@ -754,7 +798,6 @@ mod tests {
         let again: Block = serde_json::from_str(&serde_json::to_string(&first).unwrap()).unwrap();
         assert_eq!(first, again);
     }
-
 
     #[test]
     fn block_string_shorthand_becomes_a_paragraph() {
@@ -819,7 +862,8 @@ mod tests {
     #[test]
     fn named_style_reference_parses() {
         let b: Block =
-            serde_json::from_str(r#"{"type":"paragraph","use":"h1","content":["Título"]}"#).unwrap();
+            serde_json::from_str(r#"{"type":"paragraph","use":"h1","content":["Título"]}"#)
+                .unwrap();
         assert_eq!(b.as_paragraph().unwrap().use_style.as_deref(), Some("h1"));
     }
 }

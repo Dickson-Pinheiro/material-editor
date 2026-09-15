@@ -97,7 +97,12 @@ pub struct Follow {
 }
 
 impl Follow {
-    pub const NONE: Follow = Follow { x: false, y: false, w: false, h: false };
+    pub const NONE: Follow = Follow {
+        x: false,
+        y: false,
+        w: false,
+        h: false,
+    };
 }
 
 impl Default for Frame {
@@ -212,6 +217,9 @@ pub struct TextFrame {
 
     pub columns: u32,
     pub column_gap: Len,
+    /// A vertical line in the middle of each gap, as tall as the taller of the
+    /// two columns it separates. Absent: the gap alone separates them.
+    pub column_rule: Option<ColumnRule>,
     pub vertical_align: VerticalAlign,
     pub overflow: Overflow,
 
@@ -238,6 +246,7 @@ impl Default for TextFrame {
             auto_flow: false,
             columns: 1,
             column_gap: Len(14.0),
+            column_rule: None,
             vertical_align: VerticalAlign::Top,
             overflow: Overflow::Clip,
             ignore_wrap: false,
@@ -477,6 +486,38 @@ impl Border {
     #[inline]
     pub fn is_uniform(&self) -> bool {
         self.sides.all()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", default)]
+pub struct ColumnRule {
+    pub width: Len,
+    pub color: Color,
+    pub style: BorderStyle,
+}
+
+impl Default for ColumnRule {
+    fn default() -> Self {
+        ColumnRule {
+            width: Len(0.5),
+            color: Color::BLACK,
+            style: BorderStyle::Solid,
+        }
+    }
+}
+
+impl ColumnRule {
+    /// Dash pattern in points, or `None` when solid.
+    pub fn dash(&self) -> Option<[f64; 2]> {
+        Border {
+            width: self.width,
+            color: self.color,
+            style: self.style,
+            sides: Sides::default(),
+        }
+        .dash_pattern()
     }
 }
 
