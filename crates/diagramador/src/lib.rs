@@ -33,6 +33,8 @@ pub mod fonts;
 pub mod images;
 pub mod layout;
 pub mod pdf;
+#[cfg(feature = "schema")]
+pub mod schema;
 pub mod spec;
 pub mod units;
 

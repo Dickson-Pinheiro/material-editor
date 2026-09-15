@@ -25,6 +25,7 @@ use crate::color::Color;
 /// rejected — real data has them, and a chart that refuses to load because one
 /// month is missing is less useful than one that draws the other eleven.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(untagged)]
 pub enum Value {
     Number(f64),
@@ -64,6 +65,7 @@ pub type Row = std::collections::BTreeMap<String, Value>;
 
 /// How the data are drawn.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum Mark {
     #[default]
@@ -75,6 +77,7 @@ pub enum Mark {
 
 /// What a field means, which is what decides its scale.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum FieldKind {
     /// A number, on a continuous scale.
@@ -86,6 +89,7 @@ pub enum FieldKind {
 
 /// Which scale to build, when the field's kind is not the answer wanted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum ScaleKind {
     Linear,
@@ -99,6 +103,7 @@ pub enum ScaleKind {
 /// Every field optional, and an absent one means "decide for me". A chart that
 /// has to state its scale to draw at all would be a chart nobody writes twice.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ScaleSpec {
     pub kind: Option<ScaleKind>,
@@ -125,6 +130,7 @@ pub struct ScaleSpec {
 
 /// A field, and what it drives.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Channel {
     /// Name of the field in the data.
@@ -152,6 +158,7 @@ impl Channel {
 
 /// Which field drives which visual channel.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Encoding {
     pub x: Channel,
@@ -162,6 +169,7 @@ pub struct Encoding {
 
 /// One axis.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Axis {
     pub visible: bool,
@@ -183,6 +191,7 @@ impl Default for Axis {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Axes {
     pub x: Axis,
@@ -190,6 +199,7 @@ pub struct Axes {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum LegendPosition {
     #[default]
@@ -200,6 +210,7 @@ pub enum LegendPosition {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Legend {
     pub visible: bool,
@@ -215,6 +226,7 @@ impl Default for Legend {
 
 /// A chart.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChartFrame {
     /// Inline observations. Ignored when `dataset` is set.

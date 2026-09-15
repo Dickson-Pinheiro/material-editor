@@ -29,7 +29,9 @@ use crate::display::{
 };
 use crate::fonts::{FaceMetrics, FontId, FontRegistry};
 use crate::images::ImageStore;
-use crate::spec::{Inline, Marker, Origin, Paragraph, ResolvedStyle, Style, TextAlign, TextRun};
+use crate::spec::{
+    Inline, Marker, Origin, Paragraph, ResolvedStyle, Style, TabAlign, TextAlign, TextRun,
+};
 use crate::units::{Len, PT_PER_PX, Rect};
 
 use super::cascade;
@@ -101,6 +103,8 @@ enum SpanKind {
     },
     Tab {
         to: Option<f64>,
+        align: TabAlign,
+        leader: Option<String>,
     },
     Break,
 }
@@ -119,7 +123,11 @@ impl Span {
                 .map(|g| g.x_advance)
                 .sum(),
             SpanKind::Image { width, .. } | SpanKind::Space { width } => {
-                if self.start >= a && self.start < b { *width } else { 0.0 }
+                if self.start >= a && self.start < b {
+                    *width
+                } else {
+                    0.0
+                }
             }
             SpanKind::Rule { width, .. } => {
                 if self.start >= a && self.start < b {
@@ -154,6 +162,20 @@ struct LineRange {
     end: usize,
     /// The line ends because of a hard break or the end of the paragraph.
     hard_end: bool,
+    /// A piece wider than the whole line, put on it anyway.
+    forced: Option<Forced>,
+}
+
+/// A piece that went onto a line it does not fit, because a line has to take
+/// at least one. Recorded, never acted on: the line is laid out exactly as it
+/// would be without it.
+#[derive(Debug, Clone, Copy)]
+struct Forced {
+    /// Byte range of the piece, trailing whitespace dropped.
+    start: usize,
+    end: usize,
+    /// How far it runs past the line's measure, in points.
+    excess: f64,
 }
 
 /// The room a paragraph gives away before any text is placed.
@@ -220,7 +242,6 @@ pub(crate) struct ParagraphLayout {
     pub height: f64,
     /// Lines actually placed. Read by the tests and by callers that need to
     /// know whether a frame received anything at all.
-    #[allow(dead_code)]
     pub line_count: usize,
     /// What did not fit, ready to flow into the next frame. `None` when the
     /// whole paragraph was placed.
@@ -231,6 +252,11 @@ pub(crate) struct ParagraphLayout {
     /// "the frame is too small", when the frame may be ample and the
     /// photograph simply standing on all of it.
     pub walled_in: bool,
+    /// The `spaceAfter` included in `height` — room reserved below the last
+    /// line, not ink. Zero when the paragraph continues elsewhere.
+    pub trailing: f64,
+    /// The worst line that holds a word wider than itself, if any did.
+    pub overfull: Option<Overfull>,
 }
 
 impl ParagraphLayout {
@@ -241,8 +267,28 @@ impl ParagraphLayout {
             line_count: 0,
             remainder: None,
             walled_in: false,
+            trailing: 0.0,
+            overfull: None,
         }
     }
+}
+
+/// A line that runs past its measure because one word would not break.
+///
+/// The engine puts the word in anyway — a line has to take something, or the
+/// paragraph never ends — and the frame's clip cuts off whatever sticks out.
+/// Nothing on the page says so, which is why it is said here.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Overfull {
+    /// How far the line runs past its measure, in points.
+    pub excess: f64,
+    /// The piece that would not break, as laid out (after `textTransform`).
+    pub word: String,
+    /// Where that piece starts in the source.
+    pub source: SourceRef,
+    /// The line's box — as wide as its text, as tall as the line — relative
+    /// to the paragraph's top-left like every item it returns.
+    pub rect: Rect,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -287,9 +333,10 @@ fn substitute(text: &str, variables: Variables) -> Cow<'_, str> {
 /// fixed-point loop: the total is only known after auto-flow has run.
 pub(crate) fn uses_total_pages(blocks: &[crate::spec::Block]) -> bool {
     blocks.iter().any(|block| match block {
-        crate::spec::Block::Paragraph(paragraph) => paragraph.content.iter().any(|inline| {
-            matches!(inline, Inline::Text(run) if run.text.contains("{pages}"))
-        }),
+        crate::spec::Block::Paragraph(paragraph) => paragraph
+            .content
+            .iter()
+            .any(|inline| matches!(inline, Inline::Text(run) if run.text.contains("{pages}"))),
         _ => false,
     })
 }
@@ -329,7 +376,11 @@ impl TextLayouter<'_> {
 
         // Marker geometry has to be known before the first line's indent.
         let (indents, marker_shape) = self.indents_of(para, &style);
-        let Indents { left: indent_left, right: indent_right, first_extra } = indents;
+        let Indents {
+            left: indent_left,
+            right: indent_right,
+            first_extra,
+        } = indents;
 
         let boundaries: Vec<usize> = pieces.iter().map(|p| p.start).collect();
 
@@ -369,6 +420,7 @@ impl TextLayouter<'_> {
         };
         // Set when the wrap, not the height budget, is what stopped the text.
         let mut walled_in = false;
+        let mut overfull: Option<Overfull> = None;
 
         // A paragraph with nothing in it still occupies one line.
         let empty = pieces.is_empty();
@@ -379,7 +431,16 @@ impl TextLayouter<'_> {
             // Every gap on this band, left to right. More than one means a
             // picture sits inside the column with room on both sides, and the
             // line runs through all of them before moving down.
-            self.slots_for(space, y, nominal, nominal_ink, first, indent_left, first_extra, &mut slots);
+            self.slots_for(
+                space,
+                y,
+                nominal,
+                nominal_ink,
+                first,
+                indent_left,
+                first_extra,
+                &mut slots,
+            );
             if slots.is_empty() {
                 // Nothing on this band. Move down and try again rather than
                 // wedge the text inside the picture.
@@ -398,19 +459,48 @@ impl TextLayouter<'_> {
             // taller has to ask again, because a taller band can meet a shape
             // the shorter one missed. Once, never in a loop.
             self.fill_band(
-                &text, &pieces, &spans, &style, &slots, index, start, first, indent_left,
-                indent_right, first_extra, &mut band,
+                &text,
+                &pieces,
+                &spans,
+                &style,
+                &slots,
+                index,
+                start,
+                first,
+                indent_left,
+                indent_right,
+                first_extra,
+                &mut band,
             );
 
             if band.height > nominal + FIT_EPSILON {
                 let mut taller: Vec<Interval> = Vec::with_capacity(slots.len());
-                self.slots_for(space, y, band.height, band.ink, first, indent_left, first_extra, &mut taller);
+                self.slots_for(
+                    space,
+                    y,
+                    band.height,
+                    band.ink,
+                    first,
+                    indent_left,
+                    first_extra,
+                    &mut taller,
+                );
                 if !taller.is_empty() && taller != slots {
                     slots.clear();
                     slots.extend_from_slice(&taller);
                     self.fill_band(
-                        &text, &pieces, &spans, &style, &slots, index, start, first, indent_left,
-                        indent_right, first_extra, &mut band,
+                        &text,
+                        &pieces,
+                        &spans,
+                        &style,
+                        &slots,
+                        index,
+                        start,
+                        first,
+                        indent_left,
+                        indent_right,
+                        first_extra,
+                        &mut band,
                     );
                 }
             }
@@ -447,9 +537,28 @@ impl TextLayouter<'_> {
 
             for segment in &band.segments {
                 let at_start = first && segment.first_in_band;
-                let left = segment.slot.left
-                    + indent_left
-                    + if at_start { first_extra } else { 0.0 };
+                let left =
+                    segment.slot.left + indent_left + if at_start { first_extra } else { 0.0 };
+
+                if let Some(forced) = segment.line.forced
+                    && overfull
+                        .as_ref()
+                        .is_none_or(|worst| forced.excess > worst.excess)
+                {
+                    overfull = Some(self.overfull_of(
+                        &text,
+                        &spans,
+                        &style,
+                        segment.line,
+                        forced,
+                        y,
+                        left,
+                        segment.limit,
+                        band.height,
+                        origin,
+                        frame_source,
+                    ));
+                }
 
                 self.emit_line(
                     &mut items,
@@ -502,12 +611,70 @@ impl TextLayouter<'_> {
             None
         };
 
+        let trailing = if remainder.is_none() {
+            style.space_after
+        } else {
+            0.0
+        };
         ParagraphLayout {
             items,
-            height: y + if remainder.is_none() { style.space_after } else { 0.0 },
+            height: y + trailing,
             line_count: placed,
             remainder,
             walled_in,
+            trailing,
+            overfull,
+        }
+    }
+
+    /// What an overfull line looks like to the person who has to fix it.
+    ///
+    /// Measured the way `emit_line` places the line, so the rectangle lands
+    /// on the glyphs — alignment included, since a centred word too wide for
+    /// its line spills out of both sides.
+    #[allow(clippy::too_many_arguments)]
+    fn overfull_of(
+        &self,
+        text: &str,
+        spans: &[Span],
+        style: &ResolvedStyle,
+        line: LineRange,
+        forced: Forced,
+        top: f64,
+        left: f64,
+        limit: f64,
+        height: f64,
+        origin: Origin,
+        frame_source: &SourceRef,
+    ) -> Overfull {
+        let natural = width_of(spans, line.start, trim_end_of(text, line.start, line.end));
+        let shift = match style.text_align {
+            TextAlign::Left | TextAlign::Justify => 0.0,
+            TextAlign::Center => (limit - natural) / 2.0,
+            TextAlign::Right => limit - natural,
+        };
+        let source = spans
+            .iter()
+            .find(|span| span.start <= forced.start && forced.start < span.end)
+            .map_or_else(
+                || {
+                    frame_source
+                        .clone()
+                        .at(origin.block, origin.inline, origin.offset)
+                },
+                |span| {
+                    let local = match span.kind {
+                        SpanKind::Text { .. } => forced.start - span.start,
+                        _ => 0,
+                    };
+                    source_for(frame_source, origin, span, local)
+                },
+            );
+        Overfull {
+            excess: forced.excess,
+            word: text[forced.start..forced.end].to_string(),
+            source,
+            rect: Rect::new(left + shift, top, natural, height),
         }
     }
 
@@ -523,9 +690,7 @@ impl TextLayouter<'_> {
 
             match inline {
                 Inline::Text(run) => {
-                    if let Some(span) =
-                        self.text_span(run, style, start, inline_index, &mut text)
-                    {
+                    if let Some(span) = self.text_span(run, style, start, inline_index, &mut text) {
                         spans.push(span);
                     }
                 }
@@ -563,6 +728,8 @@ impl TextLayouter<'_> {
                         font: None,
                         kind: SpanKind::Tab {
                             to: tab.to.map(Len::get),
+                            align: tab.align,
+                            leader: tab.leader.clone(),
                         },
                     });
                 }
@@ -603,10 +770,9 @@ impl TextLayouter<'_> {
                                 .thickness
                                 .map_or(metrics.underline_thickness * style.font_size, Len::get),
                             color: rule.color.unwrap_or(style.color),
-                            offset: rule.offset.map_or(
-                                -metrics.underline_position * style.font_size,
-                                Len::get,
-                            ),
+                            offset: rule
+                                .offset
+                                .map_or(-metrics.underline_position * style.font_size, Len::get),
                         },
                     });
                 }
@@ -637,9 +803,11 @@ impl TextLayouter<'_> {
             return None;
         }
 
-        let font = self
-            .registry
-            .select(style.font_family.as_deref(), style.font_weight, style.font_style);
+        let font = self.registry.select(
+            style.font_family.as_deref(),
+            style.font_weight,
+            style.font_style,
+        );
 
         let glyphs = font
             .and_then(|id| self.registry.face(id))
@@ -702,7 +870,11 @@ impl TextLayouter<'_> {
 
     fn metrics_for(&self, style: &ResolvedStyle) -> FaceMetrics {
         self.registry
-            .select(style.font_family.as_deref(), style.font_weight, style.font_style)
+            .select(
+                style.font_family.as_deref(),
+                style.font_weight,
+                style.font_style,
+            )
             .and_then(|id| self.registry.face(id))
             .map(|face| face.metrics)
             .unwrap_or(FALLBACK_METRICS)
@@ -730,7 +902,11 @@ impl TextLayouter<'_> {
     /// that does not changes the first line's, and getting that wrong in only
     /// one of the two places would make a table column the wrong width for a
     /// reason nobody would find.
-    fn indents_of(&self, para: &Paragraph, style: &ResolvedStyle) -> (Indents, Option<MarkerShape>) {
+    fn indents_of(
+        &self,
+        para: &Paragraph,
+        style: &ResolvedStyle,
+    ) -> (Indents, Option<MarkerShape>) {
         let marker = para.marker.as_ref().filter(|m| !m.text.is_empty());
         let shape = marker.map(|m| self.shape_marker(m, style));
         let column = shape.as_ref().map_or(0.0, |s| s.column);
@@ -874,12 +1050,16 @@ impl TextLayouter<'_> {
         let mut leading = style.leading();
 
         let mut saw_span = false;
+        let mut object = false;
         for span in spans.iter().filter(|s| s.covers(line.start, line.end)) {
             saw_span = true;
             leading = leading.max(span.style.leading());
 
             match &span.kind {
-                SpanKind::Image { height, baseline, .. } => {
+                SpanKind::Image {
+                    height, baseline, ..
+                } => {
+                    object = true;
                     ascent = ascent.max(height - baseline);
                     descent = descent.max(*baseline);
                 }
@@ -896,6 +1076,17 @@ impl TextLayouter<'_> {
             let metrics = self.metrics_for(style);
             ascent = metrics.ascender * style.font_size;
             descent = -metrics.descender * style.font_size;
+        }
+
+        // An inline object taller than the leading grows the line, like a CSS
+        // line box around a replaced element. Without this the line kept the
+        // paragraph's leading and the image spilled over the lines around it.
+        if object && ascent + descent > leading {
+            return LineMetrics {
+                height: ascent + descent,
+                baseline: ascent,
+                ink: ascent + descent,
+            };
         }
 
         // CSS half-leading: the extra space is split above and below the text.
@@ -962,7 +1153,11 @@ impl TextLayouter<'_> {
             let slice_end = span.end.min(line.end);
 
             match &span.kind {
-                SpanKind::Text { text: span_text, glyphs, .. } => {
+                SpanKind::Text {
+                    text: span_text,
+                    glyphs,
+                    ..
+                } => {
                     let local_start = slice_start - span.start;
                     let local_end = slice_end - span.start;
                     let slice = &span_text[local_start..local_end];
@@ -970,10 +1165,9 @@ impl TextLayouter<'_> {
                     let run_origin = pen;
                     let mut out = Vec::new();
 
-                    for glyph in glyphs
-                        .iter()
-                        .filter(|g| (g.cluster as usize) >= slice_start && (g.cluster as usize) < slice_end)
-                    {
+                    for glyph in glyphs.iter().filter(|g| {
+                        (g.cluster as usize) >= slice_start && (g.cluster as usize) < slice_end
+                    }) {
                         while next_gap < inner.len() && inner[next_gap] <= glyph.cluster as usize {
                             pen += justify_delta;
                             next_gap += 1;
@@ -1002,15 +1196,50 @@ impl TextLayouter<'_> {
 
                 SpanKind::Space { width } => pen += width,
 
-                SpanKind::Tab { to } => {
-                    let target = to.map_or_else(
-                        || next_tab_stop(pen - left, style.font_size) + left,
-                        |t| left + t,
-                    );
+                SpanKind::Tab { to, align, leader } => {
+                    let from = pen;
+                    let target = match align {
+                        TabAlign::Left => to.map_or_else(
+                            || next_tab_stop(pen - left, style.font_size) + left,
+                            |t| left + t,
+                        ),
+                        TabAlign::Right => {
+                            // What follows, up to the next tab or the end of
+                            // the line, ends at the stop.
+                            let until = spans
+                                .iter()
+                                .filter(|s| {
+                                    s.start >= span.end
+                                        && s.start < trimmed_end
+                                        && matches!(s.kind, SpanKind::Tab { .. })
+                                })
+                                .map(|s| s.start)
+                                .min()
+                                .unwrap_or(trimmed_end);
+                            let following = width_of(spans, span.end, until);
+                            to.map_or(left + limit, |t| left + t) - following
+                        }
+                    };
                     pen = pen.max(target);
+                    if let Some(leader) = leader {
+                        self.emit_leader(
+                            items,
+                            leader,
+                            from,
+                            pen,
+                            baseline,
+                            &span.style,
+                            source_for(frame_source, origin, span, 0),
+                        );
+                    }
                 }
 
-                SpanKind::Image { src, width, height, baseline: shift } => {
+                SpanKind::Image {
+                    src,
+                    width,
+                    height,
+                    baseline: shift,
+                } => {
                     items.push(DisplayItem::Image(ImageItem {
                         src: src.clone(),
                         rect: Rect::new(pen, baseline + shift - height, *width, *height),
@@ -1020,7 +1249,12 @@ impl TextLayouter<'_> {
                     pen += width;
                 }
 
-                SpanKind::Rule { width, thickness, color, offset } => {
+                SpanKind::Rule {
+                    width,
+                    thickness,
+                    color,
+                    offset,
+                } => {
                     // A rule with no width stretches to the end of the line.
                     let w = width.unwrap_or_else(|| (left + limit - pen).max(0.0));
                     let y = baseline + offset;
@@ -1042,6 +1276,43 @@ impl TextLayouter<'_> {
                 SpanKind::Break => {}
             }
         }
+    }
+
+    /// The dots, dashes or line a tab leader draws across the gap it opened.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_leader(
+        &self,
+        items: &mut Vec<DisplayItem>,
+        leader: &str,
+        from: f64,
+        to: f64,
+        baseline: f64,
+        style: &ResolvedStyle,
+        source: SourceRef,
+    ) {
+        let size = style.font_size;
+        // Air on both sides, so the leader does not touch the words.
+        let (x1, x2) = (from + size * 0.25, to - size * 0.25);
+        if x2 - x1 < size * 0.5 {
+            return;
+        }
+        let (width, dash, lift) = match leader.chars().next() {
+            Some('_') => (size * 0.06, None, -size * 0.08),
+            Some('-') => (size * 0.07, Some([size * 0.35, size * 0.2]), size * 0.3),
+            _ => (size * 0.1, Some([size * 0.1, size * 0.3]), size * 0.05),
+        };
+        items.push(DisplayItem::Line(LineItem {
+            x1,
+            y1: baseline - lift,
+            x2,
+            y2: baseline - lift,
+            stroke: Stroke {
+                color: style.color,
+                width,
+                dash,
+            },
+            source: Some(source),
+        }));
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1165,9 +1436,11 @@ impl TextLayouter<'_> {
 
     fn shape_marker(&self, marker: &Marker, parent: &ResolvedStyle) -> MarkerShape {
         let style = cascade::resolve(parent, self.styles, None, marker.style.as_ref());
-        let font = self
-            .registry
-            .select(style.font_family.as_deref(), style.font_weight, style.font_style);
+        let font = self.registry.select(
+            style.font_family.as_deref(),
+            style.font_weight,
+            style.font_style,
+        );
 
         let glyphs = font
             .and_then(|id| self.registry.face(id))
@@ -1230,7 +1503,12 @@ impl TextLayouter<'_> {
 
             // The break falls inside this span: keep only its tail.
             match (&span.kind, original) {
-                (SpanKind::Text { text, source_chars, .. }, Inline::Text(run)) => {
+                (
+                    SpanKind::Text {
+                        text, source_chars, ..
+                    },
+                    Inline::Text(run),
+                ) => {
                     let chars_before = text[..offset - span.start].chars().count();
                     if chars_before >= *source_chars {
                         continue;
@@ -1445,6 +1723,7 @@ fn break_one_line(
 ) -> (LineRange, usize) {
     let mut width = 0.0f64;
     let mut index = from;
+    let mut forced: Option<Forced> = None;
 
     while index < pieces.len() {
         let piece = &pieces[index];
@@ -1455,9 +1734,20 @@ fn break_one_line(
                     start,
                     end: piece.start,
                     hard_end: false,
+                    forced,
                 },
                 index,
             );
+        }
+
+        // Nothing on the line yet, so the piece goes in whether it fits or
+        // not. Noted here, where it is known, and nowhere acted on.
+        if width <= 0.0 && piece.trimmed_width > limit + FIT_EPSILON {
+            forced = Some(Forced {
+                start: piece.start,
+                end: trim_end_of(text, piece.start, piece.end),
+                excess: piece.trimmed_width - limit,
+            });
         }
 
         width += piece.width;
@@ -1468,6 +1758,7 @@ fn break_one_line(
                     start,
                     end: piece.end,
                     hard_end: true,
+                    forced,
                 },
                 index + 1,
             );
@@ -1481,6 +1772,7 @@ fn break_one_line(
             start,
             end: text.len(),
             hard_end: true,
+            forced,
         },
         pieces.len(),
     )
@@ -1504,7 +1796,10 @@ fn intrinsic_of(pieces: &[Piece], indents: &Indents) -> Intrinsic {
     let first_line = sides + indents.first_extra;
 
     if pieces.is_empty() {
-        return Intrinsic { min: first_line, max: first_line };
+        return Intrinsic {
+            min: first_line,
+            max: first_line,
+        };
     }
 
     let mut widest_piece = 0.0f64;
@@ -1532,7 +1827,10 @@ fn intrinsic_of(pieces: &[Piece], indents: &Indents) -> Intrinsic {
     max = max.max(segment - trailing + room);
 
     let min = (pieces[0].trimmed_width + first_line).max(widest_piece + sides);
-    Intrinsic { min, max: max.max(min) }
+    Intrinsic {
+        min,
+        max: max.max(min),
+    }
 }
 
 /// Next default tab stop, every 4 em from the column's left edge.
@@ -1581,7 +1879,9 @@ mod tests {
     impl Harness {
         fn new() -> Option<Harness> {
             let mut registry = FontRegistry::new();
-            registry.add("body", test_fonts::dejavu()?.to_vec(), None, None).ok()?;
+            registry
+                .add("body", test_fonts::dejavu()?.to_vec(), None, None)
+                .ok()?;
             if let Some(bold) = test_fonts::dejavu_bold() {
                 registry
                     .add("body", bold.to_vec(), Some(FontWeight::BOLD), Some(false))
@@ -1610,7 +1910,8 @@ mod tests {
         fn measure(&self, json: &str) -> Intrinsic {
             let block: Block = serde_json::from_str(json).unwrap();
             let para = block.as_paragraph().unwrap().clone();
-            self.layouter().measure_paragraph(&para, &ResolvedStyle::default())
+            self.layouter()
+                .measure_paragraph(&para, &ResolvedStyle::default())
         }
 
         fn run_capped(&self, json: &str, width: f64, max: Option<f64>) -> ParagraphLayout {
@@ -1695,10 +1996,17 @@ mod tests {
         let m = h.measure(json);
 
         let largo = h.run(json, m.max + 0.5);
-        assert_eq!(baselines(&largo).len(), 1, "à largura máxima cabe numa linha");
+        assert_eq!(
+            baselines(&largo).len(),
+            1,
+            "à largura máxima cabe numa linha"
+        );
 
         let apertado = h.run(json, m.min);
-        assert!(baselines(&apertado).len() > 1, "à largura mínima quebra em várias");
+        assert!(
+            baselines(&apertado).len() > 1,
+            "à largura mínima quebra em várias"
+        );
         for run in runs(&apertado) {
             assert!(
                 visible_right(run) <= m.min + 0.5,
@@ -1716,9 +2024,8 @@ mod tests {
         let recuado = h.measure(
             r#"{"type":"paragraph","style":{"indentLeft":20,"indentRight":10},"content":["alpha bravo"]}"#,
         );
-        let marcado = h.measure(
-            r#"{"type":"paragraph","marker":{"text":"a)"},"content":["alpha bravo"]}"#,
-        );
+        let marcado =
+            h.measure(r#"{"type":"paragraph","marker":{"text":"a)"},"content":["alpha bravo"]}"#);
 
         assert!(
             (recuado.max - liso.max - 30.0).abs() < 0.01,
@@ -1774,7 +2081,11 @@ mod tests {
         let Some(h) = Harness::new() else { return };
         let json = r#""As plantas convertem a luz solar em energia química através da fotossíntese, um processo essencial para a vida no planeta.""#;
         let layout = h.run(json, 150.0);
-        assert!(layout.line_count > 2, "expected wrapping, got {}", layout.line_count);
+        assert!(
+            layout.line_count > 2,
+            "expected wrapping, got {}",
+            layout.line_count
+        );
 
         // No visible glyph may extend past the column.
         for run in runs(&layout) {
@@ -1817,13 +2128,20 @@ mod tests {
     fn alignment_moves_the_line_horizontally() {
         let Some(h) = Harness::new() else { return };
         let text = "curto";
-        let left = h.run(&format!(r#"{{"type":"paragraph","content":["{text}"]}}"#), 300.0);
+        let left = h.run(
+            &format!(r#"{{"type":"paragraph","content":["{text}"]}}"#),
+            300.0,
+        );
         let centre = h.run(
-            &format!(r#"{{"type":"paragraph","style":{{"textAlign":"center"}},"content":["{text}"]}}"#),
+            &format!(
+                r#"{{"type":"paragraph","style":{{"textAlign":"center"}},"content":["{text}"]}}"#
+            ),
             300.0,
         );
         let right = h.run(
-            &format!(r#"{{"type":"paragraph","style":{{"textAlign":"right"}},"content":["{text}"]}}"#),
+            &format!(
+                r#"{{"type":"paragraph","style":{{"textAlign":"right"}},"content":["{text}"]}}"#
+            ),
             300.0,
         );
 
@@ -1984,14 +2302,20 @@ mod tests {
                 _ => None,
             })
             .expect("rule emitted");
-        assert!((line.x2 - 300.0).abs() < 0.5, "rule should reach the margin");
+        assert!(
+            (line.x2 - 300.0).abs() < 0.5,
+            "rule should reach the margin"
+        );
         assert!(line.x1 > 0.0, "rule should start after the label");
     }
 
     #[test]
     fn a_marker_indents_the_text_and_hangs() {
         let Some(h) = Harness::new() else { return };
-        let plain = h.run(r#""texto que precisa quebrar em varias linhas aqui""#, 120.0);
+        let plain = h.run(
+            r#""texto que precisa quebrar em varias linhas aqui""#,
+            120.0,
+        );
         let marked = h.run(
             r#"{"type":"paragraph","marker":{"text":"a)"},"content":["texto que precisa quebrar em varias linhas aqui"]}"#,
             120.0,
@@ -1999,7 +2323,10 @@ mod tests {
 
         let marker_run = &runs(&marked)[0];
         assert_eq!(marker_run.text, "a)");
-        assert!((marker_run.x - 0.0).abs() < 0.01, "marker sits at the margin");
+        assert!(
+            (marker_run.x - 0.0).abs() < 0.01,
+            "marker sits at the margin"
+        );
 
         // Every text line starts past the marker column.
         let text_runs: Vec<_> = runs(&marked).into_iter().skip(1).collect();
@@ -2088,8 +2415,54 @@ mod tests {
         assert_eq!(image.rect.w, 40.0);
         assert_eq!(image.rect.h, 20.0);
 
-        let after = runs(&layout).into_iter().find(|r| r.text.contains("depois")).unwrap();
-        assert!(after.x >= image.rect.right() - 0.01, "text must follow the image");
+        let after = runs(&layout)
+            .into_iter()
+            .find(|r| r.text.contains("depois"))
+            .unwrap();
+        assert!(
+            after.x >= image.rect.right() - 0.01,
+            "text must follow the image"
+        );
+    }
+
+    #[test]
+    fn a_tall_inline_image_grows_its_line_instead_of_covering_the_neighbours() {
+        let Some(h) = Harness::new() else { return };
+        let layout = h.run(
+            r#"{"type":"paragraph","content":["antes",{"type":"break"},
+                {"type":"image","src":"x.png","width":150,"height":110},
+                {"type":"break"},"legenda"]}"#,
+            400.0,
+        );
+        let image = layout
+            .items
+            .iter()
+            .find_map(|i| match i {
+                DisplayItem::Image(img) => Some(img),
+                _ => None,
+            })
+            .expect("image emitted");
+        let before = runs(&layout)
+            .into_iter()
+            .find(|r| r.text.contains("antes"))
+            .unwrap();
+        let after = runs(&layout)
+            .into_iter()
+            .find(|r| r.text.contains("legenda"))
+            .unwrap();
+        assert!(layout.height >= 110.0, "the paragraph holds the image");
+        assert!(
+            image.rect.y >= before.y,
+            "the image starts below the line before it: {} < {}",
+            image.rect.y,
+            before.y
+        );
+        assert!(
+            after.y > image.rect.bottom(),
+            "the caption baseline sits below the image: {} <= {}",
+            after.y,
+            image.rect.bottom()
+        );
     }
 
     #[test]

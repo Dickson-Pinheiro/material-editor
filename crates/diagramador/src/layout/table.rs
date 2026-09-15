@@ -11,12 +11,12 @@
 
 use super::grid::{self, Track};
 use super::text::Intrinsic;
-use crate::display::{CellStep, DisplayItem, LineItem, RectItem, SourceRef, Stroke};
 use crate::color::Color;
+use crate::display::{CellStep, DisplayItem, LineItem, RectItem, SourceRef, Stroke};
+use crate::spec::ResolvedStyle;
 use crate::spec::content::{
     Block, Cell, CellAlign, GridAxis, GridLine, RepeatRows, Stripe, TableBlock, TrackSize,
 };
-use crate::spec::ResolvedStyle;
 use crate::units::{Corners, Insets, Len, Rect};
 
 /// Where a cell ended up.
@@ -102,12 +102,17 @@ pub(crate) fn place(table: &TableBlock, issues: &mut Vec<Issue>) -> Grid {
 
     // ── The pinned ones, in the order they were written ─────────────────────
     for (index, cell) in table.cells.iter().enumerate() {
-        let (Some(x), Some(y)) = (cell.x, cell.y) else { continue };
+        let (Some(x), Some(y)) = (cell.x, cell.y) else {
+            continue;
+        };
         let w = cell.colspan.max(1);
         let h = cell.rowspan.max(1);
 
         if (x + w) as usize > columns {
-            issues.push(Issue::TooWide { cell: index, colspan: w });
+            issues.push(Issue::TooWide {
+                cell: index,
+                colspan: w,
+            });
             continue;
         }
         if !free(&taken, x, y, w, h) {
@@ -115,7 +120,13 @@ pub(crate) fn place(table: &TableBlock, issues: &mut Vec<Issue>) -> Grid {
             continue;
         }
         occupy(&mut taken, x, y, w, h);
-        placed[index] = Some(Placed { cell: index, x, y, colspan: w, rowspan: h });
+        placed[index] = Some(Placed {
+            cell: index,
+            x,
+            y,
+            colspan: w,
+            rowspan: h,
+        });
     }
 
     // ── The rest, into whatever is left ─────────────────────────────────────
@@ -128,7 +139,10 @@ pub(crate) fn place(table: &TableBlock, issues: &mut Vec<Issue>) -> Grid {
         let h = cell.rowspan.max(1);
 
         if w as usize > columns {
-            issues.push(Issue::TooWide { cell: index, colspan: w });
+            issues.push(Issue::TooWide {
+                cell: index,
+                colspan: w,
+            });
             continue;
         }
 
@@ -144,13 +158,22 @@ pub(crate) fn place(table: &TableBlock, issues: &mut Vec<Issue>) -> Grid {
             let y = at / columns as u32;
             let x = at % columns as u32;
             if y > MAX_ROWS {
-                issues.push(Issue::TooWide { cell: index, colspan: w });
+                issues.push(Issue::TooWide {
+                    cell: index,
+                    colspan: w,
+                });
                 break;
             }
             let matches_column = wanted_x.is_none_or(|want| want == x);
             if matches_column && free(&taken, x, y, w, h) {
                 occupy(&mut taken, x, y, w, h);
-                placed[index] = Some(Placed { cell: index, x, y, colspan: w, rowspan: h });
+                placed[index] = Some(Placed {
+                    cell: index,
+                    x,
+                    y,
+                    colspan: w,
+                    rowspan: h,
+                });
                 if cell.y.is_none() && wanted_x.is_none() {
                     cursor = at + w;
                 }
@@ -168,7 +191,11 @@ pub(crate) fn place(table: &TableBlock, issues: &mut Vec<Issue>) -> Grid {
         .unwrap_or(0)
         .max(table.rows.len());
 
-    Grid { cells, columns, rows }
+    Grid {
+        cells,
+        columns,
+        rows,
+    }
 }
 
 /// How many columns the table has.
@@ -218,7 +245,44 @@ pub(crate) trait Cells {
         style: &ResolvedStyle,
         rect: Rect,
         source: &SourceRef,
-    ) -> Vec<DisplayItem>;
+    ) -> Rendered;
+}
+
+/// A cell's content, drawn, and how it measured against the cell.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Rendered {
+    pub items: Vec<DisplayItem>,
+    /// How tall the content turned out.
+    pub height: f64,
+    /// How far the widest line runs past the cell's measure. `0.0` when every
+    /// word fits.
+    pub overflow_x: f64,
+    /// Where the word that would not break is, when one would not.
+    pub widest: Option<SourceRef>,
+}
+
+/// Content that does not fit its cell, and is drawn anyway.
+///
+/// Found while drawing, reported by the caller. Nothing about the table
+/// changes because of it: a fixed row stays the height it was declared.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CellOverflow {
+    pub spill: Spill,
+    /// By how much, in points.
+    pub amount: f64,
+    /// The cell's outer box, in page coordinates.
+    pub rect: Rect,
+    /// The cell — or, across, the word that would not break inside it.
+    pub source: SourceRef,
+}
+
+/// Which way content leaves its cell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Spill {
+    /// Taller than the row.
+    Down,
+    /// A word wider than the column.
+    Across,
 }
 
 /// The table's geometry, once resolved.
@@ -334,7 +398,9 @@ pub(crate) fn size(
         let first = placed.y as usize;
         let last = (placed.y + placed.rowspan - 1) as usize;
         let bridged = row_gap * (placed.rowspan - 1) as f64;
-        let have: f64 = rows[first..=last.min(rows.len().saturating_sub(1))].iter().sum::<f64>()
+        let have: f64 = rows[first..=last.min(rows.len().saturating_sub(1))]
+            .iter()
+            .sum::<f64>()
             + bridged;
 
         if tall > have && last < rows.len() {
@@ -351,7 +417,12 @@ pub(crate) fn size(
         }
     }
 
-    Sizes { columns: resolved.lengths, rows, baselines, overflow: resolved.overflow }
+    Sizes {
+        columns: resolved.lengths,
+        rows,
+        baselines,
+        overflow: resolved.overflow,
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -377,6 +448,9 @@ pub(crate) struct Layout {
     /// Anything the author should be told about, turned into diagnostics by
     /// the caller — which is the only place that knows the page and the frame.
     pub issues: Vec<Issue>,
+    /// Cells whose content is drawn past their box. Kept apart from `issues`
+    /// because these carry measurements and a place, not just a kind.
+    pub overflows: Vec<CellOverflow>,
     /// The rows that did not fit, as a table of their own, ready to be flowed
     /// into the next column or page. `None` when the whole table was drawn.
     pub leftover: Option<TableBlock>,
@@ -437,7 +511,10 @@ pub(crate) fn emit(
     let mut issues = Vec::new();
     let grid_layout = place(table, &mut issues);
     if grid_layout.columns == 0 || grid_layout.rows == 0 {
-        return Layout { issues, ..Layout::default() };
+        return Layout {
+            issues,
+            ..Layout::default()
+        };
     }
 
     let whole = size(table, &grid_layout, cells, style, origin.w);
@@ -450,13 +527,29 @@ pub(crate) fn emit(
     // begins on already has its header where the author wrote it, and the page
     // it ends on already has its footer — which is why the first page needs no
     // special case at all.
-    let head = strip(table, &whole.columns, continuation_head(table, &grid_layout), true);
-    let foot = strip(table, &whole.columns, continuation_foot(table, &grid_layout), false);
-    let head_rows = head.as_ref().map_or(0, |strip| measured(strip, cells, style, origin.w).1);
+    let head = strip(
+        table,
+        &whole.columns,
+        continuation_head(table, &grid_layout),
+        true,
+    );
+    let foot = strip(
+        table,
+        &whole.columns,
+        continuation_foot(table, &grid_layout),
+        false,
+    );
+    let head_rows = head
+        .as_ref()
+        .map_or(0, |strip| measured(strip, cells, style, origin.w).1);
     let (foot_height, _) = foot
         .as_ref()
         .map_or((0.0, 0), |strip| measured(strip, cells, style, origin.w));
-    let foot_room = if foot_height > 0.0 { foot_height + row_gap } else { 0.0 };
+    let foot_room = if foot_height > 0.0 {
+        foot_height + row_gap
+    } else {
+        0.0
+    };
 
     // ── Where to stop ───────────────────────────────────────────────────────
     //
@@ -467,11 +560,22 @@ pub(crate) fn emit(
         break_at(&grid_layout, &whole, row_gap, room, head_rows, &mut probe) < whole.rows.len();
     let budget = if breaks { room.less(foot_room) } else { room };
 
-    let cut = break_at(&grid_layout, &whole, row_gap, budget, head_rows, &mut issues);
+    let cut = break_at(
+        &grid_layout,
+        &whole,
+        row_gap,
+        budget,
+        head_rows,
+        &mut issues,
+    );
     if cut == 0 {
         // Nothing useful fits here. The caller is told so by getting everything
         // back, and tries again lower down.
-        return Layout { issues, leftover: Some(table.clone()), ..Layout::default() };
+        return Layout {
+            issues,
+            leftover: Some(table.clone()),
+            ..Layout::default()
+        };
     }
 
     let leftover = (cut < whole.rows.len())
@@ -494,10 +598,15 @@ pub(crate) fn emit(
     let height = span_of(&tops, &sizes.rows, 0, sizes.rows.len());
 
     let mut items = Vec::new();
+    let mut overflows = Vec::new();
 
     // ── Table fill ──────────────────────────────────────────────────────────
     if let Some(fill) = table.fill {
-        items.push(fill_rect(Rect::new(origin.x, origin.y, width, height), fill, source));
+        items.push(fill_rect(
+            Rect::new(origin.x, origin.y, width, height),
+            fill,
+            source,
+        ));
     }
 
     // ── Stripes ─────────────────────────────────────────────────────────────
@@ -508,7 +617,11 @@ pub(crate) fn emit(
         for (row, (top, tall)) in tops.iter().zip(&sizes.rows).enumerate() {
             let row = row as u32;
             if row >= stripe.offset && (row - stripe.offset).is_multiple_of(stripe.every) {
-                items.push(fill_rect(Rect::new(origin.x, *top, width, *tall), fill, source));
+                items.push(fill_rect(
+                    Rect::new(origin.x, *top, width, *tall),
+                    fill,
+                    source,
+                ));
             }
         }
     }
@@ -520,12 +633,20 @@ pub(crate) fn emit(
         }
         let cell = &table.cells[placed.cell];
         let Some(fill) = cell.fill else { continue };
-        items.push(fill_rect(box_of(&lefts, &tops, &sizes, placed), fill, source));
+        items.push(fill_rect(
+            box_of(&lefts, &tops, &sizes, placed),
+            fill,
+            source,
+        ));
     }
 
     // ── Rules ───────────────────────────────────────────────────────────────
     for line in &table.lines {
-        let thickness = if line.width.get() > 0.0 { line.width.get() } else { DEFAULT_RULE };
+        let thickness = if line.width.get() > 0.0 {
+            line.width.get()
+        } else {
+            DEFAULT_RULE
+        };
         let color = line.color.unwrap_or(style.color);
 
         // A rule sits on the boundary itself, which with a gap means the
@@ -552,7 +673,10 @@ pub(crate) fn emit(
         };
 
         let from = line.from.unwrap_or(0) as usize;
-        let to = line.to.map_or(across.len(), |t| t as usize).min(across.len());
+        let to = line
+            .to
+            .map_or(across.len(), |t| t as usize)
+            .min(across.len());
         if from >= to {
             continue;
         }
@@ -563,7 +687,11 @@ pub(crate) fn emit(
         let start = edge[from];
         let end = span_of(edge, across, from, to) + start;
 
-        let stroke = Stroke { color, width: thickness, dash: None };
+        let stroke = Stroke {
+            color,
+            width: thickness,
+            dash: None,
+        };
         items.push(DisplayItem::Line(match line.axis {
             GridAxis::Horizontal => LineItem {
                 x1: start,
@@ -615,19 +743,18 @@ pub(crate) fn emit(
         let width = (outer.w - padding.horizontal()).max(0.0);
         let height = (outer.h - padding.vertical()).max(0.0);
 
-
         // Only the alignments that need it pay for a second measurement.
         let shift = match cell.vertical_align {
             CellAlign::Top => 0.0,
-            CellAlign::Middle => {
-                (height - cells.height(&cell.blocks, style, width.max(1.0))) / 2.0
-            }
+            CellAlign::Middle => (height - cells.height(&cell.blocks, style, width.max(1.0))) / 2.0,
             CellAlign::Bottom => height - cells.height(&cell.blocks, style, width.max(1.0)),
             CellAlign::Baseline => cells
                 .first_baseline(&cell.blocks, style, width.max(1.0))
                 // A cell with nothing to align by stays at the top rather than
                 // being pushed to a baseline it does not reach.
-                .map_or(0.0, |b| sizes.baselines[placed.y as usize] - padding.top - b),
+                .map_or(0.0, |b| {
+                    sizes.baselines[placed.y as usize] - padding.top - b
+                }),
         };
 
         let inner = Rect::new(
@@ -636,7 +763,30 @@ pub(crate) fn emit(
             width,
             height,
         );
-        items.extend(cells.render(&cell.blocks, style, inner, &cell_source(source, placed, cell)));
+        let here = cell_source(source, placed, cell);
+        let rendered = cells.render(&cell.blocks, style, inner, &here);
+        items.extend(rendered.items);
+
+        // Measured, not prevented. A row sized from its content always holds
+        // it; one the author fixed may not, and the content is drawn past the
+        // cell's edge — into the next row, or out from under the frame's clip.
+        let below = shift.max(0.0) + rendered.height - height;
+        if below > FITS {
+            overflows.push(CellOverflow {
+                spill: Spill::Down,
+                amount: below,
+                rect: outer,
+                source: here.clone(),
+            });
+        }
+        if rendered.overflow_x > FITS {
+            overflows.push(CellOverflow {
+                spill: Spill::Across,
+                amount: rendered.overflow_x,
+                rect: outer,
+                source: rendered.widest.unwrap_or(here),
+            });
+        }
     }
 
     // ── The continuation footer, under what was drawn ───────────────────────
@@ -648,11 +798,20 @@ pub(crate) fn emit(
         let laid = emit(strip, style, cells, below, Room::Unlimited, source);
         if laid.height > 0.0 {
             items.extend(laid.items);
+            overflows.extend(laid.overflows);
             height += row_gap + laid.height;
         }
     }
 
-    Layout { items, height, sizes, grid: grid_layout, issues, leftover }
+    Layout {
+        items,
+        height,
+        sizes,
+        grid: grid_layout,
+        issues,
+        overflows,
+        leftover,
+    }
 }
 
 /// The provenance of everything inside one cell.
@@ -689,7 +848,10 @@ fn continuation_head(table: &TableBlock, grid_layout: &Grid) -> Vec<Cell> {
 
 /// The rows a page that has not finished closes with.
 fn continuation_foot(table: &TableBlock, grid_layout: &Grid) -> Vec<Cell> {
-    let rows = table.footer.as_ref().map_or(0, |footer| footer.rows as usize);
+    let rows = table
+        .footer
+        .as_ref()
+        .map_or(0, |footer| footer.rows as usize);
     let from = grid_layout.rows.saturating_sub(rows);
     repeated(table.footer.as_ref(), table, grid_layout, from)
 }
@@ -756,7 +918,10 @@ fn strip(
         .collect();
 
     Some(TableBlock {
-        columns: columns.iter().map(|width| TrackSize::Fixed(Len(*width))).collect(),
+        columns: columns
+            .iter()
+            .map(|width| TrackSize::Fixed(Len(*width)))
+            .collect(),
         rows: Vec::new(),
         cells,
         header: None,
@@ -844,7 +1009,9 @@ fn break_at(
         // an illegal one would draw half of a cell and lose the other half.
         Room::AtLeast(_) => {
             let forced = if first == 0 { total } else { first };
-            issues.push(Issue::RowTooTall { row: forced.saturating_sub(1) });
+            issues.push(Issue::RowTooTall {
+                row: forced.saturating_sub(1),
+            });
             forced
         }
     }
@@ -879,16 +1046,20 @@ fn remainder(
     // know it was repeated, and a continuation that breaks again repeats it
     // once more from the same declaration — the same answer every time.
     let mut cells: Vec<Cell> = head.map(|strip| strip.cells.clone()).unwrap_or_default();
-    cells.extend(grid_layout.cells.iter().filter(|placed| placed.y as usize >= cut).map(
-        |placed| Cell {
-            // Pinned where they already are: the continuation must not be free
-            // to arrange them differently from the page they came off.
-            x: Some(placed.x),
-            y: Some(placed.y - cut32 + shift),
-            origin: Some(cell_origin(table, placed.cell)),
-            ..table.cells[placed.cell].clone()
-        },
-    ));
+    cells.extend(
+        grid_layout
+            .cells
+            .iter()
+            .filter(|placed| placed.y as usize >= cut)
+            .map(|placed| Cell {
+                // Pinned where they already are: the continuation must not be free
+                // to arrange them differently from the page they came off.
+                x: Some(placed.x),
+                y: Some(placed.y - cut32 + shift),
+                origin: Some(cell_origin(table, placed.cell)),
+                ..table.cells[placed.cell].clone()
+            }),
+    );
 
     let lines = table
         .lines
@@ -935,10 +1106,19 @@ fn remainder(
     // Declared row heights move down with the rows they were declared for;
     // the repeated header takes its own height, whatever it needs.
     let mut rows = vec![TrackSize::Auto; head_rows];
-    rows.extend(table.rows.get(cut..).map_or_else(Vec::new, <[TrackSize]>::to_vec));
+    rows.extend(
+        table
+            .rows
+            .get(cut..)
+            .map_or_else(Vec::new, <[TrackSize]>::to_vec),
+    );
 
     TableBlock {
-        columns: sizes.columns.iter().map(|width| TrackSize::Fixed(Len(*width))).collect(),
+        columns: sizes
+            .columns
+            .iter()
+            .map(|width| TrackSize::Fixed(Len(*width)))
+            .collect(),
         rows,
         cells,
         lines,
@@ -1013,7 +1193,10 @@ fn wants(
             continue;
         }
         let cell = &table.cells[placed.cell];
-        let want = grown(cells.intrinsic(&cell.blocks, style), cell.inset.unwrap_or(inset));
+        let want = grown(
+            cells.intrinsic(&cell.blocks, style),
+            cell.inset.unwrap_or(inset),
+        );
         let slot = &mut wants[placed.x as usize];
         slot.min = slot.min.max(want.min);
         slot.max = slot.max.max(want.max);
@@ -1028,7 +1211,10 @@ fn wants(
             continue;
         }
         let cell = &table.cells[placed.cell];
-        let want = grown(cells.intrinsic(&cell.blocks, style), cell.inset.unwrap_or(inset));
+        let want = grown(
+            cells.intrinsic(&cell.blocks, style),
+            cell.inset.unwrap_or(inset),
+        );
 
         let span = placed.x as usize..(placed.x + placed.colspan) as usize;
         // The gaps between the columns it crosses are part of the room it has.
@@ -1037,7 +1223,13 @@ fn wants(
         for (field, needed) in [(0, want.min - bridged), (1, want.max - bridged)] {
             let have: f64 = span
                 .clone()
-                .map(|index| if field == 0 { wants[index].min } else { wants[index].max })
+                .map(|index| {
+                    if field == 0 {
+                        wants[index].min
+                    } else {
+                        wants[index].max
+                    }
+                })
                 .sum();
             if needed <= have {
                 continue;
@@ -1061,11 +1253,7 @@ fn wants(
 
 /// How narrow and how wide a whole table can be, for when one sits inside a
 /// cell of another — or inside any column that has to size itself around it.
-pub(crate) fn intrinsic(
-    table: &TableBlock,
-    cells: &dyn Cells,
-    style: &ResolvedStyle,
-) -> Intrinsic {
+pub(crate) fn intrinsic(table: &TableBlock, cells: &dyn Cells, style: &ResolvedStyle) -> Intrinsic {
     let mut issues = Vec::new();
     let grid_layout = place(table, &mut issues);
     if grid_layout.columns == 0 {
@@ -1083,23 +1271,28 @@ pub(crate) fn intrinsic(
 /// content cannot use, so the column has to carry it.
 fn grown(want: Intrinsic, padding: Insets) -> Intrinsic {
     let sides = padding.horizontal();
-    Intrinsic { min: want.min + sides, max: want.max + sides }
+    Intrinsic {
+        min: want.min + sides,
+        max: want.max + sides,
+    }
 }
 
 /// Total width of the columns a cell crosses, gaps included.
 fn spanned(columns: &[f64], x: u32, colspan: u32, gap: f64) -> f64 {
     let from = x as usize;
     let to = (x + colspan) as usize;
-    let width: f64 = columns.get(from..to.min(columns.len())).unwrap_or(&[]).iter().sum();
+    let width: f64 = columns
+        .get(from..to.min(columns.len()))
+        .unwrap_or(&[])
+        .iter()
+        .sum();
     width + gap * (colspan.saturating_sub(1)) as f64
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::spec::content::{
-        Block, Cell, CellAlign, GridLine, RepeatRows, Stripe, TrackSize,
-    };
+    use crate::spec::content::{Block, Cell, CellAlign, GridLine, RepeatRows, Stripe, TrackSize};
     #[allow(unused_imports)]
     use crate::units::Len;
 
@@ -1112,15 +1305,26 @@ mod tests {
     }
 
     fn cell(label: &str) -> Cell {
-        Cell { blocks: vec![Block::text(label)], ..Cell::default() }
+        Cell {
+            blocks: vec![Block::text(label)],
+            ..Cell::default()
+        }
     }
 
     fn spanning(label: &str, colspan: u32, rowspan: u32) -> Cell {
-        Cell { colspan, rowspan, ..cell(label) }
+        Cell {
+            colspan,
+            rowspan,
+            ..cell(label)
+        }
     }
 
     fn pinned(label: &str, x: u32, y: u32) -> Cell {
-        Cell { x: Some(x), y: Some(y), ..cell(label) }
+        Cell {
+            x: Some(x),
+            y: Some(y),
+            ..cell(label)
+        }
     }
 
     /// Where each cell landed, in declaration order.
@@ -1197,7 +1401,14 @@ mod tests {
             &mut issues,
         );
         assert_eq!(grid.cells.len(), 1, "só o primeiro fica");
-        assert_eq!(issues, vec![Issue::Overlap { cell: 1, x: 0, y: 0 }]);
+        assert_eq!(
+            issues,
+            vec![Issue::Overlap {
+                cell: 1,
+                x: 0,
+                y: 0
+            }]
+        );
     }
 
     #[test]
@@ -1205,7 +1416,13 @@ mod tests {
         let mut issues = Vec::new();
         let grid = place(&table(2, vec![spanning("largo", 5, 1)]), &mut issues);
         assert!(grid.cells.is_empty());
-        assert_eq!(issues, vec![Issue::TooWide { cell: 0, colspan: 5 }]);
+        assert_eq!(
+            issues,
+            vec![Issue::TooWide {
+                cell: 0,
+                colspan: 5
+            }]
+        );
     }
 
     #[test]
@@ -1213,21 +1430,31 @@ mod tests {
         let mut issues = Vec::new();
         let cells = vec![
             cell("a"),
-            Cell { y: Some(2), ..cell("na terceira linha") },
+            Cell {
+                y: Some(2),
+                ..cell("na terceira linha")
+            },
             cell("c"),
         ];
         let grid = place(&table(2, cells), &mut issues);
         let at = spots(&grid);
         assert_eq!(at[0], (0, 0));
         assert_eq!(at[1], (0, 2), "salta para a linha pedida");
-        assert_eq!(at[2], (1, 0), "e o seguinte continua de onde o cursor estava");
+        assert_eq!(
+            at[2],
+            (1, 0),
+            "e o seguinte continua de onde o cursor estava"
+        );
     }
 
     #[test]
     fn a_column_left_empty_by_spans_still_counts() {
         let mut issues = Vec::new();
         let grid = place(&table(4, vec![spanning("tudo", 4, 1)]), &mut issues);
-        assert_eq!(grid.columns, 4, "as colunas são as declaradas, não as ocupadas");
+        assert_eq!(
+            grid.columns, 4,
+            "as colunas são as declaradas, não as ocupadas"
+        );
         assert_eq!(grid.rows, 1);
     }
 
@@ -1278,7 +1505,10 @@ mod tests {
         fn intrinsic(&self, blocks: &[Block], _style: &ResolvedStyle) -> Intrinsic {
             let text = Self::text_of(blocks);
             let longest = text.split_whitespace().map(str::len).max().unwrap_or(0);
-            Intrinsic { min: longest as f64 * 10.0, max: text.len() as f64 * 10.0 }
+            Intrinsic {
+                min: longest as f64 * 10.0,
+                max: text.len() as f64 * 10.0,
+            }
         }
 
         fn height(&self, blocks: &[Block], _style: &ResolvedStyle, width: f64) -> f64 {
@@ -1312,17 +1542,21 @@ mod tests {
             _style: &ResolvedStyle,
             rect: Rect,
             _source: &SourceRef,
-        ) -> Vec<DisplayItem> {
+        ) -> Rendered {
             if blocks.is_empty() {
-                return Vec::new();
+                return Rendered::default();
             }
-            vec![DisplayItem::Rect(RectItem {
-                rect,
-                radius: Corners::ZERO,
-                fill: None,
-                stroke: None,
-                source: None,
-            })]
+            Rendered {
+                items: vec![DisplayItem::Rect(RectItem {
+                    rect,
+                    radius: Corners::ZERO,
+                    fill: None,
+                    stroke: None,
+                    source: None,
+                })],
+                height: self.height(blocks, _style, rect.w),
+                ..Rendered::default()
+            }
         }
     }
 
@@ -1342,7 +1576,13 @@ mod tests {
         let mut out: Vec<(u32, u32, String)> = grid
             .cells
             .iter()
-            .map(|placed| (placed.y, placed.x, Ruler::text_of(&table.cells[placed.cell].blocks)))
+            .map(|placed| {
+                (
+                    placed.y,
+                    placed.x,
+                    Ruler::text_of(&table.cells[placed.cell].blocks),
+                )
+            })
             .collect();
         out.sort_by_key(|(y, x, _)| (*y, *x));
         out.into_iter().map(|(_, _, text)| text).collect()
@@ -1350,7 +1590,11 @@ mod tests {
 
     #[test]
     fn a_table_that_fits_leaves_nothing_behind() {
-        let out = laid(&rows_of(3), Rect::new(0.0, 0.0, 60.0, 0.0), Room::Upto(100.0));
+        let out = laid(
+            &rows_of(3),
+            Rect::new(0.0, 0.0, 60.0, 0.0),
+            Room::Upto(100.0),
+        );
         assert!(out.leftover.is_none());
         assert_eq!(out.height, 36.0);
     }
@@ -1358,7 +1602,11 @@ mod tests {
     #[test]
     fn it_stops_at_the_last_row_boundary_that_fits() {
         // Rows of twelve, and room for three and a half.
-        let out = laid(&rows_of(10), Rect::new(0.0, 0.0, 60.0, 0.0), Room::Upto(42.0));
+        let out = laid(
+            &rows_of(10),
+            Rect::new(0.0, 0.0, 60.0, 0.0),
+            Room::Upto(42.0),
+        );
         assert_eq!(out.height, 36.0, "três linhas, não três e meia");
         let rest = out.leftover.expect("sobra");
         assert_eq!(labels(&rest).len(), 7);
@@ -1379,7 +1627,11 @@ mod tests {
         // that opens with a blank row still reads every row in the right
         // order, and is still wrong.
         let mut issues = Vec::new();
-        assert_eq!(place(&rest, &mut issues).rows, 7, "e abre na primeira linha que sobrou");
+        assert_eq!(
+            place(&rest, &mut issues).rows,
+            7,
+            "e abre na primeira linha que sobrou"
+        );
     }
 
     #[test]
@@ -1393,14 +1645,31 @@ mod tests {
                 cell("b0"),
                 cell("a1"),
                 cell("b1"),
-                Cell { x: Some(0), y: Some(2), rowspan: 2, ..cell("atravessa") },
-                Cell { x: Some(1), y: Some(2), ..cell("b2") },
-                Cell { x: Some(1), y: Some(3), ..cell("b3") },
+                Cell {
+                    x: Some(0),
+                    y: Some(2),
+                    rowspan: 2,
+                    ..cell("atravessa")
+                },
+                Cell {
+                    x: Some(1),
+                    y: Some(2),
+                    ..cell("b2")
+                },
+                Cell {
+                    x: Some(1),
+                    y: Some(3),
+                    ..cell("b3")
+                },
             ],
             ..TableBlock::default()
         };
         let out = laid(&table, Rect::new(0.0, 0.0, 240.0, 0.0), Room::Upto(40.0));
-        assert_eq!(out.height, 24.0, "corta antes da célula que atravessa: {:?}", out.sizes.rows);
+        assert_eq!(
+            out.height, 24.0,
+            "corta antes da célula que atravessa: {:?}",
+            out.sizes.rows
+        );
         // Three cells, not five slots: the crossing cell is one cell.
         assert_eq!(labels(&out.leftover.expect("sobra")).len(), 3);
     }
@@ -1410,12 +1679,20 @@ mod tests {
         let out = laid(&rows_of(5), Rect::new(0.0, 0.0, 60.0, 0.0), Room::Upto(5.0));
         assert!(out.items.is_empty(), "não desenha meia linha");
         assert_eq!(out.height, 0.0);
-        assert_eq!(labels(&out.leftover.expect("sobra")).len(), 5, "devolve tudo");
+        assert_eq!(
+            labels(&out.leftover.expect("sobra")).len(),
+            5,
+            "devolve tudo"
+        );
     }
 
     #[test]
     fn at_the_top_of_a_column_a_row_too_tall_goes_out_anyway() {
-        let out = laid(&rows_of(5), Rect::new(0.0, 0.0, 60.0, 0.0), Room::AtLeast(5.0));
+        let out = laid(
+            &rows_of(5),
+            Rect::new(0.0, 0.0, 60.0, 0.0),
+            Room::AtLeast(5.0),
+        );
         assert_eq!(out.height, 12.0, "uma linha, transbordando");
         assert_eq!(labels(&out.leftover.expect("sobra")).len(), 4);
         assert!(
@@ -1441,7 +1718,11 @@ mod tests {
         let rest = out.leftover.expect("sobra");
         assert_eq!(
             rest.columns,
-            out.sizes.columns.iter().map(|w| TrackSize::Fixed(Len(*w))).collect::<Vec<_>>(),
+            out.sizes
+                .columns
+                .iter()
+                .map(|w| TrackSize::Fixed(Len(*w)))
+                .collect::<Vec<_>>(),
             "a continuação não volta a negociar a largura",
         );
 
@@ -1453,7 +1734,11 @@ mod tests {
     #[test]
     fn the_stripe_carries_on_instead_of_starting_over() {
         let table = TableBlock {
-            stripe: Some(Stripe { every: 2, offset: 1, fill: Some(Color::rgb(0.5, 0.5, 0.5)) }),
+            stripe: Some(Stripe {
+                every: 2,
+                offset: 1,
+                fill: Some(Color::rgb(0.5, 0.5, 0.5)),
+            }),
             ..rows_of(8)
         };
         // Three rows out: rows 0, 1, 2, of which 1 was striped.
@@ -1467,15 +1752,34 @@ mod tests {
     fn a_rule_at_the_cut_closes_one_part_and_opens_the_other() {
         let table = TableBlock {
             lines: vec![
-                GridLine { axis: GridAxis::Horizontal, at: 0, width: Len(1.0), ..GridLine::default() },
-                GridLine { axis: GridAxis::Horizontal, at: 3, width: Len(1.0), ..GridLine::default() },
-                GridLine { axis: GridAxis::Horizontal, at: 6, width: Len(1.0), ..GridLine::default() },
+                GridLine {
+                    axis: GridAxis::Horizontal,
+                    at: 0,
+                    width: Len(1.0),
+                    ..GridLine::default()
+                },
+                GridLine {
+                    axis: GridAxis::Horizontal,
+                    at: 3,
+                    width: Len(1.0),
+                    ..GridLine::default()
+                },
+                GridLine {
+                    axis: GridAxis::Horizontal,
+                    at: 6,
+                    width: Len(1.0),
+                    ..GridLine::default()
+                },
             ],
             ..rows_of(6)
         };
         let out = laid(&table, Rect::new(0.0, 0.0, 60.0, 0.0), Room::Upto(36.0));
         let drawn_at: Vec<f64> = lines(&out.items).iter().map(|l| l.y1).collect();
-        assert_eq!(drawn_at, vec![0.0, 36.0], "a de baixo fecha a parte emitida");
+        assert_eq!(
+            drawn_at,
+            vec![0.0, 36.0],
+            "a de baixo fecha a parte emitida"
+        );
 
         let rest = out.leftover.expect("sobra");
         let at: Vec<u32> = rest.lines.iter().map(|line| line.at).collect();
@@ -1565,9 +1869,18 @@ mod tests {
     #[test]
     fn the_header_keeps_coming_back_page_after_page() {
         let pages = flowed(&book(11), Room::Upto(36.0));
-        assert!(pages.len() >= 4, "atravessou várias páginas: {}", pages.len());
+        assert!(
+            pages.len() >= 4,
+            "atravessou várias páginas: {}",
+            pages.len()
+        );
         for (number, page) in pages.iter().enumerate() {
-            assert_eq!(page[0], "Espécie", "a página {} abre pelo cabeçalho", number + 1);
+            assert_eq!(
+                page[0],
+                "Espécie",
+                "a página {} abre pelo cabeçalho",
+                number + 1
+            );
         }
     }
 
@@ -1600,7 +1913,10 @@ mod tests {
         // And it is the continuation header again on the page after that,
         // never the original.
         let again = laid(&rest, Rect::new(0.0, 0.0, 240.0, 0.0), Room::Upto(36.0));
-        assert_eq!(labels(&again.leftover.expect("sobra"))[0], "Espécie (cont.)");
+        assert_eq!(
+            labels(&again.leftover.expect("sobra"))[0],
+            "Espécie (cont.)"
+        );
     }
 
     #[test]
@@ -1622,7 +1938,11 @@ mod tests {
     #[test]
     fn repeat_off_means_the_header_is_seen_once_and_not_again() {
         let mut table = book(5);
-        table.header = Some(RepeatRows { rows: 1, repeat: false, continued: None });
+        table.header = Some(RepeatRows {
+            rows: 1,
+            repeat: false,
+            continued: None,
+        });
         let out = laid(&table, Rect::new(0.0, 0.0, 240.0, 0.0), Room::Upto(36.0));
         let rest = out.leftover.expect("sobra");
         assert_eq!(labels(&rest)[0], "e2", "a continuação começa nos dados");
@@ -1640,7 +1960,11 @@ mod tests {
         assert!(out.leftover.is_some());
         // Two rows of body, then the footer under them: still within the room.
         assert!(out.height <= 36.0 + FITS, "coube: {}", out.height);
-        assert!(out.height > 24.0, "e o rodapé foi desenhado: {}", out.height);
+        assert!(
+            out.height > 24.0,
+            "e o rodapé foi desenhado: {}",
+            out.height
+        );
     }
 
     #[test]
@@ -1654,15 +1978,22 @@ mod tests {
         // Two rows, and room for far more: nothing continues.
         let out = laid(&table, Rect::new(0.0, 0.0, 240.0, 0.0), Room::Upto(500.0));
         assert!(out.leftover.is_none());
-        assert_eq!(out.height, 24.0, "sem rodapé de continuação: {}", out.height);
+        assert_eq!(
+            out.height, 24.0,
+            "sem rodapé de continuação: {}",
+            out.height
+        );
     }
 
     #[test]
     fn a_rule_under_the_heading_comes_back_with_the_heading() {
         let mut table = book(5);
-        table.lines = vec![
-            GridLine { axis: GridAxis::Horizontal, at: 1, width: Len(0.5), ..GridLine::default() },
-        ];
+        table.lines = vec![GridLine {
+            axis: GridAxis::Horizontal,
+            at: 1,
+            width: Len(0.5),
+            ..GridLine::default()
+        }];
         let out = laid(&table, Rect::new(0.0, 0.0, 240.0, 0.0), Room::Upto(36.0));
         let rest = out.leftover.expect("sobra");
         assert_eq!(
@@ -1674,12 +2005,20 @@ mod tests {
 
     #[test]
     fn a_header_that_leaves_no_room_for_a_row_overflows_rather_than_looping() {
-        let out = laid(&book(5), Rect::new(0.0, 0.0, 240.0, 0.0), Room::AtLeast(14.0));
+        let out = laid(
+            &book(5),
+            Rect::new(0.0, 0.0, 240.0, 0.0),
+            Room::AtLeast(14.0),
+        );
         // One row would fit, but a continuation opening with the header and
         // nothing else is the same page again.
         assert_eq!(out.sizes.rows.len(), 2, "cabeçalho e ao menos uma linha");
         assert!(out.leftover.is_some());
-        assert!(out.issues.iter().any(|i| matches!(i, Issue::RowTooTall { .. })));
+        assert!(
+            out.issues
+                .iter()
+                .any(|i| matches!(i, Issue::RowTooTall { .. }))
+        );
     }
 
     // ── Cells over the break ───────────────────────────────────────────────
@@ -1726,16 +2065,57 @@ mod tests {
         TableBlock {
             columns: vec![TrackSize::Fixed(Len(120.0)), TrackSize::Fixed(Len(120.0))],
             cells: vec![
-                Cell { x: Some(0), y: Some(0), ..cell("Espécie") },
-                Cell { x: Some(1), y: Some(0), ..cell("Peso") },
-                Cell { x: Some(0), y: Some(1), rowspan: 3, ..cell("atravessa") },
-                Cell { x: Some(1), y: Some(1), ..cell("p1") },
-                Cell { x: Some(1), y: Some(2), ..cell("p2") },
-                Cell { x: Some(1), y: Some(3), ..cell("p3") },
-                Cell { x: Some(0), y: Some(4), ..cell("e4") },
-                Cell { x: Some(1), y: Some(4), ..cell("p4") },
-                Cell { x: Some(0), y: Some(5), ..cell("e5") },
-                Cell { x: Some(1), y: Some(5), ..cell("p5") },
+                Cell {
+                    x: Some(0),
+                    y: Some(0),
+                    ..cell("Espécie")
+                },
+                Cell {
+                    x: Some(1),
+                    y: Some(0),
+                    ..cell("Peso")
+                },
+                Cell {
+                    x: Some(0),
+                    y: Some(1),
+                    rowspan: 3,
+                    ..cell("atravessa")
+                },
+                Cell {
+                    x: Some(1),
+                    y: Some(1),
+                    ..cell("p1")
+                },
+                Cell {
+                    x: Some(1),
+                    y: Some(2),
+                    ..cell("p2")
+                },
+                Cell {
+                    x: Some(1),
+                    y: Some(3),
+                    ..cell("p3")
+                },
+                Cell {
+                    x: Some(0),
+                    y: Some(4),
+                    ..cell("e4")
+                },
+                Cell {
+                    x: Some(1),
+                    y: Some(4),
+                    ..cell("p4")
+                },
+                Cell {
+                    x: Some(0),
+                    y: Some(5),
+                    ..cell("e5")
+                },
+                Cell {
+                    x: Some(1),
+                    y: Some(5),
+                    ..cell("p5")
+                },
             ],
             header: Some(RepeatRows::default()),
             ..TableBlock::default()
@@ -1748,7 +2128,11 @@ mod tests {
         // are after row 1 and after row 4. Four rows fit, so it is four.
         let table = straddling();
         let out = laid(&table, Rect::new(0.0, 0.0, 240.0, 0.0), Room::Upto(52.0));
-        assert_eq!(out.sizes.rows.len(), 4, "corta depois da célula, não dentro dela");
+        assert_eq!(
+            out.sizes.rows.len(),
+            4,
+            "corta depois da célula, não dentro dela"
+        );
         let rest = out.leftover.expect("sobra");
         assert!(
             !labels(&rest).contains(&"atravessa".to_string()),
@@ -1761,10 +2145,18 @@ mod tests {
     fn a_page_with_room_only_for_the_header_draws_nothing_at_all() {
         // The only boundary below the header is after the span, and that does
         // not fit. A page holding a heading and no rows is not worth a page.
-        let out = laid(&straddling(), Rect::new(0.0, 0.0, 240.0, 0.0), Room::Upto(30.0));
+        let out = laid(
+            &straddling(),
+            Rect::new(0.0, 0.0, 240.0, 0.0),
+            Room::Upto(30.0),
+        );
         assert!(out.items.is_empty());
         assert_eq!(out.height, 0.0);
-        assert_eq!(labels(&out.leftover.expect("sobra")).len(), 10, "devolve tudo");
+        assert_eq!(
+            labels(&out.leftover.expect("sobra")).len(),
+            10,
+            "devolve tudo"
+        );
     }
 
     #[test]
@@ -1777,7 +2169,10 @@ mod tests {
 
         let rest = out.leftover.expect("sobra");
         let names = labels(&rest);
-        assert!(!names.contains(&"atravessa".to_string()), "não ficou para trás");
+        assert!(
+            !names.contains(&"atravessa".to_string()),
+            "não ficou para trás"
+        );
         assert_eq!(names, vec!["Espécie", "Peso", "e4", "p4", "e5", "p5"]);
     }
 
@@ -1787,7 +2182,10 @@ mod tests {
         // once, on the continuation, with its three rows together. No header
         // here, so the boundary after row 0 is available and the span is what
         // the next page opens with.
-        let table = TableBlock { header: None, ..straddling() };
+        let table = TableBlock {
+            header: None,
+            ..straddling()
+        };
         let out = laid(&table, Rect::new(0.0, 0.0, 240.0, 0.0), Room::Upto(12.0));
         assert_eq!(out.sizes.rows.len(), 1);
         let rest = out.leftover.expect("sobra");
@@ -1834,7 +2232,11 @@ mod tests {
                     rowspan: 4,
                     ..cell("aaaaaaaaaaaa bbbbbbbbbbb ccccccccccc ddddddddddd")
                 },
-                Cell { x: Some(0), y: Some(4), ..cell("depois") },
+                Cell {
+                    x: Some(0),
+                    y: Some(4),
+                    ..cell("depois")
+                },
             ],
             ..TableBlock::default()
         };
@@ -1842,11 +2244,16 @@ mod tests {
         let out = laid(&table, Rect::new(0.0, 0.0, 120.0, 0.0), Room::AtLeast(12.0));
         assert_eq!(out.sizes.rows.len(), 4, "sai inteira, transbordando");
         assert!(
-            out.issues.iter().any(|issue| matches!(issue, Issue::RowTooTall { .. })),
+            out.issues
+                .iter()
+                .any(|issue| matches!(issue, Issue::RowTooTall { .. })),
             "e diz-se: {:?}",
             out.issues,
         );
-        assert_eq!(labels(&out.leftover.expect("sobra")), vec!["depois".to_string()]);
+        assert_eq!(
+            labels(&out.leftover.expect("sobra")),
+            vec!["depois".to_string()]
+        );
     }
 
     // ── Emission ───────────────────────────────────────────────────────────
@@ -1856,7 +2263,14 @@ mod tests {
     }
 
     fn laid(table: &TableBlock, origin: Rect, room: Room) -> Layout {
-        emit(table, &ResolvedStyle::default(), &Ruler, origin, room, &SourceRef::default())
+        emit(
+            table,
+            &ResolvedStyle::default(),
+            &Ruler,
+            origin,
+            room,
+            &SourceRef::default(),
+        )
     }
 
     /// `count` rows of one column, each a single line twelve tall.
@@ -1925,21 +2339,35 @@ mod tests {
         let t = TableBlock {
             columns: vec![TrackSize::Fixed(Len(50.0)), TrackSize::Fixed(Len(50.0))],
             cells: vec![
-                Cell { fill: Some(Color::rgb(1.0, 0.0, 0.0)), ..cell("a") },
+                Cell {
+                    fill: Some(Color::rgb(1.0, 0.0, 0.0)),
+                    ..cell("a")
+                },
                 cell("b"),
                 cell("c"),
                 cell("d"),
             ],
             fill: Some(Color::rgb(0.9, 0.9, 0.9)),
-            stripe: Some(Stripe { every: 2, offset: 1, fill: Some(Color::rgb(0.5, 0.5, 0.5)) }),
-            lines: vec![GridLine { axis: GridAxis::Horizontal, at: 1, width: Len(1.0), ..GridLine::default() }],
+            stripe: Some(Stripe {
+                every: 2,
+                offset: 1,
+                fill: Some(Color::rgb(0.5, 0.5, 0.5)),
+            }),
+            lines: vec![GridLine {
+                axis: GridAxis::Horizontal,
+                at: 1,
+                width: Len(1.0),
+                ..GridLine::default()
+            }],
             ..TableBlock::default()
         };
         let out = drawn(&t, Rect::new(0.0, 0.0, 100.0, 0.0));
         // fill (tabela), fill (zebra), fill (célula), régua, e quatro conteúdos.
         assert_eq!(
             order(&out.items),
-            vec!["fill", "fill", "fill", "rule", "content", "content", "content", "content"],
+            vec![
+                "fill", "fill", "fill", "rule", "content", "content", "content", "content"
+            ],
             "uma régua por baixo do fundo da linha seguinte seria uma régua invisível",
         );
     }
@@ -1967,7 +2395,11 @@ mod tests {
             columns: vec![TrackSize::Fixed(Len(50.0))],
             rows: vec![TrackSize::Fixed(Len(10.0)); 5],
             cells: (0..5).map(|i| cell(&format!("c{i}"))).collect(),
-            stripe: Some(Stripe { every: 2, offset: 1, fill: Some(Color::rgb(0.5, 0.5, 0.5)) }),
+            stripe: Some(Stripe {
+                every: 2,
+                offset: 1,
+                fill: Some(Color::rgb(0.5, 0.5, 0.5)),
+            }),
             ..TableBlock::default()
         };
         let out = drawn(&t, Rect::new(0.0, 0.0, 50.0, 0.0));
@@ -1988,13 +2420,22 @@ mod tests {
             columns: vec![TrackSize::Fixed(Len(50.0))],
             rows: vec![TrackSize::Fixed(Len(20.0)), TrackSize::Fixed(Len(20.0))],
             cells: vec![cell("a"), cell("b")],
-            lines: vec![GridLine { axis: GridAxis::Horizontal, at: 1, width: Len(1.0), ..GridLine::default() }],
+            lines: vec![GridLine {
+                axis: GridAxis::Horizontal,
+                at: 1,
+                width: Len(1.0),
+                ..GridLine::default()
+            }],
             ..TableBlock::default()
         };
         let out = drawn(&t, Rect::new(0.0, 0.0, 50.0, 0.0));
         let rule = lines(&out.items)[0];
         assert_eq!((rule.y1, rule.y2), (20.0, 20.0));
-        assert_eq!((rule.x1, rule.x2), (0.0, 50.0), "atravessa a tabela inteira");
+        assert_eq!(
+            (rule.x1, rule.x2),
+            (0.0, 50.0),
+            "atravessa a tabela inteira"
+        );
     }
 
     #[test]
@@ -2004,11 +2445,20 @@ mod tests {
             rows: vec![TrackSize::Fixed(Len(20.0)), TrackSize::Fixed(Len(20.0))],
             row_gap: Len(8.0),
             cells: vec![cell("a"), cell("b")],
-            lines: vec![GridLine { axis: GridAxis::Horizontal, at: 1, width: Len(1.0), ..GridLine::default() }],
+            lines: vec![GridLine {
+                axis: GridAxis::Horizontal,
+                at: 1,
+                width: Len(1.0),
+                ..GridLine::default()
+            }],
             ..TableBlock::default()
         };
         let out = drawn(&t, Rect::new(0.0, 0.0, 50.0, 0.0));
-        assert_eq!(lines(&out.items)[0].y1, 24.0, "equidistante das duas linhas");
+        assert_eq!(
+            lines(&out.items)[0].y1,
+            24.0,
+            "equidistante das duas linhas"
+        );
     }
 
     #[test]
@@ -2018,15 +2468,34 @@ mod tests {
             rows: vec![TrackSize::Fixed(Len(20.0)), TrackSize::Fixed(Len(20.0))],
             cells: vec![cell("a"), cell("b")],
             lines: vec![
-                GridLine { axis: GridAxis::Horizontal, at: 0, width: Len(1.0), ..GridLine::default() },
-                GridLine { axis: GridAxis::Horizontal, at: 2, width: Len(1.0), ..GridLine::default() },
-                GridLine { axis: GridAxis::Horizontal, at: 9, width: Len(1.0), ..GridLine::default() },
+                GridLine {
+                    axis: GridAxis::Horizontal,
+                    at: 0,
+                    width: Len(1.0),
+                    ..GridLine::default()
+                },
+                GridLine {
+                    axis: GridAxis::Horizontal,
+                    at: 2,
+                    width: Len(1.0),
+                    ..GridLine::default()
+                },
+                GridLine {
+                    axis: GridAxis::Horizontal,
+                    at: 9,
+                    width: Len(1.0),
+                    ..GridLine::default()
+                },
             ],
             ..TableBlock::default()
         };
         let out = drawn(&t, Rect::new(0.0, 3.0, 50.0, 0.0));
         let drawn_at: Vec<f64> = lines(&out.items).iter().map(|l| l.y1).collect();
-        assert_eq!(drawn_at, vec![3.0, 43.0], "a de fora não se desenha nem estoira");
+        assert_eq!(
+            drawn_at,
+            vec![3.0, 43.0],
+            "a de fora não se desenha nem estoira"
+        );
     }
 
     #[test]
@@ -2056,7 +2525,12 @@ mod tests {
             columns: vec![TrackSize::Fixed(Len(30.0)), TrackSize::Fixed(Len(30.0))],
             rows: vec![TrackSize::Fixed(Len(10.0)), TrackSize::Fixed(Len(10.0))],
             cells: vec![cell("a"), cell("b"), cell("c"), cell("d")],
-            lines: vec![GridLine { axis: GridAxis::Vertical, at: 1, width: Len(1.0), ..GridLine::default() }],
+            lines: vec![GridLine {
+                axis: GridAxis::Vertical,
+                at: 1,
+                width: Len(1.0),
+                ..GridLine::default()
+            }],
             ..TableBlock::default()
         };
         let out = drawn(&t, Rect::new(0.0, 0.0, 60.0, 0.0));
@@ -2071,11 +2545,18 @@ mod tests {
             columns: vec![TrackSize::Fixed(Len(50.0))],
             rows: vec![TrackSize::Fixed(Len(10.0))],
             cells: vec![cell("a")],
-            lines: vec![GridLine { axis: GridAxis::Horizontal, at: 1, ..GridLine::default() }],
+            lines: vec![GridLine {
+                axis: GridAxis::Horizontal,
+                at: 1,
+                ..GridLine::default()
+            }],
             ..TableBlock::default()
         };
         let out = drawn(&t, Rect::new(0.0, 0.0, 50.0, 0.0));
-        assert!(lines(&out.items)[0].stroke.width > 0.0, "uma régua de zero não é uma régua");
+        assert!(
+            lines(&out.items)[0].stroke.width > 0.0,
+            "uma régua de zero não é uma régua"
+        );
     }
 
     #[test]
@@ -2107,7 +2588,10 @@ mod tests {
 
     /// A cell that is `tall` points of content, aligned as asked.
     fn aligned(label: &str, align: CellAlign) -> Cell {
-        Cell { vertical_align: align, ..cell(label) }
+        Cell {
+            vertical_align: align,
+            ..cell(label)
+        }
     }
 
     /// Top-left corner of each cell's content, in declaration order.
@@ -2157,8 +2641,15 @@ mod tests {
         let row = out.sizes.rows[0];
         // The short cell is one line of twelve; the row is as tall as the
         // other one. Half the difference, and no more.
-        assert!((placed[0].1 - (row - 12.0) / 2.0).abs() < 0.01, "veio {:?}", placed[0]);
-        assert!(placed[0].1 > 0.0 && placed[0].1 < row - 12.0, "entre os dois extremos");
+        assert!(
+            (placed[0].1 - (row - 12.0) / 2.0).abs() < 0.01,
+            "veio {:?}",
+            placed[0]
+        );
+        assert!(
+            placed[0].1 > 0.0 && placed[0].1 < row - 12.0,
+            "entre os dois extremos"
+        );
     }
 
     #[test]
@@ -2166,7 +2657,11 @@ mod tests {
         let table = uneven(CellAlign::Bottom);
         let out = drawn(&table, Rect::new(0.0, 0.0, 120.0, 0.0));
         let placed = contents(&out.items);
-        assert!((placed[0].1 - (out.sizes.rows[0] - 12.0)).abs() < 0.01, "veio {:?}", placed[0]);
+        assert!(
+            (placed[0].1 - (out.sizes.rows[0] - 12.0)).abs() < 0.01,
+            "veio {:?}",
+            placed[0]
+        );
     }
 
     #[test]
@@ -2176,7 +2671,11 @@ mod tests {
         let out = drawn(&table, Rect::new(0.0, 0.0, 120.0, 0.0));
         let placed = contents(&out.items);
         let floor = out.sizes.rows[0] - 5.0 - 12.0;
-        assert!((placed[0].1 - floor).abs() < 0.01, "assenta acima do padding: {:?}", placed[0]);
+        assert!(
+            (placed[0].1 - floor).abs() < 0.01,
+            "assenta acima do padding: {:?}",
+            placed[0]
+        );
     }
 
     #[test]
@@ -2186,8 +2685,14 @@ mod tests {
         let table = TableBlock {
             columns: vec![TrackSize::Fixed(Len(60.0)), TrackSize::Fixed(Len(60.0))],
             cells: vec![
-                Cell { inset: Some(Insets::all(2.0)), ..aligned("a", CellAlign::Baseline) },
-                Cell { inset: Some(Insets::all(14.0)), ..aligned("b", CellAlign::Baseline) },
+                Cell {
+                    inset: Some(Insets::all(2.0)),
+                    ..aligned("a", CellAlign::Baseline)
+                },
+                Cell {
+                    inset: Some(Insets::all(14.0)),
+                    ..aligned("b", CellAlign::Baseline)
+                },
             ],
             ..TableBlock::default()
         };
@@ -2199,7 +2704,11 @@ mod tests {
             (placed[0].1 - placed[1].1).abs() < 0.01,
             "as duas primeiras linhas assentam juntas: {placed:?}",
         );
-        assert!((out.sizes.baselines[0] - 22.0).abs() < 0.01, "14 + 8: {:?}", out.sizes.baselines);
+        assert!(
+            (out.sizes.baselines[0] - 22.0).abs() < 0.01,
+            "14 + 8: {:?}",
+            out.sizes.baselines
+        );
     }
 
     #[test]
@@ -2214,7 +2723,10 @@ mod tests {
                 // Three lines of twelve, and a baseline 8 into the first.
                 aligned("aaaaa bbbbb ccccc", CellAlign::Baseline),
                 // Deep padding puts the shared baseline 20 lower.
-                Cell { inset: Some(Insets::all(20.0)), ..aligned("b", CellAlign::Baseline) },
+                Cell {
+                    inset: Some(Insets::all(20.0)),
+                    ..aligned("b", CellAlign::Baseline)
+                },
             ],
             ..TableBlock::default()
         };
@@ -2225,7 +2737,11 @@ mod tests {
             "a linha cresce com o que empurrou para baixo: {:?}",
             out.sizes.rows,
         );
-        assert_eq!(contents(&out.items)[0].1, 20.0, "e a célula alta desce mesmo");
+        assert_eq!(
+            contents(&out.items)[0].1,
+            20.0,
+            "e a célula alta desce mesmo"
+        );
     }
 
     #[test]
@@ -2245,8 +2761,16 @@ mod tests {
             ..TableBlock::default()
         };
         let out = drawn(&table, Rect::new(0.0, 0.0, 120.0, 0.0));
-        assert!((out.sizes.baselines[0] - 8.0).abs() < 0.01, "veio {:?}", out.sizes.baselines);
-        assert_eq!(contents(&out.items)[0].1, 0.0, "e a que tem texto não se mexe");
+        assert!(
+            (out.sizes.baselines[0] - 8.0).abs() < 0.01,
+            "veio {:?}",
+            out.sizes.baselines
+        );
+        assert_eq!(
+            contents(&out.items)[0].1,
+            0.0,
+            "e a que tem texto não se mexe"
+        );
     }
 
     #[test]
@@ -2260,7 +2784,11 @@ mod tests {
             ..TableBlock::default()
         };
         let out = drawn(&table, Rect::new(0.0, 0.0, 60.0, 0.0));
-        assert_eq!(contents(&out.items)[0].1, 0.0, "nunca acima do topo da célula");
+        assert_eq!(
+            contents(&out.items)[0].1,
+            0.0,
+            "nunca acima do topo da célula"
+        );
     }
 
     #[test]
@@ -2281,7 +2809,11 @@ mod tests {
         };
         let out = sized(&t, 100.0);
         assert_eq!(out.columns, vec![150.0]);
-        assert!((out.overflow - 50.0).abs() < 0.01, "e o que falta é dito: {}", out.overflow);
+        assert!(
+            (out.overflow - 50.0).abs() < 0.01,
+            "e o que falta é dito: {}",
+            out.overflow
+        );
     }
 
     #[test]
@@ -2289,11 +2821,7 @@ mod tests {
         // Two narrow cells above, one wide cell across both below.
         let t = TableBlock {
             columns: vec![TrackSize::Auto, TrackSize::Auto],
-            cells: vec![
-                cell("ab"),
-                cell("cd"),
-                spanning("abcdefghij", 2, 1),
-            ],
+            cells: vec![cell("ab"), cell("cd"), spanning("abcdefghij", 2, 1)],
             ..TableBlock::default()
         };
         let out = sized(&t, 1000.0);
@@ -2322,8 +2850,16 @@ mod tests {
             ..TableBlock::default()
         };
         let out = sized(&t, 1000.0);
-        assert!((out.columns[0] - 160.0).abs() < 0.01, "a primeira mantém-se: {:?}", out.columns);
-        assert!((out.columns[1] - 20.0).abs() < 0.01, "e a segunda também: {:?}", out.columns);
+        assert!(
+            (out.columns[0] - 160.0).abs() < 0.01,
+            "a primeira mantém-se: {:?}",
+            out.columns
+        );
+        assert!(
+            (out.columns[1] - 20.0).abs() < 0.01,
+            "e a segunda também: {:?}",
+            out.columns
+        );
     }
 
     #[test]
@@ -2347,7 +2883,10 @@ mod tests {
         let t = TableBlock {
             columns: vec![TrackSize::Fixed(Len(100.0)), TrackSize::Fixed(Len(100.0))],
             cells: vec![
-                Cell { rowspan: 2, ..cell("aaaaaaaaaa bbbbbbbbb ccccccc dddddd") },
+                Cell {
+                    rowspan: 2,
+                    ..cell("aaaaaaaaaa bbbbbbbbb ccccccc dddddd")
+                },
                 cell("a"),
                 cell("b"),
             ],
@@ -2390,7 +2929,10 @@ mod tests {
             cells: vec![spanning("abcdefghij", 2, 1)],
             ..TableBlock::default()
         };
-        let com_gap = TableBlock { column_gap: Len(20.0), ..sem_gap.clone() };
+        let com_gap = TableBlock {
+            column_gap: Len(20.0),
+            ..sem_gap.clone()
+        };
 
         let a = sized(&sem_gap, 1000.0);
         let b = sized(&com_gap, 1000.0);

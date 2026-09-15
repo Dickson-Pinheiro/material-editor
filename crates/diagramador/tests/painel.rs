@@ -410,3 +410,57 @@ fn reguas_seguidas_respeitam_o_espaco_pedido() {
         );
     }
 }
+
+/// A altura da moldura pintada — a área que o painel declara.
+fn altura_da_moldura(blocos: &str) -> Option<f64> {
+    let list = layout(&page_with(blocos))?;
+    rects(&list, 0)
+        .into_iter()
+        .filter(|r| r.fill.is_none() && r.stroke.is_none())
+        .map(|r| r.rect.h)
+        .fold(None, |maior: Option<f64>, h| Some(maior.map_or(h, |m: f64| m.max(h))))
+}
+
+/// A moldura cresce com o conteúdo, mas pode ter um piso.
+///
+/// É o que permite deixar um quadro de atividade com espaço para o aluno
+/// escrever sem enchê-lo de blocos vazios só para empurrar a borda.
+#[test]
+fn uma_moldura_pode_ter_altura_minima() {
+    let curto = r##"{"type": "panel", "blocks": [{"type": "paragraph", "content": [{"type": "text", "text": "curto"}]}]}"##;
+    let alto = r##"{"type": "panel", "minHeight": 200, "blocks": [{"type": "paragraph", "content": [{"type": "text", "text": "curto"}]}]}"##;
+
+    let (Some(natural), Some(com_piso)) = (altura_da_moldura(curto), altura_da_moldura(alto)) else {
+        return;
+    };
+
+    assert!(natural < 100.0, "o texto curto não chega perto do piso: {natural}");
+    assert!(
+        (com_piso - 200.0).abs() < 0.5,
+        "a moldura devia parar no piso pedido, e mede {com_piso}"
+    );
+}
+
+/// O piso é piso, não teto: conteúdo maior continua crescendo.
+#[test]
+fn o_piso_nao_corta_o_conteudo() {
+    let paragrafos: Vec<String> = (0..20)
+        .map(|i| format!(r##"{{"type": "paragraph", "content": [{{"type": "text", "text": "linha {i}"}}]}}"##))
+        .collect();
+    let muito = format!(r##"{{"type": "panel", "minHeight": 40, "blocks": [{}]}}"##, paragrafos.join(","));
+
+    let Some(altura) = altura_da_moldura(&muito) else { return };
+    assert!(altura > 40.0, "vinte parágrafos passam de 40pt; o piso não pode cortá-los, e mede {altura}");
+}
+
+/// Um piso maior que a mancha para na mancha.
+#[test]
+fn o_piso_nao_passa_do_que_a_coluna_tem() {
+    let gigante = r##"{"type": "panel", "minHeight": 5000, "blocks": [{"type": "paragraph", "content": [{"type": "text", "text": "curto"}]}]}"##;
+
+    let Some(altura) = altura_da_moldura(gigante) else { return };
+    assert!(
+        altura < 800.0,
+        "uma moldura de 5000pt tem de parar no que a coluna oferece, e mede {altura}"
+    );
+}

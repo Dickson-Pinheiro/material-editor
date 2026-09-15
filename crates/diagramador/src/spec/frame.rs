@@ -4,10 +4,12 @@
 //! frame: a paragraph of text, a photo, a coloured rectangle, a group. This is
 //! the "boxes and runs" layer the sugar layer compiles down to.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
-use super::content::Block;
 use super::chart::ChartFrame;
+use super::content::Block;
 use super::style::{Overflow, Style, VerticalAlign};
 use crate::color::Color;
 use crate::units::{Corners, Insets, Len, Rect};
@@ -22,6 +24,7 @@ use crate::units::{Corners, Insets, Len, Rect};
 /// (not the margin box), with `y` growing downward. Inside a group, it is
 /// measured from the group's own top-left corner.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Frame {
     /// Stable identity. Auto-assigned during validation when absent.
@@ -44,6 +47,19 @@ pub struct Frame {
     /// want and what every document written before corners were separable
     /// says.
     pub radius: Corners,
+    /// How a corner with a radius turns: an arc, or a straight cut.
+    ///
+    /// One flag for the four corners, not four: which corners turn is already
+    /// said by the radius, so a per-corner style would be a second way of
+    /// saying the same thing. A box that cuts only its bottom-right corner —
+    /// the shape didactic concept boxes use — is a radius on that corner alone
+    /// plus `corner: "cut"`.
+    ///
+    /// The cut reaches the fill and the border, which are outlines. It does
+    /// **not** reach `clip`: a clip is a rect plus radii in the display list,
+    /// and giving it an arbitrary outline is a wider change than a chamfer
+    /// justifies. A frame that both clips and cuts clips to the rounded shape.
+    pub corner: CornerStyle,
 
     /// Clip content to the frame box.
     pub clip: bool,
@@ -51,8 +67,42 @@ pub struct Frame {
     /// Not selectable in the editor.
     pub locked: bool,
 
+    /// Inside a component: the slot this frame receives. An instance's slot
+    /// of that name replaces a text frame's `blocks` or an image frame's
+    /// `src`. Meaningless outside `resources.components`.
+    pub slot: Option<String>,
+    /// Inside a component: how this frame follows an instance drawn at a
+    /// size other than the one the component was designed at.
+    pub follow: Follow,
+
     #[serde(flatten)]
     pub content: FrameContent,
+}
+
+/// How a component's frame tracks the instance's size.
+///
+/// The difference between the instance rect and the component's `size` is
+/// `dw × dh`. A frame with `x` shifts right by `dw`; with `w` it grows by
+/// `dw`; likewise `y` and `h`. A title band therefore says `{ "w": true }`,
+/// the body says `{ "w": true, "h": true }`, and a badge pinned to the
+/// bottom-right says `{ "x": true, "y": true }`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", default)]
+pub struct Follow {
+    pub x: bool,
+    pub y: bool,
+    pub w: bool,
+    pub h: bool,
+}
+
+impl Follow {
+    pub const NONE: Follow = Follow {
+        x: false,
+        y: false,
+        w: false,
+        h: false,
+    };
 }
 
 impl Default for Frame {
@@ -67,9 +117,12 @@ impl Default for Frame {
             fill: None,
             border: None,
             radius: Corners::ZERO,
+            corner: CornerStyle::default(),
             clip: false,
             visible: true,
             locked: false,
+            slot: None,
+            follow: Follow::NONE,
             content: FrameContent::default(),
         }
     }
@@ -120,6 +173,7 @@ impl Frame {
 /// hundreds, so the trade favours directness.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum FrameContent {
     Text(TextFrame),
@@ -127,6 +181,9 @@ pub enum FrameContent {
     Shape(ShapeFrame),
     Group(GroupFrame),
     Chart(ChartFrame),
+    /// A component from `resources.components`, drawn here. Becomes a group
+    /// before layout; the engine never lays an instance out as such.
+    Instance(InstanceFrame),
 }
 
 impl Default for FrameContent {
@@ -137,6 +194,7 @@ impl Default for FrameContent {
 
 /// A frame that lays out blocks of text.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct TextFrame {
     /// Inline content. Ignored when `story` is set.
@@ -159,6 +217,9 @@ pub struct TextFrame {
 
     pub columns: u32,
     pub column_gap: Len,
+    /// A vertical line in the middle of each gap, as tall as the taller of the
+    /// two columns it separates. Absent: the gap alone separates them.
+    pub column_rule: Option<ColumnRule>,
     pub vertical_align: VerticalAlign,
     pub overflow: Overflow,
 
@@ -185,6 +246,7 @@ impl Default for TextFrame {
             auto_flow: false,
             columns: 1,
             column_gap: Len(14.0),
+            column_rule: None,
             vertical_align: VerticalAlign::Top,
             overflow: Overflow::Clip,
             ignore_wrap: false,
@@ -196,6 +258,7 @@ impl Default for TextFrame {
 
 /// A frame that draws a raster image.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ImageFrame {
     /// Key registered through `add_image`.
@@ -226,6 +289,7 @@ impl Default for ImageFrame {
 /// that decoded pixels would stop being deterministic across platforms, and
 /// the PDF would stop matching the canvas.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Wrap {
     pub mode: WrapMode,
@@ -234,6 +298,7 @@ pub struct Wrap {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum WrapMode {
     /// The frame's own box blocks the text.
@@ -266,6 +331,7 @@ impl WrapMode {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum ImageFit {
     /// Scale to fit entirely inside, preserving the aspect ratio.
@@ -280,6 +346,7 @@ pub enum ImageFit {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum ImageAlign {
     TopLeft,
@@ -313,12 +380,14 @@ impl ImageAlign {
 
 /// A frame that draws a vector primitive using the frame's own fill and border.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ShapeFrame {
     pub shape: ShapeKind,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum ShapeKind {
     #[default]
@@ -328,11 +397,53 @@ pub enum ShapeKind {
     Line,
 }
 
+/// What a corner does with its radius.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub enum CornerStyle {
+    /// A quarter-circle arc. What every box did before this existed.
+    #[default]
+    Round,
+    /// A straight line across the corner, consuming the radius on both edges.
+    Cut,
+}
+
 /// A frame whose children are positioned relative to its own origin.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct GroupFrame {
     pub children: Vec<Frame>,
+    /// Set when this group came from resolving an instance: the component's
+    /// name. Never written by an author; the display list reports the frame
+    /// as `"instance"` so the editor selects the whole and not the parts.
+    #[serde(skip)]
+    pub instance: Option<String>,
+}
+
+/// A placed copy of a component.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", default)]
+pub struct InstanceFrame {
+    /// Key of `resources.components`.
+    pub component: String,
+    /// Content for the component's slots, by slot name.
+    pub slots: BTreeMap<String, SlotValue>,
+}
+
+/// What fills a slot.
+///
+/// A bare string is a paragraph of that text; a list is the blocks of a text
+/// frame; `{"src": …}` is the image of an image frame.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum SlotValue {
+    Text(String),
+    Image { src: String },
+    Blocks(Vec<Block>),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -340,6 +451,7 @@ pub struct GroupFrame {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Border {
     pub width: Len,
@@ -377,7 +489,40 @@ impl Border {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", default)]
+pub struct ColumnRule {
+    pub width: Len,
+    pub color: Color,
+    pub style: BorderStyle,
+}
+
+impl Default for ColumnRule {
+    fn default() -> Self {
+        ColumnRule {
+            width: Len(0.5),
+            color: Color::BLACK,
+            style: BorderStyle::Solid,
+        }
+    }
+}
+
+impl ColumnRule {
+    /// Dash pattern in points, or `None` when solid.
+    pub fn dash(&self) -> Option<[f64; 2]> {
+        Border {
+            width: self.width,
+            color: self.color,
+            style: self.style,
+            sides: Sides::default(),
+        }
+        .dash_pattern()
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum BorderStyle {
     #[default]
@@ -387,6 +532,7 @@ pub enum BorderStyle {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Sides {
     pub top: bool,
@@ -439,9 +585,8 @@ mod tests {
         assert_eq!(f.as_text().unwrap().columns, 1);
     }
 
-#[test]
+    #[test]
     fn image_frame_parses() {
-
         let json = r#"{"type":"image","rect":[0,0,100,100],"src":"foto.png","fit":"cover"}"#;
         let f: Frame = serde_json::from_str(json).unwrap();
         match &f.content {
@@ -536,7 +681,9 @@ mod tests {
                 assert_eq!(g.children.len(), 1);
                 assert!(matches!(
                     g.children[0].content,
-                    FrameContent::Shape(ShapeFrame { shape: ShapeKind::Ellipse })
+                    FrameContent::Shape(ShapeFrame {
+                        shape: ShapeKind::Ellipse
+                    })
                 ));
             }
             other => panic!("expected group, got {other:?}"),

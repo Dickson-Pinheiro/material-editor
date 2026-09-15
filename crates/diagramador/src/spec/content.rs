@@ -114,6 +114,7 @@ impl<'de> Deserialize<'de> for TrackSize {
 /// around it: it follows the paragraph before it, and when the page runs out
 /// it continues on the next one.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct TableBlock {
     /// One entry per column. An empty list means the columns are inferred
@@ -157,6 +158,7 @@ pub struct TableBlock {
 
 /// Rows that repeat when the table breaks across pages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct RepeatRows {
     /// How many rows from the top — or, for a footer, from the bottom.
@@ -179,6 +181,7 @@ pub struct RepeatRows {
 
 /// One cell.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Cell {
     /// Explicit column. Absent means the next free slot, filling row by row.
@@ -216,7 +219,11 @@ pub struct Cell {
 impl Default for RepeatRows {
     fn default() -> Self {
         // Repeating is the point of declaring a header at all.
-        RepeatRows { rows: 1, repeat: true, continued: None }
+        RepeatRows {
+            rows: 1,
+            repeat: true,
+            continued: None,
+        }
     }
 }
 
@@ -244,12 +251,17 @@ impl Default for Stripe {
     fn default() -> Self {
         // Every other row, starting with the second: the first is usually the
         // heading, and striping it would fight the heading's own fill.
-        Stripe { every: 2, offset: 1, fill: None }
+        Stripe {
+            every: 2,
+            offset: 1,
+            fill: None,
+        }
     }
 }
 
 /// A rule drawn along a grid line, independent of the cells.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct GridLine {
     /// `horizontal` runs along a row boundary, `vertical` along a column one.
@@ -271,6 +283,7 @@ pub struct GridLine {
 /// while a cell is the other way round. Sharing one enum would mean two
 /// values that are meaningless wherever they are read.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum CellAlign {
     #[default]
@@ -284,6 +297,7 @@ pub enum CellAlign {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum GridAxis {
     #[default]
@@ -293,6 +307,7 @@ pub enum GridAxis {
 
 /// Alternating row fills.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Stripe {
     /// Fill one row in every `every`.
@@ -319,6 +334,7 @@ pub struct Stripe {
 /// borda tinha de ser escrita como quatro linhas de grade, que duas caixas
 /// vizinhas então compartilhavam.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct PanelBlock {
     pub blocks: Vec<Block>,
@@ -327,8 +343,23 @@ pub struct PanelBlock {
     pub border: Option<super::frame::Border>,
     /// Os quatro cantos, no sentido horário a partir do superior esquerdo.
     pub radius: Corners,
+    /// O que o canto faz com o raio: arco, ou corte reto. Ver `Frame::corner`.
+    pub corner: super::frame::CornerStyle,
     /// Espaço entre a moldura e o conteúdo.
     pub inset: Insets,
+
+    /// Altura mínima da moldura, borda inclusa.
+    ///
+    /// A moldura cresce com o conteúdo; isto lhe dá um piso. É o que permite a
+    /// um editor deixar um quadro de atividade com espaço de sobra para o
+    /// aluno escrever, sem encher o painel de blocos vazios para empurrá-lo.
+    ///
+    /// Não é altura fixa: conteúdo que passe do piso continua crescendo, e um
+    /// piso maior do que o que resta na coluna é limitado ao que resta — uma
+    /// moldura que passasse da mancha empurraria para fora o que vem depois,
+    /// sem que nada na página dissesse por quê.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_height: Option<Len>,
 
     #[serde(rename = "use")]
     pub use_style: Option<String>,
@@ -348,7 +379,10 @@ pub struct PanelBlock {
 impl PanelBlock {
     /// A moldura repetida numa continuação, sem o conteúdo.
     pub(crate) fn continuing(&self, blocks: Vec<Block>) -> PanelBlock {
-        PanelBlock { blocks, ..self.clone() }
+        PanelBlock {
+            blocks,
+            ..self.clone()
+        }
     }
 }
 
@@ -396,6 +430,7 @@ impl Block {
 impl<'de> Deserialize<'de> for Block {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         #[serde(tag = "type", rename_all = "camelCase")]
         enum Tagged {
             Paragraph(Paragraph),
@@ -409,6 +444,7 @@ impl<'de> Deserialize<'de> for Block {
         }
 
         #[derive(Deserialize)]
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         #[serde(untagged)]
         enum Repr {
             Shorthand(String),
@@ -431,6 +467,7 @@ impl<'de> Deserialize<'de> for Block {
 
 /// A run of inline content laid out as a sequence of lines.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Paragraph {
     /// Stable identity, echoed into the display list so the editor can map a
@@ -489,6 +526,7 @@ impl Paragraph {
 
 /// A label placed before a paragraph — bullet, number, letter, anything.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Marker {
     pub text: String,
@@ -514,6 +552,7 @@ impl Default for Marker {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct RuleBlock {
     pub thickness: Option<Len>,
@@ -524,6 +563,7 @@ pub struct RuleBlock {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct SpacerBlock {
     pub height: Len,
@@ -568,6 +608,7 @@ impl Inline {
 impl<'de> Deserialize<'de> for Inline {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         #[serde(tag = "type", rename_all = "camelCase")]
         enum Tagged {
             Text(TextRun),
@@ -579,6 +620,7 @@ impl<'de> Deserialize<'de> for Inline {
         }
 
         #[derive(Deserialize)]
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         #[serde(untagged)]
         enum Repr {
             Shorthand(String),
@@ -598,6 +640,7 @@ impl<'de> Deserialize<'de> for Inline {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct TextRun {
     pub text: String,
@@ -610,21 +653,41 @@ pub struct TextRun {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Tab {
     /// Absolute x position within the column to advance to. When absent, the
-    /// next multiple of `defaultStop` is used.
+    /// next multiple of `defaultStop` is used — or, for a right tab, the
+    /// column's right edge.
     pub to: Option<Len>,
+    /// Drawn across the gap the tab opens: `.` dots, `-` dashes, `_` a solid
+    /// line. Anything else is read as dots.
     pub leader: Option<String>,
+    /// `right` ends the text that follows at the stop instead of starting it
+    /// there. With no `to`, the stop is the column's right edge, so a table of
+    /// contents keeps its page numbers flush however wide the frame becomes.
+    pub align: TabAlign,
+}
+
+/// Which side of the text after a tab lines up with the stop.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub enum TabAlign {
+    #[default]
+    Left,
+    Right,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct SpaceRun {
     pub width: Len,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct InlineImage {
     /// Key registered through `add_image`.
@@ -636,6 +699,7 @@ pub struct InlineImage {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct InlineRule {
     /// Absent means "fill the rest of the line".
@@ -655,7 +719,10 @@ mod tests {
         let parse = |json: &str| serde_json::from_str::<TrackSize>(json).unwrap();
         assert_eq!(parse(r#""auto""#), TrackSize::Auto);
         assert_eq!(parse("120"), TrackSize::Fixed(Len(120.0)));
-        assert_eq!(parse(r#""20mm""#), TrackSize::Fixed(Len(20.0 * 72.0 / 25.4)));
+        assert_eq!(
+            parse(r#""20mm""#),
+            TrackSize::Fixed(Len(20.0 * 72.0 / 25.4))
+        );
         assert_eq!(parse(r#""1fr""#), TrackSize::Fraction(1.0));
         assert_eq!(parse(r#""2.5fr""#), TrackSize::Fraction(2.5));
         assert_eq!(parse(r#""25%""#), TrackSize::Relative(0.25));
@@ -680,7 +747,9 @@ mod tests {
             ]
         }"##;
         let block: Block = serde_json::from_str(json).unwrap();
-        let Block::Table(table) = block else { panic!("não é tabela") };
+        let Block::Table(table) = block else {
+            panic!("não é tabela")
+        };
 
         assert_eq!(table.columns.len(), 3);
         assert_eq!(table.columns[1], TrackSize::Fraction(1.0));
@@ -688,8 +757,15 @@ mod tests {
         assert_eq!(table.cells[3].colspan, 2);
         assert_eq!(table.cells[0].colspan, 1, "sem declarar, um span é um");
         assert_eq!(table.cells[0].rowspan, 1);
-        assert!(table.header.as_ref().unwrap().repeat, "um cabeçalho repete por omissão");
-        assert_eq!(table.stripe.as_ref().unwrap().every, 2, "zebra de duas em duas");
+        assert!(
+            table.header.as_ref().unwrap().repeat,
+            "um cabeçalho repete por omissão"
+        );
+        assert_eq!(
+            table.stripe.as_ref().unwrap().every,
+            2,
+            "zebra de duas em duas"
+        );
         assert_eq!(table.lines.len(), 1);
         assert_eq!(table.lines[0].axis, GridAxis::Horizontal);
     }
@@ -703,7 +779,11 @@ mod tests {
         let Block::Table(table) = serde_json::from_str::<Block>(json).unwrap() else {
             panic!("não é tabela")
         };
-        assert_eq!(table.cells[0].blocks.len(), 3, "dois parágrafos e um espaçador");
+        assert_eq!(
+            table.cells[0].blocks.len(),
+            3,
+            "dois parágrafos e um espaçador"
+        );
         assert!(matches!(table.cells[0].blocks[1], Block::Spacer(_)));
     }
 
@@ -718,7 +798,6 @@ mod tests {
         let again: Block = serde_json::from_str(&serde_json::to_string(&first).unwrap()).unwrap();
         assert_eq!(first, again);
     }
-
 
     #[test]
     fn block_string_shorthand_becomes_a_paragraph() {
@@ -783,7 +862,8 @@ mod tests {
     #[test]
     fn named_style_reference_parses() {
         let b: Block =
-            serde_json::from_str(r#"{"type":"paragraph","use":"h1","content":["Título"]}"#).unwrap();
+            serde_json::from_str(r#"{"type":"paragraph","use":"h1","content":["Título"]}"#)
+                .unwrap();
         assert_eq!(b.as_paragraph().unwrap().use_style.as_deref(), Some("h1"));
     }
 }

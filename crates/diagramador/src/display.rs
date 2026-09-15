@@ -23,13 +23,16 @@ use crate::color::Color;
 use crate::units::{Corners, Rect};
 
 /// Bumped when the display list shape changes in a way JS must know about.
-pub const DISPLAY_VERSION: u32 = 1;
+///
+/// 2: `DisplayFrame::fit`, and `Diagnostic` grew `rect`, `amount` and `source`.
+pub const DISPLAY_VERSION: u32 = 2;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Root
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct DisplayList {
     pub version: u32,
@@ -70,6 +73,7 @@ impl DisplayList {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayFont {
     /// Matches [`crate::fonts::FontId`].
@@ -86,6 +90,7 @@ pub struct DisplayFont {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct DisplayPage {
     pub index: u32,
@@ -103,11 +108,14 @@ pub struct DisplayPage {
 
 /// A frame as the editor sees it: a selectable, draggable box.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayFrame {
     pub id: String,
     pub name: Option<String>,
-    /// In page coordinates, after any group transforms have been applied.
+    /// In page coordinates: the frame's own rect offset by its ancestor
+    /// groups' corners, grown when `overflow: grow` asked for it. Rotation is
+    /// not applied — that is what `rotation` is for.
     pub rect: Rect,
     pub rotation: f64,
     /// `"text"`, `"image"`, `"shape"` or `"group"`.
@@ -117,6 +125,32 @@ pub struct DisplayFrame {
     pub overset: bool,
     /// Ancestor frame ids, outermost first. Empty for top-level frames.
     pub ancestors: Vec<String>,
+    /// How the content measured against the box. Text frames only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fit: Option<Fit>,
+}
+
+/// How a text frame's content measured against the room it was given.
+///
+/// Report only: nothing here moved a glyph. It says what `overset` cannot —
+/// by how much, in which direction, and whether the clip hid it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct Fit {
+    /// Height the flow actually used, tallest column, padding excluded.
+    pub content_h: f64,
+    /// Height the flow had: the frame's height (grown, if it grew) less its
+    /// vertical padding.
+    pub box_h: f64,
+    /// How far the widest line runs past its measure. `0` when every line fits.
+    pub overflow_x: f64,
+    /// How much taller the content is than the box: what was drawn past the
+    /// bottom, plus what was not placed at all (measured at column width).
+    /// `0` when everything fits, or when the rest went on down a thread.
+    pub overflow_y: f64,
+    /// The frame clips, and something drawn crosses the clip.
+    pub clipped: bool,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -124,6 +158,7 @@ pub struct DisplayFrame {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum DisplayItem {
     /// A nested coordinate space: transform, clip and opacity applied together.
@@ -137,6 +172,7 @@ pub enum DisplayItem {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct DisplayGroup {
     pub source: Option<SourceRef>,
@@ -162,6 +198,7 @@ impl DisplayGroup {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ClipShape {
     pub rect: Rect,
@@ -170,6 +207,7 @@ pub struct ClipShape {
 
 /// A sequence of positioned glyphs sharing one font, size and colour.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct GlyphRun {
     /// Index into [`DisplayList::fonts`].
@@ -189,6 +227,7 @@ pub struct GlyphRun {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct Glyph {
     /// Glyph id in the original (un-subsetted) face.
@@ -204,6 +243,7 @@ pub struct Glyph {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct RectItem {
     pub rect: Rect,
@@ -223,6 +263,7 @@ pub struct RectItem {
 /// the same space as every other item. The PDF emitter flips once, at the
 /// boundary, exactly as it does for rectangles.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct PathItem {
     pub commands: Vec<PathCommand>,
@@ -240,11 +281,25 @@ pub struct PathItem {
 /// get right in the PDF emitter and one in the canvas renderer, rather than a
 /// family of them to keep in agreement.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum PathCommand {
-    MoveTo { x: f64, y: f64 },
-    LineTo { x: f64, y: f64 },
-    CurveTo { x1: f64, y1: f64, x2: f64, y2: f64, x: f64, y: f64 },
+    MoveTo {
+        x: f64,
+        y: f64,
+    },
+    LineTo {
+        x: f64,
+        y: f64,
+    },
+    CurveTo {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        x: f64,
+        y: f64,
+    },
     Close,
 }
 
@@ -257,7 +312,14 @@ impl PathCommand {
                 *x += dx;
                 *y += dy;
             }
-            PathCommand::CurveTo { x1, y1, x2, y2, x, y } => {
+            PathCommand::CurveTo {
+                x1,
+                y1,
+                x2,
+                y2,
+                x,
+                y,
+            } => {
                 *x1 += dx;
                 *y1 += dy;
                 *x2 += dx;
@@ -271,6 +333,7 @@ impl PathCommand {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum FillRule {
     #[default]
@@ -279,6 +342,7 @@ pub enum FillRule {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct EllipseItem {
     pub rect: Rect,
@@ -288,6 +352,7 @@ pub struct EllipseItem {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct LineItem {
     pub x1: f64,
@@ -299,6 +364,7 @@ pub struct LineItem {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ImageItem {
     /// Key registered through `add_image`.
@@ -310,6 +376,7 @@ pub struct ImageItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct Stroke {
     pub color: Color,
@@ -339,6 +406,7 @@ impl Default for Stroke {
 /// A's block and inline indices, with `offset` advanced accordingly — so the
 /// editor writes back to the right place no matter which frame was clicked.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct SourceRef {
     pub page: u32,
@@ -369,6 +437,7 @@ pub struct SourceRef {
 
 /// One step down into a table.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", default)]
 pub struct CellStep {
     /// Index of the table block in the list that holds it.
@@ -403,7 +472,8 @@ impl SourceRef {
 // Diagnostics
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct Diagnostic {
     pub severity: Severity,
@@ -411,6 +481,16 @@ pub struct Diagnostic {
     pub message: String,
     pub page: Option<u32>,
     pub frame: Option<String>,
+    /// Where on the page the problem is, when narrower than the frame — a
+    /// table cell, say. Page coordinates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rect: Option<Rect>,
+    /// How big the problem is, in points: how far a line or a cell overflows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amount: Option<f64>,
+    /// The content the problem is about, addressed like a painted item.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<SourceRef>,
 }
 
 impl Diagnostic {
@@ -421,6 +501,9 @@ impl Diagnostic {
             message: message.into(),
             page: None,
             frame: None,
+            rect: None,
+            amount: None,
+            source: None,
         }
     }
 
@@ -436,9 +519,25 @@ impl Diagnostic {
         self.frame = Some(frame.into());
         self
     }
+
+    pub fn with_rect(mut self, rect: Rect) -> Self {
+        self.rect = Some(rect);
+        self
+    }
+
+    pub fn with_amount(mut self, amount: f64) -> Self {
+        self.amount = Some(amount);
+        self
+    }
+
+    pub fn with_source(mut self, source: SourceRef) -> Self {
+        self.source = Some(source);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub enum Severity {
     Info,
@@ -460,8 +559,20 @@ mod tests {
             width: 20.0,
             text: "Oi".into(),
             glyphs: vec![
-                Glyph { id: 50, x: 0.0, y: 0.0, advance: 8.0, cluster: 0 },
-                Glyph { id: 51, x: 8.0, y: 0.0, advance: 12.0, cluster: 1 },
+                Glyph {
+                    id: 50,
+                    x: 0.0,
+                    y: 0.0,
+                    advance: 8.0,
+                    cluster: 0,
+                },
+                Glyph {
+                    id: 51,
+                    x: 8.0,
+                    y: 0.0,
+                    advance: 12.0,
+                    cluster: 1,
+                },
             ],
             source: Some(SourceRef::frame(0, "f1").at(0, 0, 0)),
         }
@@ -523,7 +634,13 @@ mod tests {
     #[test]
     fn pass_through_groups_are_detectable() {
         assert!(DisplayGroup::new().is_pass_through());
-        assert!(!DisplayGroup { opacity: 0.5, ..DisplayGroup::new() }.is_pass_through());
+        assert!(
+            !DisplayGroup {
+                opacity: 0.5,
+                ..DisplayGroup::new()
+            }
+            .is_pass_through()
+        );
         assert!(
             !DisplayGroup {
                 clip: Some(ClipShape::default()),
@@ -542,8 +659,30 @@ mod tests {
 
         let mut list = DisplayList::new();
         assert!(!list.has_errors());
-        list.diagnostics.push(Diagnostic::error("noFont", "sem fontes"));
+        list.diagnostics
+            .push(Diagnostic::error("noFont", "sem fontes"));
         assert!(list.has_errors());
+    }
+
+    #[test]
+    fn a_diagnostic_without_the_new_fields_serialises_as_before() {
+        let d = Diagnostic::warning("overset", "texto não coube").on(2, "f7");
+        let json = serde_json::to_string(&d).unwrap();
+        assert_eq!(
+            json,
+            r#"{"severity":"warning","code":"overset","message":"texto não coube","page":2,"frame":"f7"}"#
+        );
+        let back: Diagnostic = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, d);
+
+        let rich = d
+            .with_amount(3.5)
+            .with_rect(Rect::new(1.0, 2.0, 3.0, 4.0))
+            .with_source(SourceRef::frame(2, "f7").at(0, 0, 4));
+        let json = serde_json::to_string(&rich).unwrap();
+        assert!(json.contains(r#""amount":3.5"#), "{json}");
+        assert!(json.contains(r#""source":{"#), "{json}");
+        assert_eq!(serde_json::from_str::<Diagnostic>(&json).unwrap(), rich);
     }
 
     #[test]

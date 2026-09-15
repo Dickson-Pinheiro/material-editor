@@ -1,0 +1,33 @@
+# palavra mais larga que o frame
+  frame  estreito  (40.00, 40.00) 150.00x120.00  overset=false
+  grupo  clip=true
+  texto  (  40.00,   54.65)  w=26.96  "um "
+  texto  (  40.00,   74.25)  w=291.09  "laboratórioextraordinariamentecomprido "
+  texto  (  40.00,   93.85)  w=30.23  "aqui"
+  texto  (  40.00,  113.45)  w=112.99  "e um parágrafo "
+  texto  (  40.00,  133.05)  w=137.28  "comum que quebra"
+
+# palavra centralizada mais larga que o frame
+  frame  centro  (40.00, 40.00) 150.00x60.00  overset=false
+  grupo  clip=true
+  texto  (   1.54,   54.65)  w=226.92  "supercalifragilisticexpialidocious"
+
+# linha de tabela com altura fixa
+  frame  tab  (40.00, 40.00) 300.00x300.00  overset=false
+  grupo  clip=true
+  caixa  (  40.00,   40.00)  60.00x18.00
+  texto  (  42.00,   56.65)  w=35.54  "uma "
+  texto  (  42.00,   76.25)  w=45.99  "célula "
+  texto  (  42.00,   95.85)  w=34.35  "com "
+  texto  (  42.00,  115.45)  w=40.65  "texto "
+  texto  (  42.00,  135.05)  w=55.35  "demais "
+  texto  (  42.00,  154.65)  w=36.25  "para "
+  texto  (  42.00,  174.25)  w=55.81  "dezoito "
+  texto  (  42.00,  193.85)  w=47.67  "pontos"
+  caixa  ( 100.00,   40.00)  240.00x18.00
+  texto  ( 102.00,   56.65)  w=33.78  "cabe"
+  caixa  (  40.00,   58.00)  60.00x23.60
+  texto  (  42.00,   74.65)  w=249.16  "palavraimensamentegrandedemais"
+  caixa  ( 100.00,   58.00)  240.00x23.60
+  texto  ( 102.00,   74.65)  w=8.89  "b"
+
